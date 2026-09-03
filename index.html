@@ -110,82 +110,93 @@
 
       <div class="work-list">
 
-        <article class="work-item">
-          <div class="work-media work-media-shots">
-            <img src="assets/work/kenna-1.jpg" alt="Studio McKenna artwork — Dancing through Life">
-            <img src="assets/work/kenna-2.jpg" alt="Studio McKenna artwork — Rain days">
-            <img src="assets/work/kenna-3.jpg" alt="Studio McKenna artwork — Green Goddess">
-          </div>
-          <div class="work-body">
-            <span class="work-tag">Web &amp; App Development</span>
-            <h3>Studio McKenna</h3>
-            <p>A custom portfolio and gallery site built for an independent artist — searchable, filterable gallery (dimensions, medium, style, subject), and a smooth upload flow for new pieces.</p>
-            <p>When mobile uploads kept failing on a low-power host, we shipped in-browser image compression that shrinks a typical 10MB+ iPhone photo down to ~1MB before it's ever sent — an 89% reduction with no visible quality loss — fixing the failure at the source instead of just paying for a bigger server.</p>
-            <a href="https://kenna-art.onrender.com" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
-          </div>
-        </article>
+        <div class="work-group">
+          <p class="work-group-label">AI</p>
 
-        <article class="work-item work-item-reverse">
-          <div class="work-media work-media-frame">
-            <div class="browser-frame">
-              <div class="browser-bar"><span></span><span></span><span></span></div>
-              <div class="browser-content parkless-mock">
-                <div class="pm-nav">ParkLess</div>
-                <div class="pm-hero">Daily Parking,<br>Reimagined.</div>
-                <div class="pm-map"></div>
+          <article class="work-item">
+            <div class="work-media work-media-frame">
+              <div class="browser-frame">
+                <div class="browser-bar"><span></span><span></span><span></span></div>
+                <div class="browser-content agent-mock">
+                  <div class="am-msg am-in">"Hey, do you guys do bulk pickups?"</div>
+                  <div class="am-msg am-out">Great question! Bulk pickups are $15/each — want me to add one to your plan?</div>
+                  <div class="am-status">✓ delivered · human handoff: off</div>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="work-body">
-            <span class="work-tag">Web &amp; App Development</span>
-            <h3>ParkLess</h3>
-            <p>A peer-to-peer marketplace for daily parking — property owners list open spots, drivers find and book them nearby on an interactive live map.</p>
-            <p>Built on Next.js and deployed on Vercel, with listing management, spot discovery, and a fully custom-themed map experience.</p>
-            <a href="https://park-less.vercel.app" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
-          </div>
-        </article>
+            <div class="work-body">
+              <span class="work-tag">AI</span>
+              <h3>AI Lead Response Agent</h3>
+              <p>An always-on SMS agent that follows up with inbound leads for a subscription service business, integrated directly with their CRM (GoHighLevel).</p>
+              <p>It drafts contextual replies, detects when a message actually failed to deliver and recovers gracefully instead of repeating itself, and permanently backs off the moment a real human joins the conversation — automation that knows exactly when to get out of the way. Runs on a scheduled cron, unattended.</p>
+            </div>
+          </article>
+        </div>
 
-        <article class="work-item">
-          <div class="work-media work-media-frame">
-            <div class="browser-frame">
-              <div class="browser-bar"><span></span><span></span><span></span></div>
-              <div class="browser-content leads-mock">
-                <div class="lm-title">Data→Lead→Sell</div>
-                <div class="lm-row"><span>Apache County, AZ</span><span class="lm-pill">Matched</span></div>
-                <div class="lm-row"><span>Greenlee County, AZ</span><span class="lm-pill">Running</span></div>
-                <div class="lm-row"><span>Yavapai County, AZ</span><span class="lm-pill">Matched</span></div>
-                <div class="lm-map"></div>
+        <div class="work-group">
+          <p class="work-group-label">Automation</p>
+
+          <article class="work-item work-item-reverse">
+            <div class="work-media work-media-frame">
+              <div class="browser-frame">
+                <div class="browser-bar"><span></span><span></span><span></span></div>
+                <div class="browser-content leads-mock">
+                  <div class="lm-title">Data→Lead→Sell</div>
+                  <div class="lm-row"><span>Apache County, AZ</span><span class="lm-pill">Matched</span></div>
+                  <div class="lm-row"><span>Greenlee County, AZ</span><span class="lm-pill">Running</span></div>
+                  <div class="lm-row"><span>Yavapai County, AZ</span><span class="lm-pill">Matched</span></div>
+                  <div class="lm-map"></div>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="work-body">
-            <span class="work-tag">Data &amp; Automation</span>
-            <h3>Data→Lead→Sell</h3>
-            <p>An automated lead-generation platform for real estate investors, built and operated in-house. County by county, it scrapes public probate filings and cross-references assessor records to identify properties in probate.</p>
-            <p>Owner mailing addresses get validated for deliverability, matched leads land on a live map dashboard, and a built-in PDF wizard turns them straight into mail-ready postcard templates — a pipeline that used to take hours of manual county-site digging, running unattended.</p>
-            <a href="https://dataleadsell.com" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
-          </div>
-        </article>
+            <div class="work-body">
+              <span class="work-tag">Automation</span>
+              <h3>Data→Lead→Sell</h3>
+              <p>An automated lead-generation platform for real estate investors, built and operated in-house. County by county, it scrapes public probate filings and cross-references assessor records to identify properties in probate.</p>
+              <p>Owner mailing addresses get validated for deliverability, matched leads land on a live map dashboard, and a built-in PDF wizard turns them straight into mail-ready postcard templates — a pipeline that used to take hours of manual county-site digging, running unattended.</p>
+              <a href="https://dataleadsell.com" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
+            </div>
+          </article>
+        </div>
 
-        <article class="work-item work-item-reverse">
-          <div class="work-media work-media-frame">
-            <div class="browser-frame">
-              <div class="browser-bar"><span></span><span></span><span></span></div>
-              <div class="browser-content agent-mock">
-                <div class="am-msg am-in">"Hey, do you guys do bulk pickups?"</div>
-                <div class="am-msg am-out">Great question! Bulk pickups are $15/each — want me to add one to your plan?</div>
-                <div class="am-status">✓ delivered · human handoff: off</div>
+        <div class="work-group">
+          <p class="work-group-label">Websites</p>
+
+          <article class="work-item">
+            <div class="work-media work-media-shots">
+              <img src="assets/work/kenna-1.jpg" alt="Studio McKenna artwork — Dancing through Life">
+              <img src="assets/work/kenna-2.jpg" alt="Studio McKenna artwork — Rain days">
+              <img src="assets/work/kenna-3.jpg" alt="Studio McKenna artwork — Green Goddess">
+            </div>
+            <div class="work-body">
+              <span class="work-tag">Website</span>
+              <h3>Studio McKenna</h3>
+              <p>A custom portfolio and gallery site built for an independent artist — searchable, filterable gallery (dimensions, medium, style, subject), and a smooth upload flow for new pieces.</p>
+              <p>When mobile uploads kept failing on a low-power host, we shipped in-browser image compression that shrinks a typical 10MB+ iPhone photo down to ~1MB before it's ever sent — an 89% reduction with no visible quality loss — fixing the failure at the source instead of just paying for a bigger server.</p>
+              <a href="https://kenna-art.onrender.com" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
+            </div>
+          </article>
+
+          <article class="work-item work-item-reverse">
+            <div class="work-media work-media-frame">
+              <div class="browser-frame">
+                <div class="browser-bar"><span></span><span></span><span></span></div>
+                <div class="browser-content parkless-mock">
+                  <div class="pm-nav">ParkLess</div>
+                  <div class="pm-hero">Daily Parking,<br>Reimagined.</div>
+                  <div class="pm-map"></div>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="work-body">
-            <span class="work-tag">AI Agents &amp; Automation</span>
-            <h3>AI Lead Response Agent</h3>
-            <p>An always-on SMS agent that follows up with inbound leads for a subscription service business, integrated directly with their CRM (GoHighLevel).</p>
-            <p>It drafts contextual replies, detects when a message actually failed to deliver and recovers gracefully instead of repeating itself, and permanently backs off the moment a real human joins the conversation — automation that knows exactly when to get out of the way. Runs on a scheduled cron, unattended.</p>
-            <a href="https://lead-responder-eight.vercel.app/api/dashboard?secret=kaizen-lead-responder-2ad9f7c1e6b34d0aa1f5c3e7d9b02468" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
-          </div>
-        </article>
+            <div class="work-body">
+              <span class="work-tag">Website</span>
+              <h3>ParkLess</h3>
+              <p>A peer-to-peer marketplace for daily parking — property owners list open spots, drivers find and book them nearby on an interactive live map.</p>
+              <p>Built on Next.js and deployed on Vercel, with listing management, spot discovery, and a fully custom-themed map experience.</p>
+              <a href="https://park-less.vercel.app" target="_blank" rel="noopener" class="work-link">Visit the site ↗</a>
+            </div>
+          </article>
+        </div>
 
       </div>
     </div>
