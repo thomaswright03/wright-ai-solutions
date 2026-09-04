@@ -163,6 +163,7 @@ section h2{font-size:clamp(28px, 4vw, 40px); margin-bottom:48px; max-width:600px
 .browser-bar{display:flex; gap:6px; padding:12px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);}
 .browser-bar span{width:10px; height:10px; border-radius:50%; background:var(--border);}
 .browser-content{padding:28px; min-height:280px;}
+.browser-shot{display:block; width:100%; height:auto;}
 
 .parkless-mock .pm-nav{font-family:'Space Grotesk',sans-serif; font-weight:700; margin-bottom:22px;}
 .parkless-mock .pm-hero{font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; margin-bottom:20px;}
