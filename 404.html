@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found — Wright AI Solutions</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=3">
+<style>
+  .notfound{min-height:80vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:120px 24px;}
+  .notfound .code{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(64px,12vw,120px); line-height:1; background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:8px;}
+  .notfound h1{font-size:clamp(22px,4vw,30px); margin-bottom:14px;}
+  .notfound p{color:var(--text-dim); font-size:15px; max-width:440px; margin-bottom:32px;}
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="/" class="logo">
+      <span class="logo-mark">⚡</span> Wright AI Solutions
+    </a>
+    <nav class="nav">
+      <a href="/#work">Work</a>
+      <a href="/#services">Services</a>
+      <a href="/#about">About</a>
+      <a href="/#contact" class="nav-cta">Start a Project</a>
+    </nav>
+  </div>
+</header>
+
+<main class="notfound">
+  <p class="code">404</p>
+  <h1>This page doesn't exist.</h1>
+  <p>The link might be broken, or the page may have moved. Head back to the homepage to find what you're looking for.</p>
+  <a href="/" class="btn btn-primary">Back to home</a>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© <span id="copyright-year">2026</span> Wright AI Solutions LLC. All rights reserved.</span>
+    <div class="footer-contact">
+      <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>
+      <a href="tel:+18015808630">(801) 580-8630</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const y = document.getElementById('copyright-year');
+  if (y) y.textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

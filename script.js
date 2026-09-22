@@ -1,3 +1,6 @@
+const copyrightYear = document.getElementById('copyright-year');
+if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
+
 const navToggle = document.getElementById('navToggle');
 const navMobile = document.getElementById('navMobile');
 
