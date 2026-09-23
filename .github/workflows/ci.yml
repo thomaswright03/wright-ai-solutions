@@ -16,9 +16,13 @@ jobs:
         with:
           args: >
             --no-progress
-            --exclude-mail
-            index.html 404.html README.md
+            index.html README.md
           fail: true
+        # 404.html is deliberately not checked here: its nav links are root-relative
+        # ("/", "/#work") so they resolve correctly once Cloudflare Pages serves this
+        # file for any unmatched path, but a local file-based checker has no way to
+        # resolve a root-relative link against a real site root. The same anchors
+        # are already verified via index.html's own in-page links above.
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -31,3 +35,48 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  html-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes html-validate index.html 404.html
+
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copyright line present on every page
+        run: |
+          for f in index.html 404.html; do
+            grep -qE 'Wright AI Solutions LLC\. All rights reserved\.' "$f" || {
+              echo "::error file=$f::Missing 'Wright AI Solutions LLC. All rights reserved.' copyright line"
+              exit 1
+            }
+          done
+
+      - name: Legal name spelled consistently
+        run: |
+          if grep -n 'Wright AI Solutions, LLC' index.html 404.html README.md; then
+            echo "::error::Found 'Wright AI Solutions, LLC' (with comma) — the standard form is 'Wright AI Solutions LLC'"
+            exit 1
+          fi
+
+      - name: Shared header/footer text stays in sync between index.html and 404.html
+        run: |
+          extract() { sed -n '/<footer/,/<\/footer>/p' "$1"; }
+          diff <(extract index.html) <(extract 404.html) || {
+            echo "::error::index.html and 404.html footers have drifted apart"
+            exit 1
+          }
+
+      - name: Page weight budget (index.html + directly referenced CSS/JS/fonts)
+        run: |
+          total=$(cat index.html styles.css script.js fonts/fonts.css fonts/*.woff2 | wc -c)
+          echo "Total bytes: $total"
+          limit=$((500 * 1024))
+          if [ "$total" -gt "$limit" ]; then
+            echo "::error::Page weight ${total} bytes exceeds ${limit} byte budget"
+            exit 1
+          fi
