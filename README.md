@@ -27,6 +27,8 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 - `404.html` — custom not-found page
 - `privacy.html` — privacy notice, served at `/privacy` and linked from every page's footer. If the site ever adds a form, analytics, cookies or a third-party embed, update this page in the same change.
 - `assets/work/` — screenshots and photos used in the Work section
+- `docs/PRIVACY-ROUTINE.md` — how the privacy notice's promises (retention, requests, takedowns) are kept
+- `docs/COMPLIANCE-NOTES.md` — dated list of laws and licences that may apply, with sources and open items
 - `fonts/` — self-hosted Inter and Space Grotesk (latin subset), each with its SIL Open Font License text (`LICENSE-Inter.txt`, `LICENSE-SpaceGrotesk.txt`), which the licence requires to ship alongside the font files
 
 ## Known limitations

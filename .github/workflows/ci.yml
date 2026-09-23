@@ -20,7 +20,7 @@ jobs:
             --root-dir ${{ github.workspace }}
             --fallback-extensions html
             --remap '^https://wright-ai-solutions\.com/(.*)$ file://${{ github.workspace }}/$1'
-            index.html 404.html privacy.html README.md
+            index.html 404.html privacy.html README.md docs/*.md
           fail: true
         # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
         # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
