@@ -4,6 +4,10 @@
 {
   "name": "wright-ai-solutions",
   "compatibility_date": "2026-09-21",
+  // Writes version.txt (the commit being deployed) for the post-deploy check.
+  "build": {
+    "command": "sh scripts/write-version.sh"
+  },
   "assets": {
     "directory": "./",
     // Serve 404.html (with a 404 status) for any unmatched path.

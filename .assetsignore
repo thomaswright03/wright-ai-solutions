@@ -8,3 +8,10 @@ node_modules
 .wrangler
 .gitignore
 docs
+scripts
+tests
+package.json
+package-lock.json
+playwright.config.mjs
+test-results
+playwright-report

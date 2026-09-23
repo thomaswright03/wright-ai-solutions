@@ -45,7 +45,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx --yes html-validate index.html 404.html privacy.html
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run validate
+
+  browser-tests:
+    # Serves the site the way Cloudflare does (tests/serve.mjs) and checks every
+    # page at phone, tablet and desktop widths in both themes: no horizontal
+    # overflow, no console errors or failed requests, header/footer present,
+    # mobile menu, skip link, theme toggle, contrast and a few a11y rules.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
 
   static-checks:
     runs-on: ubuntu-latest
@@ -78,6 +108,40 @@ jobs:
             }
           done
 
+      - name: Shared header stays in sync across pages
+        run: |
+          # index.html links to its own sections ("#work"); the other pages link
+          # back to them ("/#work"). Normalise that, then the headers must match.
+          extract() { sed -n '/<header/,/<\/header>/p' "$1" | sed 's#href="\##href="/\##g'; }
+          for f in 404.html privacy.html; do
+            diff <(extract index.html) <(extract "$f") || {
+              echo "::error file=$f::header has drifted from index.html"
+              exit 1
+            }
+          done
+
+      - name: One cache-busting version for every page's CSS and JS
+        run: |
+          versions=$(grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html | sed 's/.*?v=//' | sort -u)
+          if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
+            echo "::error::Pages reference different ?v= versions: $(echo $versions)"
+            exit 1
+          fi
+          if grep -nE '(href|src)="/[^"]+\.(css|js)"' index.html 404.html privacy.html; then
+            echo "::error::Every local CSS/JS reference needs the shared ?v=$versions"
+            exit 1
+          fi
+
+      - name: Font sizes and spacing come from the scale in styles.css
+        run: |
+          # Token definitions ("--fs-*", "--space-*") are the only place raw px values may appear.
+          raw=$(grep -vE '^\s*--' styles.css | grep -nE 'font-size:\s*[0-9.]+px|(margin|padding|gap)(-[a-z]+)?:[^;}]*[0-9]px' || true)
+          if [ -n "$raw" ]; then
+            echo "$raw"
+            echo "::error file=styles.css::Use the --fs-* and --space-* tokens instead of raw px values"
+            exit 1
+          fi
+
       - name: Every page links to the privacy notice
         run: |
           for f in index.html 404.html privacy.html; do
@@ -98,7 +162,7 @@ jobs:
 
       - name: Page weight budget (index.html + directly referenced CSS/JS/fonts)
         run: |
-          total=$(cat index.html styles.css script.js fonts/fonts.css fonts/*.woff2 | wc -c)
+          total=$(cat index.html styles.css script.js theme-init.js fonts/fonts.css fonts/*.woff2 | wc -c)
           echo "Total bytes: $total"
           limit=$((500 * 1024))
           if [ "$total" -gt "$limit" ]; then

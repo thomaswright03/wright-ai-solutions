@@ -1,2 +1,5 @@
 .wrangler/
 node_modules/
+version.txt
+test-results/
+playwright-report/
