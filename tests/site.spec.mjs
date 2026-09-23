@@ -196,6 +196,47 @@ test('the logo link is a comfortable tap target', async ({ page }) => {
   expect(box.height).toBeGreaterThanOrEqual(44);
 });
 
+test('the desktop "Start a Project" button is at least 44px tall', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const path of ['/', '/privacy', '/404.html']) {
+    await page.goto(path);
+    const box = await page.locator('.nav .nav-cta').boundingBox();
+    expect(box.height, path).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test('email links in the privacy notice are at least 24px tall and do not overlap', async ({ page }) => {
+  for (const width of [375, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/privacy');
+    const boxes = await page.locator('main a[href^="mailto:"]').evaluateAll(els =>
+      els.map(e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; }));
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) expect(box.height, `mailto link at ${width}px`).toBeGreaterThanOrEqual(24);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const [a, b] = [boxes[i], boxes[j]];
+        const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        expect(overlap, `mailto links ${i} and ${j} overlap at ${width}px`).toBe(false);
+      }
+    }
+  }
+});
+
+test('every visible link and button on every page is at least 24px tall', async ({ page }) => {
+  for (const width of [375, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ['/', '/privacy', '/404.html']) {
+      await page.goto(path);
+      const small = await page.locator('a, button').evaluateAll(els => els
+        .filter(e => e.checkVisibility() && !e.classList.contains('skip-link'))
+        .map(e => ({ text: (e.textContent || e.getAttribute('aria-label') || '').trim().slice(0, 40), height: e.getBoundingClientRect().height }))
+        .filter(t => t.height < 24));
+      expect(small, `${path} at ${width}px`).toEqual([]);
+    }
+  }
+});
+
 test('the AI card describes the agent without made-up figures', async ({ page }) => {
   await page.goto('/');
   const card = page.locator('.flow-mock');

@@ -183,11 +183,12 @@ img{max-width:100%; display:block;}
 }
 .logo-mark svg{width:16px; height:16px; fill:var(--on-accent);}
 .nav{display:flex; align-items:center; gap:var(--space-6); font-size:var(--fs-sm); font-weight:500; margin-left:auto;}
-.nav a{color:var(--text-dim); transition:color .15s;}
+.nav a{display:inline-flex; align-items:center; min-height:44px; color:var(--text-dim); transition:color .15s;}
 .nav a:hover{color:var(--text);}
 .nav-cta{
+  display:inline-flex; align-items:center; min-height:44px;
   color:var(--text) !important; background:var(--surface-2);
-  border:1px solid var(--border); padding:var(--space-2) var(--space-4); border-radius:999px;
+  border:1px solid var(--border); padding:0 var(--space-4); border-radius:999px;
 }
 .nav-cta:hover{border-color:var(--accent-1);}
 .header-actions{display:flex; align-items:center; gap:var(--space-2);}
@@ -366,7 +367,7 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 .legal h2{font-size:var(--fs-xl); margin:var(--space-6) 0 var(--space-2); max-width:none;}
 .legal p{color:var(--text-dim); font-size:var(--fs-md); margin-bottom:var(--space-3);}
 .legal .legal-updated{font-size:var(--fs-xs); color:var(--text-dimmer); margin-bottom:var(--space-5);}
-.legal a{color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+.legal a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
 
 @media (max-width: 860px){
   .services-grid{grid-template-columns:1fr;}
