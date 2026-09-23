@@ -1,0 +1,14 @@
+// Cloudflare Workers Builds config. The site is plain static files served
+// straight from the repo root; .assetsignore keeps repo-only files out of
+// the upload. Pushing to main deploys; other branches upload a preview version.
+{
+  "name": "wright-ai-solutions",
+  "compatibility_date": "2026-09-21",
+  "assets": {
+    "directory": "./",
+    // Serve 404.html (with a 404 status) for any unmatched path.
+    "not_found_handling": "404-page",
+    // /privacy serves privacy.html; /privacy.html redirects to /privacy.
+    "html_handling": "auto-trailing-slash"
+  }
+}

@@ -24,7 +24,7 @@ jobs:
           fail: true
         # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
         # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
-        # matching how Cloudflare Pages serves these files. --remap checks this site's
+        # matching how Cloudflare serves these files (see wrangler.jsonc). --remap checks this site's
         # own absolute URLs (canonical, og:image) against the files in this commit
         # rather than the live deploy, so a PR adding a page isn't failed for the
         # page not being live yet.

@@ -10,15 +10,15 @@ Live at [wright-ai-solutions.com](https://wright-ai-solutions.com).
 python3 -m http.server 5050
 ```
 
-Then open `http://localhost:5050`. Any static file server works — there's no build step to run first. Note: a plain file server like this serves its own generic error page for unknown routes, not `404.html` — to see the actual custom 404 locally, run `npx wrangler pages dev .` instead, which matches Cloudflare Pages' routing.
+Then open `http://localhost:5050`. Any static file server works — there's no build step to run first. Note: a plain file server like this serves its own generic error page for unknown routes, not `404.html` — to see the actual custom 404 locally, run `npx wrangler dev` instead, which serves the site exactly as Cloudflare will (using `wrangler.jsonc`).
 
 ## Deploying
 
-Deploys via Cloudflare Pages, connected to this GitHub repo. Pushing to `main` triggers an automatic production build and deploy — no manual steps, and no CI gate (CI runs in parallel, it doesn't block the deploy).
+Deploys via Cloudflare Workers Builds (static assets), connected to this GitHub repo and configured by `wrangler.jsonc`. Pushing to `main` triggers an automatic production build and deploy; other branches upload a preview version. No manual steps, and no CI gate (CI runs in parallel, it doesn't block the deploy).
 
-`404.html` at the repo root is served automatically by Cloudflare Pages for any unmatched route.
+The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.git`, `.github`, `README.md`, config) out of the upload, so add any new repo-only file there. `404.html` is served with a 404 status for any unmatched route, `_headers` sets the security headers, and `/privacy` serves `privacy.html`.
 
-**Rollback:** in the Cloudflare dashboard, Workers & Pages → this project → Deployments, find the last good deployment and use "Rollback to this deployment."
+**Rollback:** in the Cloudflare dashboard, Workers & Pages → `wright-ai-solutions` → Deployments, pick the last good version and roll back to it.
 
 ## Project structure
 
