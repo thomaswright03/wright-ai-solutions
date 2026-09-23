@@ -1,0 +1,4 @@
+/* Loaded only when JavaScript is unavailable (see index.html/404.html <noscript>),
+   so the section links stay reachable even though the hamburger toggle needs JS. */
+.nav{display:flex !important;}
+.nav-toggle{display:none !important;}

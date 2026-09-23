@@ -1,6 +1,6 @@
 # Wright AI Solutions
 
-Marketing site for Wright AI Solutions, LLC — plain HTML/CSS/JS, no build step, no framework, no backend.
+Marketing site for Wright AI Solutions LLC — plain HTML/CSS/JS, no build step, no framework, no backend.
 
 Live at [wright-ai-solutions.com](https://wright-ai-solutions.com).
 
@@ -29,8 +29,8 @@ Deploys via Cloudflare Pages, connected to this GitHub repo. Pushing to `main` t
 
 ## Known limitations
 
-- **No end-to-end or visual-regression tests.** CI covers broken links and committed secrets (see `.github/workflows/ci.yml`); layout and mobile-width verification is still manual before pushing.
+- **No end-to-end or visual-regression tests.** CI covers broken links, committed secrets, HTML validity, legal-name/copyright consistency, index.html/404.html header-footer drift, and a page-weight budget (see `.github/workflows/ci.yml`); layout and mobile-width verification is still manual before pushing.
 - **CI doesn't gate the deploy.** It runs in parallel with Cloudflare's auto-deploy on push to `main`, so a red CI run doesn't stop a bad push from going live.
 - **The AI Lead Response Agent card shows an anonymized, illustrative mockup, not a link to the real dashboard.** It previously linked directly to a client's real dashboard with its only auth secret in the URL, and separately showed that client's real name and exact figures in a screenshot. Neither is true anymore: there's no link at all, and the client name/numbers shown are fictional and labeled as such in the card body. The underlying secret is a separate system's credential (a different project's Vercel/GHL setup, not this repo), gates more than just the dashboard, and **has not been rotated** — it remains a live, valid, unrotated credential sitting in this repo's public git history (commits `8f395ac`, `651fb5f`). Fixing that requires action in that other project, out of scope for this repo. The real (non-anonymized) dashboard screenshot that used to be committed here (`assets/work/lead-dashboard.jpg`) has been removed from the working tree, though it still exists in this repo's git history.
-- **The Data→Lead→Sell card no longer embeds its real product-walkthrough video.** The video showed real obituary-derived leads (a real deceased person's name and property details), which isn't something this repo has any recorded basis to publish. The card shows a synthetic mockup instead, with no real personal data. A replacement video using fake/synthetic example data would need to be recorded before embedding one again.
-- **No dependency-audit step**, since the site has no `package.json` or third-party JS dependencies to audit — only Google Fonts is loaded externally.
+- **The Data→Lead→Sell card no longer embeds its real product-walkthrough video.** The video showed real obituary-derived leads (a real deceased person's name and property details), which isn't something this repo has any recorded basis to publish. The card now shows a screenshot of dataleadsell.com's own public homepage instead, whose "How a match works" example is explicitly labeled by the product itself as invented for illustration — no real personal data.
+- **No dependency-audit step**, since the site has no `package.json` or third-party JS dependencies to audit. There are no third-party runtime dependencies either: fonts are self-hosted (`fonts/`) and no external embeds remain.

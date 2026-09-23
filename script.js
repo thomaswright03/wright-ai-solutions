@@ -4,30 +4,68 @@ if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
 const navToggle = document.getElementById('navToggle');
 const navMobile = document.getElementById('navMobile');
 
+function closeMobileNav() {
+  navMobile.classList.remove('open');
+  navToggle.setAttribute('aria-expanded', 'false');
+}
+
+function openMobileNav() {
+  navMobile.classList.add('open');
+  navToggle.setAttribute('aria-expanded', 'true');
+}
+
 navToggle.addEventListener('click', () => {
-  navMobile.classList.toggle('open');
+  const isOpen = navMobile.classList.contains('open');
+  if (isOpen) closeMobileNav(); else openMobileNav();
 });
 
 navMobile.querySelectorAll('a').forEach(link => {
-  link.addEventListener('click', () => navMobile.classList.remove('open'));
+  link.addEventListener('click', closeMobileNav);
 });
 
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('in-view');
-      observer.unobserve(entry.target);
-    }
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && navMobile.classList.contains('open')) {
+    closeMobileNav();
+    navToggle.focus();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!navMobile.classList.contains('open')) return;
+  if (navMobile.contains(e.target) || navToggle.contains(e.target)) return;
+  closeMobileNav();
+});
+
+window.addEventListener('scroll', () => {
+  if (navMobile.classList.contains('open')) closeMobileNav();
+}, { passive: true });
+
+const contactHint = document.getElementById('contactHint');
+if (contactHint) {
+  document.querySelectorAll('[data-copy]').forEach(el => {
+    el.addEventListener('click', () => {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(el.dataset.copy).then(() => {
+        contactHint.textContent = `Copied "${el.dataset.copy}" to your clipboard, in case that didn't open a mail or phone app.`;
+      }).catch(() => {});
+    });
   });
-}, { threshold: 0.15 });
+}
 
-document.querySelectorAll('.card, .work-item').forEach(el => {
-  el.style.opacity = '0';
-  el.style.transform = 'translateY(24px)';
-  el.style.transition = 'opacity .6s ease, transform .6s ease';
-  observer.observe(el);
-});
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const style = document.createElement('style');
-style.textContent = `.in-view{opacity:1 !important; transform:translateY(0) !important;}`;
-document.head.appendChild(style);
+if (!prefersReducedMotion) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.card, .work-item').forEach(el => {
+    el.classList.add('reveal');
+    observer.observe(el);
+  });
+}

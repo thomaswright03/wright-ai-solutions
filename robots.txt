@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wright-ai-solutions.com/sitemap.xml
