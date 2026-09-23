@@ -15,3 +15,5 @@ package-lock.json
 playwright.config.mjs
 test-results
 playwright-report
+.gitleaksignore
+SECURITY.md

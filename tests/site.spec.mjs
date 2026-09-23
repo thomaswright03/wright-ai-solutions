@@ -254,3 +254,14 @@ test('if copying fails, the contact hint shows the address to copy by hand', asy
   await page.locator('.contact-links a[href^="mailto:"]').click();
   await expect(page.locator('#contactHint')).toHaveText('Copy this: t@thomasewright.com');
 });
+
+test('every response carries the security headers from _headers', async ({ request }) => {
+  for (const path of ['/', '/privacy', '/no/such/page', '/styles.css?v=0']) {
+    const res = await request.get(path);
+    const headers = res.headers();
+    expect(headers['strict-transport-security'], path).toMatch(/max-age=31536000/);
+    expect(headers['content-security-policy'], path).toContain("default-src 'self'");
+    expect(headers['x-content-type-options'], path).toBe('nosniff');
+    expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
+  }
+});

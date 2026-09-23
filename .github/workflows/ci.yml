@@ -5,14 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+# Every job only reads the repo; the token can't write anything.
+permissions:
+  contents: read
+
 jobs:
   link-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Check for broken links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
           args: >
@@ -20,7 +24,7 @@ jobs:
             --root-dir ${{ github.workspace }}
             --fallback-extensions html
             --remap '^https://wright-ai-solutions\.com/(.*)$ file://${{ github.workspace }}/$1'
-            index.html 404.html privacy.html README.md docs/*.md
+            index.html 404.html privacy.html README.md SECURITY.md docs/*.md
           fail: true
         # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
         # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
@@ -30,22 +34,45 @@ jobs:
         # page not being live yet.
 
   secret-scan:
+    # Scans the WHOLE git history on every run, not just the pushed commits, so a
+    # secret committed long ago keeps failing CI until it's dealt with.
+    # Expected to fail today: two commits (8f395ac, 651fb5f) hold a credential for
+    # another system that hasn't been rotated yet. See SECURITY.md for how to rotate
+    # it and then record the dead findings in .gitleaksignore.
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.28.0
+      GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+
       - name: Scan full git history for committed secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          ./gitleaks git . --redact --no-banner --report-format json --report-path gitleaks.json
+          status=$?
+          set -e
+          jq -r '.[] | "::error file=\(.File),line=\(.StartLine)::\(.RuleID) in commit \(.Commit[0:7]) (fingerprint \(.Fingerprint))"' gitleaks.json || true
+          if [ "$status" -ne 0 ]; then
+            echo "::error::gitleaks found $(jq length gitleaks.json) secret(s) in git history. Rotate them, then follow SECURITY.md."
+          fi
+          exit "$status"
 
   html-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -59,8 +86,8 @@ jobs:
     # mobile menu, skip link, theme toggle, contrast and a few a11y rules.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -69,7 +96,7 @@ jobs:
       - run: npm test
       - name: Upload test report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: |
@@ -80,7 +107,7 @@ jobs:
   static-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Copyright line present on every page
         run: |
