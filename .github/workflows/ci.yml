@@ -17,6 +17,17 @@ jobs:
           args: >
             --no-progress
             --exclude-mail
-            --exclude "lead-responder-eight\.vercel\.app"
             index.html 404.html README.md
           fail: true
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan full git history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
