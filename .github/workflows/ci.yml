@@ -14,15 +14,16 @@ jobs:
       - name: Check for broken links
         uses: lycheeverse/lychee-action@v2
         with:
+          lycheeVersion: v0.24.2
           args: >
             --no-progress
-            index.html README.md
+            --root-dir ${{ github.workspace }}
+            --fallback-extensions html
+            index.html 404.html privacy.html README.md
           fail: true
-        # 404.html is deliberately not checked here: its nav links are root-relative
-        # ("/", "/#work") so they resolve correctly once Cloudflare Pages serves this
-        # file for any unmatched path, but a local file-based checker has no way to
-        # resolve a root-relative link against a real site root. The same anchors
-        # are already verified via index.html's own in-page links above.
+        # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
+        # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
+        # matching how Cloudflare Pages serves these files.
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -40,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx --yes html-validate index.html 404.html
+      - run: npx --yes html-validate index.html 404.html privacy.html
 
   static-checks:
     runs-on: ubuntu-latest
@@ -49,7 +50,7 @@ jobs:
 
       - name: Copyright line present on every page
         run: |
-          for f in index.html 404.html; do
+          for f in index.html 404.html privacy.html; do
             grep -qE 'Wright AI Solutions LLC\. All rights reserved\.' "$f" || {
               echo "::error file=$f::Missing 'Wright AI Solutions LLC. All rights reserved.' copyright line"
               exit 1
@@ -58,18 +59,38 @@ jobs:
 
       - name: Legal name spelled consistently
         run: |
-          if grep -n 'Wright AI Solutions, LLC' index.html 404.html README.md; then
+          if grep -n 'Wright AI Solutions, LLC' index.html 404.html privacy.html README.md; then
             echo "::error::Found 'Wright AI Solutions, LLC' (with comma) — the standard form is 'Wright AI Solutions LLC'"
             exit 1
           fi
 
-      - name: Shared header/footer text stays in sync between index.html and 404.html
+      - name: Shared footer text stays in sync across pages
         run: |
           extract() { sed -n '/<footer/,/<\/footer>/p' "$1"; }
-          diff <(extract index.html) <(extract 404.html) || {
-            echo "::error::index.html and 404.html footers have drifted apart"
-            exit 1
-          }
+          for f in 404.html privacy.html; do
+            diff <(extract index.html) <(extract "$f") || {
+              echo "::error file=$f::footer has drifted from index.html"
+              exit 1
+            }
+          done
+
+      - name: Every page links to the privacy notice
+        run: |
+          for f in index.html 404.html privacy.html; do
+            grep -q 'href="/privacy"' "$f" || {
+              echo "::error file=$f::Missing footer link to /privacy"
+              exit 1
+            }
+          done
+
+      - name: Self-hosted fonts ship with their OFL licence text
+        run: |
+          for f in fonts/LICENSE-Inter.txt fonts/LICENSE-SpaceGrotesk.txt; do
+            grep -q 'SIL OPEN FONT LICENSE Version 1.1' "$f" || {
+              echo "::error file=$f::Missing or incomplete OFL licence text"
+              exit 1
+            }
+          done
 
       - name: Page weight budget (index.html + directly referenced CSS/JS/fonts)
         run: |

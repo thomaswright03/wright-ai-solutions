@@ -1,4 +1,5 @@
-/* Self-hosted, latin-subset only (site is English-only) — see README for why. */
+/* Self-hosted, latin-subset only (site is English-only). Both fonts are SIL OFL 1.1;
+   the licence text ships alongside them in LICENSE-Inter.txt and LICENSE-SpaceGrotesk.txt. */
 
 @font-face {
   font-family: 'Inter';
