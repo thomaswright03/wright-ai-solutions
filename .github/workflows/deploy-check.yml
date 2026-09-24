@@ -1,0 +1,31 @@
+name: Deploy check
+
+# After a push to main, Cloudflare Workers Builds deploys the site and publishes
+# the deployed commit at /version.txt (scripts/write-version.sh). This fails,
+# visibly, if production isn't serving the pushed commit within 15 minutes, so a
+# failed or un-promoted deploy can't leave the live site silently stale.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-serves-this-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for https://wright-ai-solutions.com/version.txt to match this commit
+        run: |
+          for attempt in $(seq 1 30); do
+            live=$(curl -fsS --max-time 10 "https://wright-ai-solutions.com/version.txt?check=$GITHUB_RUN_ID-$attempt" | tr -d '[:space:]' || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "Production is serving $GITHUB_SHA"
+              exit 0
+            fi
+            echo "Attempt $attempt: production reports '${live:-nothing}', waiting for $GITHUB_SHA"
+            sleep 30
+          done
+          echo "::error::Production is not serving $GITHUB_SHA after 15 minutes. Check the Cloudflare Workers Builds log and which deployment the domain points at."
+          exit 1

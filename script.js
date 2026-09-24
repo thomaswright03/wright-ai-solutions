@@ -44,12 +44,49 @@ const contactHint = document.getElementById('contactHint');
 if (contactHint) {
   document.querySelectorAll('[data-copy]').forEach(el => {
     el.addEventListener('click', () => {
-      if (!navigator.clipboard) return;
-      navigator.clipboard.writeText(el.dataset.copy).then(() => {
-        contactHint.textContent = `Copied "${el.dataset.copy}" to your clipboard, in case that didn't open a mail or phone app.`;
-      }).catch(() => {});
+      const value = el.dataset.copy;
+      const showManual = () => {
+        contactHint.textContent = `Copy this: ${value}`;
+      };
+      if (!navigator.clipboard) { showManual(); return; }
+      navigator.clipboard.writeText(value).then(() => {
+        contactHint.textContent = `Copied "${value}" to your clipboard, in case that didn't open a mail or phone app.`;
+      }).catch(showManual);
     });
   });
+}
+
+// Theme toggle: cycles match-system -> light -> dark. theme-init.js applies the
+// saved choice before paint; this keeps the button and storage in sync.
+const themeToggle = document.getElementById('themeToggle');
+if (themeToggle) {
+  const themeOrder = ['system', 'light', 'dark'];
+  const themeLabels = { system: 'match system', light: 'light', dark: 'dark' };
+
+  const readTheme = () => {
+    const current = document.documentElement.dataset.theme;
+    return current === 'light' || current === 'dark' ? current : 'system';
+  };
+
+  const showTheme = (choice) => {
+    const next = themeOrder[(themeOrder.indexOf(choice) + 1) % themeOrder.length];
+    themeToggle.dataset.choice = choice;
+    themeToggle.setAttribute('aria-label', `Color theme: ${themeLabels[choice]}. Switch to ${themeLabels[next]}`);
+    themeToggle.title = `Color theme: ${themeLabels[choice]}`;
+  };
+
+  themeToggle.addEventListener('click', () => {
+    const choice = themeOrder[(themeOrder.indexOf(readTheme()) + 1) % themeOrder.length];
+    if (choice === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = choice;
+    try {
+      if (choice === 'system') localStorage.removeItem('theme');
+      else localStorage.setItem('theme', choice);
+    } catch (e) { /* storage blocked: choice lasts for this page only */ }
+    showTheme(choice);
+  });
+
+  showTheme(readTheme());
 }
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

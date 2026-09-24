@@ -5,51 +5,113 @@ on:
     branches: [main]
   pull_request:
 
+# Every job only reads the repo; the token can't write anything.
+permissions:
+  contents: read
+
 jobs:
   link-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Check for broken links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
+          lycheeVersion: v0.24.2
           args: >
             --no-progress
-            index.html README.md
+            --root-dir ${{ github.workspace }}
+            --fallback-extensions html
+            --remap '^https://wright-ai-solutions\.com/(.*)$ file://${{ github.workspace }}/$1'
+            index.html 404.html privacy.html README.md SECURITY.md docs/*.md
           fail: true
-        # 404.html is deliberately not checked here: its nav links are root-relative
-        # ("/", "/#work") so they resolve correctly once Cloudflare Pages serves this
-        # file for any unmatched path, but a local file-based checker has no way to
-        # resolve a root-relative link against a real site root. The same anchors
-        # are already verified via index.html's own in-page links above.
+        # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
+        # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
+        # matching how Cloudflare serves these files (see wrangler.jsonc). --remap checks this site's
+        # own absolute URLs (canonical, og:image) against the files in this commit
+        # rather than the live deploy, so a PR adding a page isn't failed for the
+        # page not being live yet.
 
   secret-scan:
+    # Scans the WHOLE git history on every run, not just the pushed commits, so a
+    # secret committed long ago keeps failing CI until it's dealt with.
+    # Expected to fail today: two commits (8f395ac, 651fb5f) hold a credential for
+    # another system that hasn't been rotated yet. See SECURITY.md for how to rotate
+    # it and then record the dead findings in .gitleaksignore.
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.28.0
+      GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+
       - name: Scan full git history for committed secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          ./gitleaks git . --redact --no-banner --report-format json --report-path gitleaks.json
+          status=$?
+          set -e
+          jq -r '.[] | "::error file=\(.File),line=\(.StartLine)::\(.RuleID) in commit \(.Commit[0:7]) (fingerprint \(.Fingerprint))"' gitleaks.json || true
+          if [ "$status" -ne 0 ]; then
+            echo "::error::gitleaks found $(jq length gitleaks.json) secret(s) in git history. Rotate them, then follow SECURITY.md."
+          fi
+          exit "$status"
 
   html-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: npx --yes html-validate index.html 404.html
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run validate
+
+  browser-tests:
+    # Serves the site the way Cloudflare does (tests/serve.mjs) and checks every
+    # page at phone, tablet and desktop widths in both themes: no horizontal
+    # overflow, no console errors or failed requests, header/footer present,
+    # mobile menu, skip link, theme toggle, contrast and a few a11y rules.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
 
   static-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Copyright line present on every page
         run: |
-          for f in index.html 404.html; do
+          for f in index.html 404.html privacy.html; do
             grep -qE 'Wright AI Solutions LLC\. All rights reserved\.' "$f" || {
               echo "::error file=$f::Missing 'Wright AI Solutions LLC. All rights reserved.' copyright line"
               exit 1
@@ -58,22 +120,76 @@ jobs:
 
       - name: Legal name spelled consistently
         run: |
-          if grep -n 'Wright AI Solutions, LLC' index.html 404.html README.md; then
+          if grep -n 'Wright AI Solutions, LLC' index.html 404.html privacy.html README.md; then
             echo "::error::Found 'Wright AI Solutions, LLC' (with comma) — the standard form is 'Wright AI Solutions LLC'"
             exit 1
           fi
 
-      - name: Shared header/footer text stays in sync between index.html and 404.html
+      - name: Shared footer text stays in sync across pages
         run: |
           extract() { sed -n '/<footer/,/<\/footer>/p' "$1"; }
-          diff <(extract index.html) <(extract 404.html) || {
-            echo "::error::index.html and 404.html footers have drifted apart"
+          for f in 404.html privacy.html; do
+            diff <(extract index.html) <(extract "$f") || {
+              echo "::error file=$f::footer has drifted from index.html"
+              exit 1
+            }
+          done
+
+      - name: Shared header stays in sync across pages
+        run: |
+          # index.html links to its own sections ("#work"); the other pages link
+          # back to them ("/#work"). Normalise that, then the headers must match.
+          extract() { sed -n '/<header/,/<\/header>/p' "$1" | sed 's#href="\##href="/\##g'; }
+          for f in 404.html privacy.html; do
+            diff <(extract index.html) <(extract "$f") || {
+              echo "::error file=$f::header has drifted from index.html"
+              exit 1
+            }
+          done
+
+      - name: One cache-busting version for every page's CSS and JS
+        run: |
+          versions=$(grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html | sed 's/.*?v=//' | sort -u)
+          if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
+            echo "::error::Pages reference different ?v= versions: $(echo $versions)"
             exit 1
-          }
+          fi
+          if grep -nE '(href|src)="/[^"]+\.(css|js)"' index.html 404.html privacy.html; then
+            echo "::error::Every local CSS/JS reference needs the shared ?v=$versions"
+            exit 1
+          fi
+
+      - name: Font sizes and spacing come from the scale in styles.css
+        run: |
+          # Token definitions ("--fs-*", "--space-*") are the only place raw px values may appear.
+          raw=$(grep -vE '^\s*--' styles.css | grep -nE 'font-size:\s*[0-9.]+px|(margin|padding|gap)(-[a-z]+)?:[^;}]*[0-9]px' || true)
+          if [ -n "$raw" ]; then
+            echo "$raw"
+            echo "::error file=styles.css::Use the --fs-* and --space-* tokens instead of raw px values"
+            exit 1
+          fi
+
+      - name: Every page links to the privacy notice
+        run: |
+          for f in index.html 404.html privacy.html; do
+            grep -q 'href="/privacy"' "$f" || {
+              echo "::error file=$f::Missing footer link to /privacy"
+              exit 1
+            }
+          done
+
+      - name: Self-hosted fonts ship with their OFL licence text
+        run: |
+          for f in fonts/LICENSE-Inter.txt fonts/LICENSE-SpaceGrotesk.txt; do
+            grep -q 'SIL OPEN FONT LICENSE Version 1.1' "$f" || {
+              echo "::error file=$f::Missing or incomplete OFL licence text"
+              exit 1
+            }
+          done
 
       - name: Page weight budget (index.html + directly referenced CSS/JS/fonts)
         run: |
-          total=$(cat index.html styles.css script.js fonts/fonts.css fonts/*.woff2 | wc -c)
+          total=$(cat index.html styles.css script.js theme-init.js fonts/fonts.css fonts/*.woff2 | wc -c)
           echo "Total bytes: $total"
           limit=$((500 * 1024))
           if [ "$total" -gt "$limit" ]; then

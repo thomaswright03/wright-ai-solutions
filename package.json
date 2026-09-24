@@ -1,0 +1,15 @@
+{
+  "name": "wright-ai-solutions-site",
+  "private": true,
+  "description": "Dev tooling only: the site itself is plain static files with no build step or runtime dependencies.",
+  "type": "module",
+  "scripts": {
+    "serve": "node tests/serve.mjs",
+    "test": "playwright test",
+    "validate": "html-validate index.html 404.html privacy.html"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "html-validate": "11.16.0"
+  }
+}
