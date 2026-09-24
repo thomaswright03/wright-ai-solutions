@@ -2,9 +2,11 @@
 
 The laws and licences that may apply to wright-ai-solutions.com, where each one came from, and what the site does about it. This is a working record, not legal advice. Anything marked **unverified** still needs checking, and the open questions at the end are for a lawyer.
 
-**As of:** 2026-09-23 · **Owner:** Thomas Wright · **Review:** every six months, and whenever the site starts collecting anything (a form, analytics, cookies, an embed)
+**As of:** 2026-09-24 · **Owner:** Thomas Wright · **Review:** every six months, and whenever the site starts collecting anything (a form, analytics, cookies, an embed)
 
 **What the site is:** a static marketing site for Wright AI Solutions LLC (Utah), hosted on Cloudflare Workers. It has no forms, accounts, cookies set by its own code, analytics or third-party scripts. Visitors make contact by email or phone. See `privacy.html` and `docs/PRIVACY-ROUTINE.md`.
+
+**Cloudflare Web Analytics:** the live-site check on 2026-09-24 found that Cloudflare injects its Web Analytics beacon (`static.cloudflareinsights.com/beacon.min.js`) into HTML served to browsers. It isn't in this repo. The site's CSP (`script-src 'self'` in `_headers`) blocks it, so no beacon runs, and the privacy notice says so. A browser test checks the CSP still excludes it. If the CSP is ever loosened to allow it, the privacy notice must change first.
 
 ## Laws and licences
 
@@ -24,7 +26,7 @@ The "Source" and "Read" columns come from the Legal Check (pass 1, 2026-09-23). 
 
 ## Open items that need Thomas
 
-- Confirm in a real browser that the live site serves the current `main` build.
+- Turn off Web Analytics (automatic setup) for wright-ai-solutions.com in the Cloudflare dashboard, so the beacon isn't injected at all. The live check on 2026-09-24 confirmed the live site serves the current `main` build.
 - Rotate the credential that is still in this repo's public git history.
 - Make the repository private or rewrite its history (see `docs/PRIVACY-ROUTINE.md`). Unlist the old Loom walkthrough.
 - Get written permission from Studio McKenna (artwork and name) and from the lead-agent client (description of the work).

@@ -255,6 +255,14 @@ test('if copying fails, the contact hint shows the address to copy by hand', asy
   await expect(page.locator('#contactHint')).toHaveText('Copy this: t@thomasewright.com');
 });
 
+test('the CSP blocks the Cloudflare Web Analytics beacon, as the privacy notice says', async ({ page, request }) => {
+  const csp = (await request.get('/')).headers()['content-security-policy'];
+  expect(csp).toMatch(/script-src 'self'(;|$)/);
+  expect(csp).not.toContain('cloudflareinsights');
+  await page.goto('/privacy');
+  await expect(page.locator('main')).toContainText('the site\'s security policy blocks it');
+});
+
 test('every response carries the security headers from _headers', async ({ request }) => {
   for (const path of ['/', '/privacy', '/no/such/page', '/styles.css?v=0']) {
     const res = await request.get(path);
