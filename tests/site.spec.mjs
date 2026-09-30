@@ -289,10 +289,11 @@ test.describe('signup flow on /start', () => {
   // /api/outline; every other request is a GET for a file on this site.
   function watchRequests(page) {
     const sent = [];
+    const host = new URL(test.info().project.use.baseURL).host;
     page.on('request', req => {
       const url = new URL(req.url());
       const outlineCall = req.method() === 'POST' && url.pathname === '/api/outline';
-      if (url.host !== 'localhost:4173' || (req.method() !== 'GET' && !outlineCall)) sent.push(`${req.method()} ${req.url()}`);
+      if (url.host !== host || (req.method() !== 'GET' && !outlineCall)) sent.push(`${req.method()} ${req.url()}`);
     });
     return sent;
   }
@@ -481,7 +482,8 @@ test.describe('signup flow on /start', () => {
   // A stand-in for the browser's speech recognition, driven from the test.
   const fakeSpeech = () => {
     window.SpeechRecognition = class {
-      start() { window.fakeRecognition = this; setTimeout(() => this.onstart?.(), 0); }
+      // Starts at once, so a test's next step can't overtake it.
+      start() { window.fakeRecognition = this; this.onstart?.(); }
       stop() { setTimeout(() => this.onend?.(), 0); }
     };
     window.speak = (...phrases) => window.fakeRecognition.onresult({
