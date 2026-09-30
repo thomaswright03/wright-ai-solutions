@@ -39,6 +39,38 @@ export const AD_PAGES = {
     prefill: 'I have an idea for an app or web platform and need someone to design, build and launch the first version.',
     kind: 'app',
   },
+  'missed-calls': {
+    eyebrow: 'For businesses missing calls',
+    title: ['Text back the calls ', 'you can\'t pick up.'],
+    sub: 'Tell me when calls get missed and what callers usually want. You\'ll get an outline for an agent that texts them back and hands the conversation to you.',
+    label: 'Is this your problem? Edit it or add details.',
+    prefill: 'We miss calls when we\'re with a customer or out on a job, and by the time we call back they\'ve already booked with someone else.',
+    kind: 'leads',
+  },
+  reports: {
+    eyebrow: 'For businesses building reports by hand',
+    title: ['Get your weekly numbers ', 'without the copy and paste.'],
+    sub: 'Tell me which numbers you check and where they come from. You\'ll get an outline for a report that pulls them together for you on a schedule.',
+    label: 'Is this your problem? Edit it or add details.',
+    prefill: 'Every Monday I copy numbers from our sales, payroll and accounting tools into a spreadsheet for our weekly report. It takes hours.',
+    kind: 'data',
+  },
+  website: {
+    eyebrow: 'For businesses with an out-of-date website',
+    title: ['Get a website you can ', 'update yourself.'],
+    sub: 'Tell me what your business does and what customers look for. You\'ll get an outline for a site you can change yourself, with a clear way for customers to reach you.',
+    label: 'Is this your problem? Edit it or add details.',
+    prefill: 'Our website is out of date and only the person who built it can change it. Customers can\'t easily find our services or contact us.',
+    kind: 'app',
+  },
+  booking: {
+    eyebrow: 'For businesses booking by phone and text',
+    title: ['Let customers book ', 'without the back-and-forth.'],
+    sub: 'Tell me how customers book with you today. You\'ll get an outline for an agent that replies to booking requests and helps customers find a time that works.',
+    label: 'Is this your problem? Edit it or add details.',
+    prefill: 'Customers text and call to book appointments, and it takes a lot of back and forth to find a time. Some give up and go elsewhere.',
+    kind: 'leads',
+  },
 };
 
 // Outline templates, one per kind of work the studio does. "shipped" only
