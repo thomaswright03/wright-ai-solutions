@@ -6,6 +6,8 @@ const PAGES = [
   { path: '/privacy', status: 200 },
   { path: '/privacy.html', status: 200 },
   { path: '/404.html', status: 200 },
+  { path: '/start', status: 200 },
+  { path: '/start?for=leads', status: 200 },
   { path: '/no/such/page', status: 404 },
 ];
 const WIDTHS = [375, 390, 768, 1440];
@@ -93,7 +95,7 @@ test.describe('mobile menu', () => {
 });
 
 test('the first Tab reaches a skip link that jumps to the main content', async ({ page }) => {
-  for (const path of ['/', '/privacy', '/404.html']) {
+  for (const path of ['/', '/privacy', '/404.html', '/start']) {
     await page.goto(path);
     await page.keyboard.press('Tab');
     const skip = page.locator('.skip-link');
@@ -226,7 +228,7 @@ test('email links in the privacy notice are at least 24px tall and do not overla
 test('every visible link and button on every page is at least 24px tall', async ({ page }) => {
   for (const width of [375, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ['/', '/privacy', '/404.html']) {
+    for (const path of ['/', '/privacy', '/404.html', '/start']) {
       await page.goto(path);
       const small = await page.locator('a, button').evaluateAll(els => els
         .filter(e => e.checkVisibility() && !e.classList.contains('skip-link'))
@@ -272,4 +274,115 @@ test('every response carries the security headers from _headers', async ({ reque
     expect(headers['x-content-type-options'], path).toBe('nosniff');
     expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
   }
+});
+
+test.describe('signup flow on /start', () => {
+  // The prototype must not send anything anywhere: every request stays a GET for a file on this site.
+  function watchRequests(page) {
+    const sent = [];
+    page.on('request', req => {
+      const url = new URL(req.url());
+      if (req.method() !== 'GET' || url.host !== 'localhost:4173') sent.push(`${req.method()} ${req.url()}`);
+    });
+    return sent;
+  }
+
+  test('each ad link opens on the problem that ad named', async ({ page }) => {
+    const ads = { leads: /after hours/, spreadsheets: /by hand/, support: /questions/, app: /app idea/ };
+    for (const [ad, headline] of Object.entries(ads)) {
+      await page.goto(`/start?for=${ad}`);
+      await expect(page.locator('h1')).toContainText(headline);
+      expect(await page.locator('#problem').inputValue()).not.toBe('');
+    }
+    await page.goto('/start?for=unknown');
+    await expect(page.locator('h1')).toContainText('slowing your business down');
+    await expect(page.locator('#problem')).toHaveValue('');
+  });
+
+  test('an empty answer gets a message instead of an outline', async ({ page }) => {
+    await page.goto('/start');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await expect(page.locator('#problemError')).not.toBeEmpty();
+    await expect(page.locator('#problem')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#problem')).toBeFocused();
+    await expect(page.locator('#stepOutline')).toBeHidden();
+  });
+
+  test('what the visitor types is shown as text, never run as markup', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/start');
+    const typed = '<img src=x onerror="window.pwned=1">We copy invoices into Excel by hand';
+    await page.fill('#problem', typed);
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await expect(page.locator('#outlineProblem')).toHaveText(typed);
+    expect(await page.evaluate(() => window.pwned)).toBeUndefined();
+    await expect(page.locator('#outlineProblem img')).toHaveCount(0);
+  });
+
+  test('a visitor goes from one answer to a booked call without anything leaving the browser', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const sent = watchRequests(page);
+    const errors = watchForErrors(page);
+    await page.goto('/start?for=spreadsheets');
+    await page.getByRole('radio', { name: '2–10' }).check();
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+
+    await expect(page.locator('#outline')).toBeVisible();
+    await expect(page.locator('#outlineTitle')).toBeFocused();
+    await expect(page.locator('#outlineTitle')).toContainText('pipeline');
+    await expect(page.locator('#outlineTeam')).toHaveText('Affects 2 to 10 people.');
+    await expect(page.locator('.start-progress [aria-current="step"]')).toHaveText('Your outline');
+
+    await page.fill('#email', 'not-an-email');
+    await page.getByRole('button', { name: 'Send my outline' }).click();
+    await expect(page.locator('#emailError')).not.toBeEmpty();
+    await page.fill('#email', 'jane@example.com');
+    await page.getByRole('button', { name: 'Send my outline' }).click();
+
+    await expect(page.locator('#bookTitle')).toBeFocused();
+    await expect(page.locator('#sentNote')).toContainText('jane@example.com');
+    await page.getByRole('button', { name: 'Book the call' }).click();
+    await expect(page.locator('#bookError')).toHaveText('Pick a day first.');
+
+    const days = page.locator('#bookDays input');
+    await expect(days).toHaveCount(10);
+    await days.nth(1).check();
+    await page.locator('#bookTimes input').first().check();
+    await expect(page.locator('#bookButton')).toHaveText(/^Book \w+/);
+    await page.locator('#bookButton').click();
+
+    await expect(page.locator('#doneTitle')).toHaveText("You're booked.");
+    await expect(page.locator('#doneNext')).toContainText('jane@example.com');
+    await expect(page.locator('#icsLink')).toHaveAttribute('href', /^blob:/);
+    expect(sent).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test('the one-tap buttons and "not now" both finish the flow', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/start?for=leads');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(page.locator('#sentNote')).toContainText('Google');
+    await page.getByRole('button', { name: /Not now/ }).click();
+    await expect(page.locator('#doneTitle')).toHaveText('Your outline is on its way.');
+    await expect(page.locator('#icsLink')).toBeHidden();
+  });
+
+  test('"Change what I wrote" goes back with the answer kept', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/start');
+    await page.fill('#problem', 'Customers keep asking the same questions by email.');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await page.getByRole('button', { name: 'Change what I wrote' }).click();
+    await expect(page.locator('#problem')).toBeFocused();
+    await expect(page.locator('#problem')).toHaveValue('Customers keep asking the same questions by email.');
+    await expect(page.locator('#stepOutline')).toBeHidden();
+  });
+
+  test('the page says it is a prototype and is kept out of search', async ({ page }) => {
+    await page.goto('/start');
+    await expect(page.locator('#prototypeNote')).toContainText('Nothing you type here is sent or stored');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+  });
 });

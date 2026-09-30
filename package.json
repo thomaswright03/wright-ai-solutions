@@ -6,7 +6,7 @@
   "scripts": {
     "serve": "node tests/serve.mjs",
     "test": "playwright test",
-    "validate": "html-validate index.html 404.html privacy.html"
+    "validate": "html-validate index.html 404.html privacy.html start.html"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
