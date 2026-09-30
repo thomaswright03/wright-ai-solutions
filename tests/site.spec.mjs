@@ -266,13 +266,25 @@ test('the CSP blocks the Cloudflare Web Analytics beacon, as the privacy notice 
 });
 
 test('every response carries the security headers from _headers', async ({ request }) => {
-  for (const path of ['/', '/privacy', '/no/such/page', '/styles.css?v=0']) {
+  for (const path of ['/', '/privacy', '/start', '/no/such/page', '/styles.css?v=0']) {
     const res = await request.get(path);
     const headers = res.headers();
     expect(headers['strict-transport-security'], path).toMatch(/max-age=31536000/);
     expect(headers['content-security-policy'], path).toContain("default-src 'self'");
     expect(headers['x-content-type-options'], path).toBe('nosniff');
     expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
+  }
+});
+
+test('only /start may load Cloudflare\'s bot check, and nothing else from other sites', async ({ request }) => {
+  const policy = async path => (await request.get(path)).headers()['content-security-policy'];
+  const start = await policy('/start?for=leads');
+  expect(start).toContain("script-src 'self' https://challenges.cloudflare.com;");
+  expect(start).toContain('frame-src https://challenges.cloudflare.com;');
+  expect(start).not.toContain('cloudflareinsights');
+  for (const path of ['/', '/privacy', '/no/such/page']) {
+    expect(await policy(path), path).toMatch(/script-src 'self';/);
+    expect(await policy(path), path).not.toContain('challenges.cloudflare.com');
   }
 });
 
@@ -285,17 +297,65 @@ test('only /start may use the microphone', async ({ request }) => {
 });
 
 test.describe('signup flow on /start', () => {
-  // The only thing the page may send is the visitor's answer to this site's own
-  // /api/outline; every other request is a GET for a file on this site.
+  // Each test gets its own stand-in services on the test server (tests/serve.mjs),
+  // so saved leads and booked times don't leak between tests. Flags such as
+  // 'bare' or 'caldown' change how they behave.
+  async function useServices(page, ...flags) {
+    const { testId, retry } = test.info();
+    const letters = [...`${testId}${retry}`].filter(c => /[0-9a-f]/.test(c)).map(c => 'abcdefghijklmnop'[parseInt(c, 16)]);
+    const mode = [`t${letters.join('').slice(0, 30)}`, ...flags].join('+');
+    await page.setExtraHTTPHeaders({ 'x-test-env': mode });
+    return {
+      mode,
+      state: async () => (await page.request.get(`/__test/state?mode=${encodeURIComponent(mode)}`)).json(),
+    };
+  }
+
+  // Every request the page makes that isn't for a file on this site: its calls
+  // to this site's /api, with what they sent, and anything sent anywhere else.
   function watchRequests(page) {
-    const sent = [];
+    const calls = [];
     const host = new URL(test.info().project.use.baseURL).host;
     page.on('request', req => {
       const url = new URL(req.url());
-      const outlineCall = req.method() === 'POST' && url.pathname === '/api/outline';
-      if (url.host !== host || (req.method() !== 'GET' && !outlineCall)) sent.push(`${req.method()} ${req.url()}`);
+      if (url.host === host && url.pathname.startsWith('/api/')) {
+        calls.push({ call: `${req.method()} ${url.pathname}`, body: req.method() === 'POST' ? req.postDataJSON() : null });
+      } else if (url.host !== host || req.method() !== 'GET') {
+        calls.push({ call: `${req.method()} ${req.url()}`, body: null });
+      }
     });
-    return sent;
+    return calls;
+  }
+
+  const buildOutline = page => page.getByRole('button', { name: /Build my outline/ }).click();
+
+  // A stand-in for Cloudflare's Turnstile script. It answers at once with this
+  // token, or with { interactive: true } waits for the test to call
+  // window.tickTheBox(), the way a visitor ticks the box. The server's check
+  // (tests/fakes.mjs) passes only 'pass-token'.
+  const fakeTurnstile = (token, { interactive = false } = {}) => `window.turnstile = {
+    render(element, options) {
+      window.turnstileOptions = { sitekey: options.sitekey, action: options.action, appearance: options.appearance };
+      const answer = () => options.callback(${JSON.stringify(token)});
+      if (${interactive}) {
+        options['before-interactive-callback']();
+        window.tickTheBox = () => { options['after-interactive-callback'](); answer(); };
+      } else {
+        setTimeout(answer, 0);
+      }
+      return 'widget-1';
+    },
+    reset() { window.turnstileResets = (window.turnstileResets || 0) + 1; },
+  };`;
+
+  // From a fresh page to the booking step, saving the outline with this email.
+  async function toBooking(page, email, path = '/start?for=leads') {
+    await page.goto(path);
+    await buildOutline(page);
+    await page.fill('#email', email);
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#bookTitle')).toBeFocused();
+    await expect(page.locator('#bookForm')).toBeVisible();
   }
 
   const AI_OUTLINE = {
@@ -322,7 +382,7 @@ test.describe('signup flow on /start', () => {
 
   test('an empty answer gets a message instead of an outline', async ({ page }) => {
     await page.goto('/start');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await expect(page.locator('#problemError')).not.toBeEmpty();
     await expect(page.locator('#problem')).toHaveAttribute('aria-invalid', 'true');
     await expect(page.locator('#problem')).toBeFocused();
@@ -334,59 +394,248 @@ test.describe('signup flow on /start', () => {
     await page.goto('/start');
     const typed = '<img src=x onerror="window.pwned=1">We copy invoices into Excel by hand';
     await page.fill('#problem', typed);
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await expect(page.locator('#outlineProblem')).toHaveText(typed);
     expect(await page.evaluate(() => window.pwned)).toBeUndefined();
     await expect(page.locator('#outlineProblem img')).toHaveCount(0);
   });
 
-  test('a visitor goes from one answer to a booked call, and only their answer leaves the browser', async ({ page }) => {
+  test('a visitor goes from one answer to a saved outline and a booked call, and only talks to this site', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    const sent = watchRequests(page);
+    const services = await useServices(page);
+    const calls = watchRequests(page);
     const errors = watchForErrors(page);
-    await page.goto('/start?for=spreadsheets');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await page.goto('/start?for=spreadsheets&utm_source=google');
+    const problem = await page.locator('#problem').inputValue();
+    await buildOutline(page);
 
     await expect(page.locator('#outline')).toBeVisible();
     await expect(page.locator('#outlineTitle')).toBeFocused();
     await expect(page.locator('#outlineTitle')).toContainText('pipeline');
     await expect(page.locator('.start-progress [aria-current="step"]')).toHaveText('Your outline');
+    await expect(page.locator('#saveLive')).toBeVisible();
+    await expect(page.locator('#saveOff')).toBeHidden();
 
     await page.fill('#email', 'not-an-email');
-    await page.getByRole('button', { name: 'Save my outline' }).click();
+    await page.getByRole('button', { name: 'Email it to me' }).click();
     await expect(page.locator('#emailError')).not.toBeEmpty();
+    await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');
     await page.fill('#email', 'jane@example.com');
-    await page.getByRole('button', { name: 'Save my outline' }).click();
+    await page.getByRole('button', { name: 'Email it to me' }).click();
 
     await expect(page.locator('#bookTitle')).toBeFocused();
-    await expect(page.locator('#sentNote')).toContainText('jane@example.com');
-    await expect(page.locator('#stepBook .start-prototype')).toBeVisible();
+    await expect(page.locator('#sentNote')).toContainText('Sent to jane@example.com');
+    await expect(page.locator('#bookForm')).toBeVisible();
     await page.getByRole('button', { name: 'Book the call' }).click();
     await expect(page.locator('#bookError')).toHaveText('Pick a day first.');
 
     const days = page.locator('#bookDays input');
-    await expect(days).toHaveCount(10);
+    expect(await days.count()).toBeGreaterThan(5);
     await days.nth(1).check();
     await page.getByRole('button', { name: 'Book the call' }).click();
     await expect(page.locator('#bookError')).toHaveText('Pick a time that works.');
     await page.locator('#bookTimes input').first().check();
     await expect(page.locator('#bookButton')).toHaveText(/^Book .+ at .+/);
     await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toContainText('Add your name');
+    await expect(page.locator('#name')).toBeFocused();
+    await page.fill('#name', 'Jane Doe');
+    await page.locator('#bookButton').click();
 
-    await expect(page.locator('#doneTitle')).toHaveText("You're booked.");
+    await expect(page.locator('#doneTitle')).toHaveText('You\'re booked.');
+    await expect(page.locator('#doneTitle')).toBeFocused();
     await expect(page.locator('#doneNext')).toContainText('jane@example.com');
-    await expect(page.locator('#doneProto')).toBeVisible();
-    await expect(page.locator('#icsLink')).toHaveAttribute('href', /^blob:/);
-    expect(sent).toEqual([]);
+    await expect(page.locator('#bookAfterAll')).toBeHidden();
+
+    // The only things sent: the ad and platform, the answer, then the email,
+    // then the time and name. All to this site, and nothing anywhere else.
+    expect(calls.map(c => c.call)).toEqual(['GET /api/config', 'POST /api/event', 'POST /api/outline', 'POST /api/save', 'GET /api/slots', 'POST /api/book']);
+    const sent = Object.fromEntries(calls.map(c => [c.call, c.body]));
+    expect(sent['POST /api/event']).toEqual({ ad: 'spreadsheets', src: 'google' });
+    expect(sent['POST /api/outline']).toEqual({ problem, ad: 'spreadsheets', src: 'google', turnstile: null });
+    expect(sent['POST /api/save']).toEqual({ token: expect.any(String), email: 'jane@example.com', followUp: false, timeZone: expect.any(String) });
+    expect(sent['POST /api/book']).toEqual({ lead: expect.any(String), start: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), name: 'Jane Doe', timeZone: expect.any(String) });
+
+    const { emails, bookings, alerts } = await services.state();
+    expect(emails.map(e => e.to[0])).toEqual(['jane@example.com', 't@thomasewright.com']);
+    expect(emails[0].subject).toContain('pipeline');
+    expect(bookings).toHaveLength(1);
+    expect(bookings[0].attendee).toMatchObject({ name: 'Jane Doe', email: 'jane@example.com' });
+    expect(new Date(bookings[0].start).toISOString()).toBe(sent['POST /api/book'].start);
+    expect(alerts.map(a => a.title)).toEqual(['New lead', 'Call booked']);
+    expect(JSON.stringify(alerts)).not.toMatch(/jane|Jane/);
     expect(errors).toEqual([]);
+  });
+
+  test('the reminder box is offered only when the reminder email is set up, and its choice is sent', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    const calls = watchRequests(page);
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await expect(page.locator('#followUpField')).toBeVisible();
+    await expect(page.locator('#followUp')).not.toBeChecked();
+    await page.getByLabel('Send me one reminder tomorrow if I haven\'t picked a time').check();
+    await page.fill('#email', 'reminder@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#bookTitle')).toBeFocused();
+    expect(calls.find(c => c.call === 'POST /api/save').body.followUp).toBe(true);
+
+    await useServices(page, 'noreminder');
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await expect(page.locator('#saveLive')).toBeVisible();
+    await expect(page.locator('#followUpField')).toBeHidden();
+  });
+
+  test('with nothing connected, the outline still shows, with email and phone instead of saving', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page, 'bare');
+    const calls = watchRequests(page);
+    const errors = watchForErrors(page);
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await expect(page.locator('#outlineTitle')).toContainText('leads');
+    await expect(page.locator('#saveLive')).toBeHidden();
+    await expect(page.locator('#saveOff')).toBeVisible();
+    await expect(page.locator('#saveTitle')).toHaveText('Want to talk it through?');
+    await expect(page.locator('#jumpToSave')).toContainText('How to talk it through');
+    await expect(page.locator('#saveOff a[href="mailto:t@thomasewright.com"]')).toBeVisible();
+    await expect(page.locator('#saveOff a[href="tel:+18015808630"]')).toBeVisible();
+    expect(calls.map(c => c.call)).toEqual(['GET /api/config', 'POST /api/event', 'POST /api/outline']);
+    expect(errors).toEqual([]);
+  });
+
+  test('with booking off, saving finishes the flow and says to reply to the email', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page, 'nobook');
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await page.fill('#email', 'nobook@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#doneTitle')).toHaveText('Your outline is on its way.');
+    await expect(page.locator('#doneText')).toContainText('Sent to nobook@example.com');
+    await expect(page.locator('#doneNext')).toContainText('reply to the email and we\'ll find a time');
+    await expect(page.locator('#bookAfterAll')).toBeHidden();
+  });
+
+  test('if the calendar can\'t be reached, the booking step says so and links to Cal.com', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page, 'caldown');
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await page.fill('#email', 'caldown@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    const unavailable = page.locator('#timesUnavailable');
+    await expect(unavailable).toBeVisible();
+    await expect(unavailable).toContainText('Open times couldn\'t be loaded just now.');
+    await expect(unavailable.getByRole('link', { name: /Pick a time on Cal\.com/ })).toHaveAttribute('href', 'https://cal.com/demo/intro-call');
+    await expect(page.locator('#bookForm')).toBeHidden();
+    await expect(page.locator('#timesLoading')).toBeHidden();
+  });
+
+  test('if the email doesn\'t go out, the page says Thomas still has the details', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page, 'emaildown');
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await page.fill('#email', 'emaildown@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#sentNote')).toHaveText('Saved. The email didn\'t go through, but Thomas has your details and will reply to emaildown@example.com.');
+    await expect(page.locator('#bookForm')).toBeVisible();
+    expect((await services.state()).alerts.map(a => a.title)).toEqual(['New lead']);
+  });
+
+  test('saving errors say what to do next', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    let reply;
+    await page.route('**/api/save', route => route.fulfill(reply));
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await page.fill('#email', 'errors@example.com');
+    const cases = [
+      [{ status: 400, json: { error: 'expired' } }, /open a while/],
+      [{ status: 429, json: { error: 'too_many_sends' } }, /already been sent a few times/],
+      [{ status: 429, body: '' }, /Too many tries/],
+      [{ status: 500, json: { error: 'server_error' } }, /couldn't be sent just now.*t@thomasewright\.com/],
+    ];
+    for (const [response, message] of cases) {
+      reply = response;
+      await page.getByRole('button', { name: 'Email it to me' }).click();
+      await expect(page.locator('#emailError'), JSON.stringify(response)).toHaveText(message);
+      await expect(page.locator('#email')).toBeFocused();
+      await expect(page.locator('#saveButton')).toBeEnabled();
+      await expect(page.locator('#stepOutline')).toBeVisible();
+    }
+  });
+
+  test('booking errors say what to do next, and a call already booked counts as booked', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    await toBooking(page, 'bookerrors@example.com');
+    let reply;
+    await page.route('**/api/book', route => route.fulfill(reply));
+    await page.locator('#bookDays input').nth(1).check();
+    await page.locator('#bookTimes input').first().check();
+    await page.fill('#name', 'Pat Doe');
+
+    reply = { status: 502, json: { error: 'booking_failed' } };
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toHaveText('The call couldn\'t be booked just now. Try again in a moment.');
+    await expect(page.locator('.book-fallback a')).toHaveAttribute('href', 'https://cal.com/demo/intro-call');
+
+    reply = { status: 400, json: { error: 'expired' } };
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toContainText('Reply to your outline email instead.');
+    await expect(page.locator('.book-fallback')).toHaveCount(1);
+
+    reply = { status: 409, json: { error: 'already_booked' } };
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#doneTitle')).toHaveText('You\'re booked.');
+    await expect(page.locator('#doneText')).toHaveText('Your call is already on the calendar.');
+  });
+
+  test('a time someone else just took is refused, and fresh times load without it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page);
+    await toBooking(page, 'first@example.com');
+    await page.locator('#bookDays input').nth(1).check();
+    await page.locator('#bookTimes input').first().check();
+    const taken = await page.locator('#bookButton').textContent();
+
+    // Someone else books that same time in another tab first.
+    const other = await page.context().newPage();
+    await other.setExtraHTTPHeaders({ 'x-test-env': services.mode });
+    await other.emulateMedia({ reducedMotion: 'reduce' });
+    await toBooking(other, 'second@example.com');
+    await other.locator('#bookDays input').nth(1).check();
+    await other.locator('#bookTimes input').first().check();
+    expect(await other.locator('#bookButton').textContent()).toBe(taken);
+    await other.fill('#name', 'Second Visitor');
+    await other.locator('#bookButton').click();
+    await expect(other.locator('#doneTitle')).toHaveText('You\'re booked.');
+
+    await page.fill('#name', 'First Visitor');
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toHaveText('Someone just took that time. Pick another.');
+    await expect(page.locator('#bookForm')).toBeVisible();
+    await page.locator('#bookDays input').nth(1).check();
+    await page.locator('#bookTimes input').first().check();
+    expect(await page.locator('#bookButton').textContent()).not.toBe(taken);
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#doneTitle')).toHaveText('You\'re booked.');
+
+    const { bookings } = await services.state();
+    expect(bookings.map(b => b.attendee.name)).toEqual(['Second Visitor', 'First Visitor']);
+    expect(bookings[0].start).not.toBe(bookings[1].start);
   });
 
   test('the booking step fits a phone screen, even after picking the last day', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 320, height: 700 });
-    await page.goto('/start?for=leads');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
-    await page.getByRole('button', { name: 'Continue with Apple' }).click();
+    await useServices(page);
+    await toBooking(page, 'narrow@example.com');
     await page.locator('#bookDays input').last().check();
     await page.locator('#bookTimes input').last().check();
     const { overflow, scrollX } = await page.evaluate(() => ({
@@ -400,9 +649,10 @@ test.describe('signup flow on /start', () => {
 
   test('Back and Forward move between steps and keep what was typed', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
     await page.goto('/start');
     await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await expect(page.locator('#outline')).toBeVisible();
 
     await page.goBack();
@@ -412,24 +662,111 @@ test.describe('signup flow on /start', () => {
 
     await page.goForward();
     await expect(page.locator('#outline')).toBeVisible();
-    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await page.fill('#email', 'backforward@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#bookTitle')).toBeFocused();
     await page.getByRole('button', { name: 'See my outline again' }).click();
     await expect(page.locator('#outlineTitle')).toBeFocused();
     await expect(page.locator('#outlineTitle')).toContainText('pipeline');
+    await page.goForward();
+    await expect(page.locator('#bookTitle')).toBeFocused();
   });
 
-  test('the one-tap buttons and "not now" both finish the flow, and booking stays one tap away', async ({ page }) => {
+  test('"Not now" finishes the flow, and booking stays one tap away', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/start?for=leads');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
-    await page.getByRole('button', { name: 'Continue with Google' }).click();
-    await expect(page.locator('#sentNote')).toContainText('Google');
+    await useServices(page);
+    await toBooking(page, 'later@example.com');
     await page.getByRole('button', { name: /Not now/ }).click();
     await expect(page.locator('#doneTitle')).toHaveText('Your outline is on its way.');
-    await expect(page.locator('#icsLink')).toBeHidden();
-    await expect(page.locator('#doneProto')).toBeVisible();
+    await expect(page.locator('#doneText')).toContainText('Sent to later@example.com');
+    await expect(page.locator('#doneNext')).toContainText('use the link in it to pick a time');
     await page.getByRole('button', { name: 'Pick a time after all' }).click();
     await expect(page.locator('#bookTitle')).toBeFocused();
+    await expect(page.locator('#bookForm')).toBeVisible();
+  });
+
+  test('the delete link in the email asks first, then deletes the saved details', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page);
+    const errors = watchForErrors(page);
+    await toBooking(page, 'forget@example.com');
+    const { emails } = await services.state();
+    const link = emails[0].text.match(/Delete my details: (\S+)/)[1];
+    expect(new URL(link).pathname).toBe('/forget');
+
+    await page.goto(link);
+    await expect(page.locator('h1')).toHaveText('Delete your details?');
+    await page.getByRole('button', { name: 'Delete my details' }).click();
+    await expect(page.locator('h1')).toHaveText('Your details are deleted');
+    await page.goto(link);
+    await expect(page.locator('h1')).toHaveText('Already deleted');
+    expect(errors).toEqual([]);
+  });
+
+  test('the leads list asks for the password, then shows the saved outline and the counts', async ({ page, browser }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page);
+    await toBooking(page, 'listed@example.com', '/start?for=reports&utm_source=meta');
+
+    const denied = await page.request.get('/admin', { headers: { 'x-test-env': services.mode } });
+    expect(denied.status()).toBe(401);
+    expect(denied.headers()['www-authenticate']).toMatch(/^Basic /);
+
+    const context = await browser.newContext({
+      httpCredentials: { username: 'thomas', password: 'local-demo-password' },
+      extraHTTPHeaders: { 'x-test-env': services.mode },
+    });
+    const admin = await context.newPage();
+    const errors = watchForErrors(admin);
+    await admin.goto('/admin');
+    await expect(admin.locator('main')).toContainText('listed@example.com');
+    await expect(admin.locator('main')).toContainText('pipeline');
+    await expect(admin.locator('table').first()).toContainText('reports');
+    await expect(admin.locator('table').first()).toContainText('meta');
+    expect(errors).toEqual([]);
+    await context.close();
+  });
+
+  test('the bot check runs before the outline is written, and passing it lets the visitor save', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page, 'turnstile');
+    await page.route('https://challenges.cloudflare.com/**', route => route.fulfill({ contentType: 'text/javascript', body: fakeTurnstile('pass-token') }));
+    const errors = watchForErrors(page);
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    await expect(page.locator('#saveLive')).toBeVisible();
+    expect(await page.evaluate(() => window.turnstileOptions)).toEqual({ sitekey: '1x00000000000000000000AA', action: 'outline', appearance: 'interaction-only' });
+    const { botChecks } = await services.state();
+    expect(botChecks).toEqual([expect.objectContaining({ response: 'pass-token', secret: 'test-turnstile-secret' })]);
+    expect(await page.evaluate(() => window.turnstileResets)).toBe(1);
+    expect(errors).toEqual([]);
+  });
+
+  test('a visitor who fails the bot check still sees an outline, with email and phone instead of saving', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page, 'turnstile');
+    await page.route('https://challenges.cloudflare.com/**', route => route.fulfill({ contentType: 'text/javascript', body: fakeTurnstile('bot-token') }));
+    await page.goto('/start?for=leads');
+    await buildOutline(page);
+    await expect(page.locator('#outlineTitle')).toContainText('leads');
+    await expect(page.locator('#saveOff')).toBeVisible();
+    await expect(page.locator('#saveLive')).toBeHidden();
+  });
+
+  test('when the bot check wants a tick, the page says so and waits for it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page, 'turnstile');
+    await page.route('https://challenges.cloudflare.com/**', route => route.fulfill({ contentType: 'text/javascript', body: fakeTurnstile('pass-token', { interactive: true }) }));
+    await page.goto('/start?for=leads');
+    await page.waitForFunction(() => typeof window.tickTheBox === 'function');
+    await buildOutline(page);
+    await expect(page.locator('#outlineBusy')).toHaveText('Tick the box above so I know you\'re not a bot.');
+    await expect(page.locator('#stepOutline')).toBeHidden();
+    await page.evaluate(() => window.tickTheBox());
+    await expect(page.locator('#outline')).toBeVisible();
+    await expect(page.locator('#saveLive')).toBeVisible();
+    await expect(page.locator('#outlineBusy')).toBeEmpty();
   });
 
   test('the outline matches whole words in what the visitor wrote', async ({ page }) => {
@@ -439,11 +776,12 @@ test.describe('signup flow on /start', () => {
       ['/start', 'Our sales team spends hours entering data into Excel.', /pipeline/],
       ['/start', 'It is important that we reply to customers quickly and we are happy to try anything.', /custom tool/],
       ['/start?for=app', 'We copy invoices from email into QuickBooks by hand every week.', /pipeline/],
+      ['/start', 'Our website is old and customers can\'t find our services on it.', /website/],
     ];
     for (const [path, text, title] of cases) {
       await page.goto(path);
       await page.fill('#problem', text);
-      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await buildOutline(page);
       await expect(page.locator('#outlineTitle'), text).toContainText(title);
     }
   });
@@ -454,7 +792,7 @@ test.describe('signup flow on /start', () => {
       await page.goto(`/start?for=${key}`);
       await expect(page.locator('h1')).toContainText('slowing your business down');
       await page.fill('#problem', 'Customers keep asking the same questions.');
-      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await buildOutline(page);
       await expect(page).toHaveURL(new RegExp(`for=${key}$`));
       await expect(page.locator('#stepOutline')).toBeVisible();
     }
@@ -465,18 +803,23 @@ test.describe('signup flow on /start', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/start');
     await page.fill('#problem', 'Customers keep asking the same questions by email.');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await page.getByRole('button', { name: 'Change what I wrote' }).click();
     await expect(page.locator('#problem')).toBeFocused();
     await expect(page.locator('#problem')).toHaveValue('Customers keep asking the same questions by email.');
     await expect(page.locator('#stepOutline')).toBeHidden();
   });
 
-  test('the page says it is a prototype and is kept out of search', async ({ page }) => {
+  test('the page says an AI writes the outline, links to that part of the privacy notice, and can be found in search', async ({ page }) => {
     await page.goto('/start');
-    await expect(page.locator('#prototypeNote')).toContainText('sent to an AI model run by Cloudflare');
-    await expect(page.locator('#prototypeNote')).toContainText('We don\'t store it');
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+    const fineprint = page.locator('.start-fineprint');
+    await expect(fineprint).toContainText('An AI model run by Cloudflare writes your outline from what you type.');
+    await expect(fineprint).toContainText('Nothing is kept unless you choose to save it.');
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+    await fineprint.getByRole('link', { name: 'Privacy notice' }).click();
+    await expect(page).toHaveURL(/\/privacy#start$/);
+    await expect(page.locator('#start')).toHaveText('The Start a project page');
+    await expect(page.locator('#start')).toBeInViewport();
   });
 
   // A stand-in for the browser's speech recognition, driven from the test.
@@ -532,7 +875,7 @@ test.describe('signup flow on /start', () => {
     await page.goto('/start');
     await page.getByRole('button', { name: 'Talk instead' }).click();
     await page.evaluate(() => window.speak('Customers ask the same questions all day'));
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await expect(page.locator('#outlineTitle')).toContainText('repeat questions');
     await expect(page.locator('#talkLabel')).toHaveText('Talk instead');
   });
@@ -553,14 +896,14 @@ test.describe('signup flow on /start', () => {
     });
     await page.goto('/start?for=leads');
     await page.fill('#problem', 'We run a dental office and miss calls at lunch.');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
 
     await expect(page.locator('#outlineTitle')).toHaveText(AI_OUTLINE.title);
     await expect(page.locator('#outlineDraft')).toContainText('Written by AI');
     await expect(page.locator('#outlineSteps li')).toHaveCount(4);
     await expect(page.locator('#outlineMilestone')).toHaveText(AI_OUTLINE.milestone);
     await expect(page.locator('#outlineShipped')).toContainText('AI Lead Response Agent');
-    expect(posted).toEqual({ problem: 'We run a dental office and miss calls at lunch.', hint: 'leads' });
+    expect(posted).toEqual({ problem: 'We run a dental office and miss calls at lunch.', ad: 'leads', src: null, turnstile: null });
   });
 
   test('if the AI fails, is rate limited or sends junk, the template outline is shown', async ({ page }) => {
@@ -575,9 +918,11 @@ test.describe('signup flow on /start', () => {
       await page.unrouteAll();
       await page.route('**/api/outline', route => route.fulfill(reply));
       await page.goto('/start?for=spreadsheets');
-      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await buildOutline(page);
       await expect(page.locator('#outlineTitle'), JSON.stringify(reply)).toContainText('pipeline');
       await expect(page.locator('#outlineDraft')).not.toContainText('AI');
+      // Without the server's signed copy there's nothing to save, so it offers email and phone.
+      await expect(page.locator('#saveOff')).toBeVisible();
     }
   });
 
@@ -589,7 +934,7 @@ test.describe('signup flow on /start', () => {
       await route.fulfill({ json: { source: 'ai', outline: AI_OUTLINE } });
     });
     await page.goto('/start?for=leads');
-    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await buildOutline(page);
     await expect(page.locator('#outlineLoading')).toBeVisible();
     await page.goBack();
     await expect(page.locator('#stepDescribe')).toBeVisible();

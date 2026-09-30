@@ -5,19 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Start a project — Wright AI Solutions LLC</title>
 <meta name="description" content="Describe the problem in a sentence, get a project outline back on the page, and book a 15-minute call with Thomas Wright.">
-<meta name="robots" content="noindex">
 <link rel="canonical" href="https://wright-ai-solutions.com/start">
 <meta name="theme-color" content="#08080c" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f7f7fb" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<script src="/theme-init.js?v=8"></script>
+<script src="/theme-init.js?v=9"></script>
 <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/space-grotesk-var.woff2" as="font" type="font/woff2" crossorigin>
-<noscript><link rel="stylesheet" href="/noscript.css?v=8"></noscript>
-<link rel="stylesheet" href="/fonts/fonts.css?v=8">
-<link rel="stylesheet" href="/styles.css?v=8">
+<noscript><link rel="stylesheet" href="/noscript.css?v=9"></noscript>
+<link rel="stylesheet" href="/fonts/fonts.css?v=9">
+<link rel="stylesheet" href="/styles.css?v=9">
 </head>
 <body id="top">
 
@@ -47,8 +46,6 @@
 
     <noscript><p class="start-noscript">This page needs JavaScript. You can email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a> instead.</p></noscript>
 
-    <p class="start-prototype" id="prototypeNote"><strong>Prototype.</strong> Your answer is sent to an AI model run by Cloudflare to write your outline. We don't store it. Saving the outline and booking a call aren't connected yet, so nothing else is sent.</p>
-
     <ol class="start-progress" aria-label="Steps">
       <li class="is-current" data-step="describe" aria-current="step">Describe</li>
       <li data-step="outline">Your outline</li>
@@ -65,7 +62,7 @@
         <label class="start-label" for="problem" id="problemLabel">In a sentence or two, what's the problem?</label>
         <!-- autocomplete="off" stops the browser restoring an old value over the ad's example on reload. -->
         <div class="start-input" id="problemInput">
-          <textarea id="problem" name="problem" rows="3" maxlength="1200" autocomplete="off" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
+          <textarea id="problem" name="problem" rows="4" maxlength="1200" autocomplete="off" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
           <!-- Shown by start.js only where the browser can turn speech into text. -->
           <button type="button" class="talk" id="talkButton" hidden>
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
@@ -76,8 +73,12 @@
         <p class="start-hint" id="problemHint">Plain words are fine. No need to know what the fix is.</p>
         <p class="start-error" id="problemError" aria-live="polite"></p>
 
-        <button type="submit" class="btn btn-primary btn-lg start-cta">Build my outline <span aria-hidden="true">→</span></button>
+        <!-- Cloudflare's bot check draws a box here only if it needs the visitor to tick it. -->
+        <div class="start-botcheck" id="botCheck"></div>
+        <button type="submit" class="btn btn-primary btn-lg start-cta" id="outlineButton">Build my outline <span aria-hidden="true">→</span></button>
+        <p class="start-busy" id="outlineBusy" role="status"></p>
         <p class="start-reassure">Free, no obligation. No email needed to see your outline.</p>
+        <p class="start-fineprint">An AI model run by Cloudflare writes your outline from what you type. Nothing is kept unless you choose to save it. <a href="/privacy#start">Privacy notice</a></p>
       </form>
 
       <p class="start-who">I'm Thomas Wright. I scope and build every project myself. <a class="work-link" href="/#work" target="_blank" rel="noopener">See what I've built <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></a></p>
@@ -132,21 +133,27 @@
 
       <div class="save" id="save" hidden>
         <h2 id="saveTitle" tabindex="-1">Save your outline, then pick a time to talk</h2>
-        <p class="start-sub">I'll email you a copy so it's there when you need it.</p>
-        <div class="save-oneTap">
-          <button type="button" class="btn btn-ghost save-provider" data-provider="Google">Continue with Google</button>
-          <button type="button" class="btn btn-ghost save-provider" data-provider="Apple">Continue with Apple</button>
+        <!-- Shown when saving is switched on and the outline came from this site's server. -->
+        <div id="saveLive">
+          <p class="start-sub">I'll email you a copy so it's there when you need it.</p>
+          <form class="save-form" id="saveForm" novalidate>
+            <label class="start-label" for="email">Your email</label>
+            <div class="save-row">
+              <input type="email" id="email" name="email" autocomplete="email" inputmode="email" aria-required="true" aria-describedby="emailError" placeholder="you@business.com">
+              <button type="submit" class="btn btn-primary" id="saveButton">Email it to me</button>
+            </div>
+            <label class="start-check" id="followUpField" hidden>
+              <input type="checkbox" id="followUp" name="followUp">
+              <span>Send me one reminder tomorrow if I haven't picked a time</span>
+            </label>
+            <p class="start-error" id="emailError" aria-live="polite"></p>
+          </form>
+          <p class="start-reassure">Used only to send your outline and reply to you. Never a newsletter, and every email has a link to delete your details.</p>
         </div>
-        <p class="save-or"><span>or</span></p>
-        <form class="save-form" id="saveForm" novalidate>
-          <label class="start-label" for="email">Email</label>
-          <div class="save-row">
-            <input type="email" id="email" name="email" autocomplete="email" inputmode="email" aria-required="true" aria-describedby="emailError" placeholder="you@business.com">
-            <button type="submit" class="btn btn-primary">Save my outline</button>
-          </div>
-          <p class="start-error" id="emailError" aria-live="polite"></p>
-        </form>
-        <p class="start-reassure">Google and Apple share only your name and email. It's used to send your outline and reply to you, never a newsletter, and it's deleted if you ask.</p>
+        <!-- Otherwise: the outline is on the page, and here's how to talk it through. -->
+        <div id="saveOff" hidden>
+          <p class="start-sub">Saving by email isn't available right now. To talk it through, email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a>, and mention your outline's title.</p>
+        </div>
       </div>
     </section>
 
@@ -154,10 +161,15 @@
     <section class="start-step" id="stepBook" aria-labelledby="bookTitle" hidden>
       <h2 id="bookTitle" tabindex="-1">Want to talk it through? Pick a time.</h2>
       <p class="start-sent" id="sentNote" role="status"></p>
-      <p class="start-prototype start-prototype-inline"><strong>Prototype.</strong> No email was sent and choosing a time won't book a real call.</p>
       <p class="start-sub">A 15-minute call with Thomas, the person who'd build it. Times are shown in your time zone.</p>
 
-      <form class="book-form" id="bookForm" novalidate>
+      <div class="start-loading" id="timesLoading" role="status">
+        <span class="start-spinner" aria-hidden="true"></span>
+        <span>Finding open times…</span>
+      </div>
+      <p class="start-sub" id="timesUnavailable" hidden></p>
+
+      <form class="book-form" id="bookForm" novalidate hidden>
         <fieldset class="chip-group">
           <legend>Day</legend>
           <div class="chips" id="bookDays"></div>
@@ -166,9 +178,11 @@
           <legend id="timesLegend">Time</legend>
           <div class="chips" id="bookTimes"></div>
         </fieldset>
+        <label class="start-label book-name" for="name">Your name</label>
+        <input type="text" id="name" name="name" autocomplete="name" maxlength="100" aria-required="true" aria-describedby="bookError">
         <p class="start-error" id="bookError" aria-live="polite"></p>
         <button type="submit" class="btn btn-primary btn-lg start-cta" id="bookButton">Book the call</button>
-        <p class="start-reassure">You'll get a calendar invite. Reschedule or cancel from it anytime.</p>
+        <p class="start-reassure">Cal.com sends you the calendar invite. Reschedule or cancel from it anytime.</p>
       </form>
       <div class="start-textlinks">
         <button type="button" class="start-textlink" id="backToOutline">See my outline again</button>
@@ -180,9 +194,7 @@
       <h2 id="doneTitle" tabindex="-1">You're booked.</h2>
       <p class="start-sub" id="doneText"></p>
       <ul class="outline-list" id="doneNext"></ul>
-      <p class="start-prototype start-prototype-inline" id="doneProto"><strong>Prototype.</strong> Nothing was sent and no call was booked. To talk for real, email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a>.</p>
       <div class="start-textlinks">
-        <a class="btn btn-ghost" id="icsLink" download="call-with-wright-ai-solutions.ics" href="#stepDone">Add to my calendar</a>
         <button type="button" class="start-textlink" id="bookAfterAll" hidden>Pick a time after all</button>
       </div>
     </section>
@@ -201,7 +213,7 @@
   </div>
 </footer>
 
-<script src="/script.js?v=8"></script>
-<script type="module" src="/start.js?v=8"></script>
+<script src="/script.js?v=9"></script>
+<script type="module" src="/start.js?v=9"></script>
 </body>
 </html>

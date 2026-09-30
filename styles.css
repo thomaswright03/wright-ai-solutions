@@ -225,6 +225,10 @@ img{max-width:100%; display:block;}
 .btn-ghost{border:1px solid var(--border); color:var(--text);}
 .btn-ghost:hover{border-color:var(--accent-3); transform:translateY(-2px);}
 .btn-lg{padding:var(--space-4) var(--space-6); font-size:var(--fs-base);}
+/* <button class="btn"> (the /start forms, the "delete my details" and leads pages) looks like the links. */
+button.btn{font-family:inherit; line-height:inherit; cursor:pointer;}
+button.btn-primary{border:1px solid transparent;}
+button.btn-ghost{background:none;}
 .hero-stats{display:flex; gap:var(--space-7); flex-wrap:wrap;}
 .hero-stats div{display:flex; flex-direction:column; gap:var(--space-1);}
 .hero-stats strong{font-family:'Space Grotesk', sans-serif; font-size:var(--fs-3xl);}
@@ -372,8 +376,12 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 
 .legal{position:relative; z-index:1; padding:var(--space-8) 0 var(--space-9);}
 .legal-inner{max-width:720px;}
+.forget-form{margin:var(--space-5) 0;}
 .legal h1{font-size:var(--fs-page); margin-bottom:var(--space-2);}
 .legal h2{font-size:var(--fs-xl); margin:var(--space-6) 0 var(--space-2); max-width:none;}
+.legal h3{font-size:var(--fs-lg); margin:var(--space-5) 0 var(--space-2); max-width:none;}
+/* Keeps a linked section (/privacy#start) clear of the sticky header. */
+html:has(main.legal){scroll-padding-top:var(--space-9);}
 .legal p{color:var(--text-dim); font-size:var(--fs-md); margin-bottom:var(--space-3);}
 .legal .legal-updated{font-size:var(--fs-xs); color:var(--text-dimmer); margin-bottom:var(--space-5);}
 .legal a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
@@ -385,13 +393,6 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 .start [hidden]{display:none !important;}
 .start-inner{max-width:720px;}
 .start section{padding:0;}
-.start-prototype{
-  font-size:var(--fs-sm); color:var(--text-dim); background:var(--surface-2);
-  border:1px dashed var(--border); border-radius:12px; padding:var(--space-3) var(--space-4); margin-bottom:var(--space-6);
-}
-.start-prototype strong{color:var(--text);}
-.start-prototype a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
-.start-prototype-inline{margin:0 0 var(--space-5);}
 .start-noscript{font-size:var(--fs-md); color:var(--text); margin-bottom:var(--space-5);}
 .start-noscript a{color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
 
@@ -412,14 +413,14 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 .start-step + .start-step{margin-top:var(--space-6);}
 
 .start-label{display:block; font-weight:600; font-size:var(--fs-base); margin-bottom:var(--space-2);}
-.start textarea, .start input[type="email"]{
+.start textarea, .start input[type="email"], .start input[type="text"]{
   width:100%; font:inherit; font-size:var(--fs-base); color:var(--text);
   background:var(--surface); border:1px solid var(--field-border); border-radius:12px;
   padding:var(--space-4);
 }
 .start ::placeholder{color:var(--text-dimmer); opacity:1;}
 .start textarea{resize:vertical; min-height:96px; line-height:1.5;}
-.start textarea:focus-visible, .start input[type="email"]:focus-visible{outline:2px solid var(--accent-1); outline-offset:2px; border-color:var(--accent-1);}
+.start textarea:focus-visible, .start input[type="email"]:focus-visible, .start input[type="text"]:focus-visible{outline:2px solid var(--accent-1); outline-offset:2px; border-color:var(--accent-1);}
 .start [aria-invalid="true"]{border-color:var(--accent-2);}
 .start-hint{font-size:var(--fs-sm); color:var(--text-dimmer); margin-top:var(--space-2);}
 .start-input{display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-3);}
@@ -442,6 +443,15 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 .start-cta{margin-top:var(--space-5);}
 .start-reassure{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-3);}
 .start-reassure::before{content:'✓' / ''; color:var(--accent-3); font-weight:700; margin-right:var(--space-2);}
+.start-fineprint{font-size:var(--fs-xs); color:var(--text-dimmer); margin-top:var(--space-2);}
+.start-fineprint a, .start-sub a, #timesUnavailable a, .book-fallback a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+.start-botcheck:not(:empty){margin-top:var(--space-4);}
+.start-busy{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-2);}
+.start-busy:empty{display:none;}
+.start button:disabled{opacity:0.7; cursor:progress;}
+.start-check{display:flex; align-items:center; gap:var(--space-3); min-height:44px; margin-top:var(--space-3); font-size:var(--fs-sm); color:var(--text-dim); cursor:pointer;}
+.start-check input{width:20px; height:20px; flex-shrink:0; accent-color:var(--accent-1); cursor:pointer;}
+.book-name{margin-top:var(--space-5);}
 .start-who{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-6); padding-top:var(--space-5); border-top:1px solid var(--border);}
 .start-who .work-link{margin-top:0;}
 .start-textlinks{display:flex; flex-wrap:wrap; align-items:center; column-gap:var(--space-5);}
@@ -489,10 +499,6 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 .start-loading:focus{outline:none;}
 
 .save{margin-top:var(--space-7);}
-.save-oneTap{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3); margin-top:var(--space-4);}
-.save-provider{justify-content:center; min-height:48px; cursor:pointer; background:none; font:inherit; font-weight:600;}
-.save-or{display:flex; align-items:center; gap:var(--space-3); margin:var(--space-5) 0; font-size:var(--fs-sm); color:var(--text-dimmer);}
-.save-or::before, .save-or::after{content:''; flex:1; height:1px; background:var(--border);}
 .save-row{display:flex; gap:var(--space-3);}
 .save-row input{flex:1; min-width:0;}
 .save-row .btn{flex-shrink:0; cursor:pointer; font:inherit; font-weight:600;}
@@ -503,7 +509,6 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 #stepDone .outline-list{margin-bottom:var(--space-6);}
 
 @media (max-width: 560px){
-  .save-oneTap{grid-template-columns:1fr;}
   .save-row{flex-direction:column;}
   .outline{padding:var(--space-5);}
 }

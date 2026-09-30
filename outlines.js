@@ -3,7 +3,7 @@
 // the visitor saw. Plain data and one pure function: no DOM, no network.
 
 // The kinds of work the studio does. Every outline has one.
-export const KINDS = ['leads', 'data', 'support', 'app', 'general'];
+export const KINDS = ['leads', 'data', 'support', 'app', 'website', 'general'];
 
 // Ad-matched openings. The key is the ?for= value in the ad's link.
 export const AD_PAGES = {
@@ -61,7 +61,7 @@ export const AD_PAGES = {
     sub: 'Tell me what your business does and what customers look for. You\'ll get an outline for a site you can change yourself, with a clear way for customers to reach you.',
     label: 'Is this your problem? Edit it or add details.',
     prefill: 'Our website is out of date and only the person who built it can change it. Customers can\'t easily find our services or contact us.',
-    kind: 'app',
+    kind: 'website',
   },
   booking: {
     eyebrow: 'For businesses booking by phone and text',
@@ -169,6 +169,29 @@ export const OUTLINES = {
       'What does a successful first month look like to you?',
     ],
   },
+  website: {
+    title: 'A website you can update yourself',
+    build: 'A clear website that shows what you do and makes it easy for customers to reach you, built so you can change the words and photos yourself without waiting on a developer.',
+    steps: [
+      'We agree on what customers come to your site to do.',
+      'I design and build it, showing you working pages as I go.',
+      'I show you how to change the words and photos yourself.',
+      'It goes live on your domain, and we fix anything real visitors trip over.',
+    ],
+    needs: [
+      'The words you use for your services, plus your logo and photos',
+      'Access to your domain and your current site',
+      'A few websites you like the look of',
+    ],
+    milestone: 'Your new home page on a preview link, with you making your first change to it yourself.',
+    shippedHeading: 'Something similar I\'ve built',
+    shipped: 'Studio McKenna, a portfolio site for an independent artist with a searchable gallery and an upload flow for adding new pieces straight from a phone.',
+    questions: [
+      'What do customers most often come to your site to do?',
+      'What do you want to be able to change yourself, and how often?',
+      'What does your current site get wrong today?',
+    ],
+  },
   general: {
     title: 'A custom tool built around your problem',
     build: 'A custom tool or automation shaped around the problem you described. On the call we\'d narrow it to the smallest version that fixes it, so you see results before a bigger build.',
@@ -200,7 +223,8 @@ export const SIGNALS = {
   leads: [/\bleads?\b/, /\binquir/, /\benquir/, /\bprospects?\b/, /\bfollow[- ]?ups?\b/, /\bmiss(ed|ing)?( the| our)? (calls?|them)\b/, /\bvoicemails?\b/, /\bcall(ing)? back\b/, /\bcrm\b/, /\bgohighlevel\b/, /\bhubspot\b/, /\bquote requests?\b/, /\bappointment requests?\b/, /\bbook(ing)? (a |an )?(call|appointment|consult)/],
   data: [/\bspreadsheets?\b/, /\bexcel\b/, /\bgoogle sheets?\b/, /\bcop(y|ying|ied)\b/, /\bpast(e|ing)\b/, /\bdata entry\b/, /\bentering data\b/, /\bre-?(enter|type)/, /\breports?\b/, /\bcsv\b/, /\bexports?\b/, /\bimport(s|ed|ing)?\b/, /\bsync/, /\brecords\b/, /\bby hand\b/, /\bmanually\b/, /\binvoices?\b/, /\bquickbooks\b/, /\bshopify\b/],
   support: [/\bcustomer questions?\b/, /\bsame questions?\b/, /\bquestions\b/, /\bsupport\b/, /\bfaqs?\b/, /\binbox\b/, /\btickets?\b/, /\bcustomer service\b/, /\banswering\b/],
-  app: [/\bapps?\b/, /\bwebsite\b/, /\bweb ?site\b/, /\bplatform\b/, /\bmarketplace\b/, /\bportal\b/, /\bmvp\b/, /\blaunch\b/, /\bstartup\b/, /\bidea for\b/],
+  app: [/\bapps?\b/, /\bplatform\b/, /\bmarketplace\b/, /\bportal\b/, /\bmvp\b/, /\blaunch\b/, /\bstartup\b/, /\bidea for\b/],
+  website: [/\bweb ?sites?\b/, /\bweb ?pages?\b/, /\blanding pages?\b/, /\bhome ?page\b/, /\bour site\b/, /\bwordpress\b/, /\bsquarespace\b/, /\bwix\b/, /\bgodaddy\b/, /\bdomain\b/],
 };
 
 // Which kind of work the visitor's own words point to. The ad they came from
