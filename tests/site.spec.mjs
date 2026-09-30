@@ -273,3 +273,20 @@ test('every response carries the security headers from _headers', async ({ reque
     expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
   }
 });
+
+test.describe('project cards', () => {
+  test('every project card has a Problem and a Solution heading, each followed by text', async ({ page }) => {
+    await page.goto('/');
+    const cards = await page.locator('.work-item').all();
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      const title = (await card.locator('h3').textContent()).trim();
+      const parts = await card.locator('h4').evaluateAll(headings => headings.map(h => {
+        const next = h.nextElementSibling;
+        return { label: h.textContent.trim(), text: next?.tagName === 'P' ? next.textContent.trim() : '' };
+      }));
+      expect(parts.map(p => p.label), `${title}: h4 headings`).toEqual(['Problem', 'Solution']);
+      for (const { label, text } of parts) expect(text, `${title}: text after "${label}"`).not.toBe('');
+    }
+  });
+});

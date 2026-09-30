@@ -269,6 +269,12 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
   padding:var(--space-1) var(--space-3); border-radius:999px; margin-bottom:var(--space-3);
 }
 .work-body h3{font-size:var(--fs-3xl); margin-bottom:var(--space-3);}
+/* "Problem" and "Solution" labels: styled like .eyebrow, each tight to its own text */
+.work-body h4{
+  font-size:var(--fs-xs); font-weight:600; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--accent-3); margin:var(--space-4) 0 var(--space-1);
+}
+.work-body p + h4{margin-top:var(--space-5);}
 .work-body p{color:var(--text-dim); font-size:var(--fs-md); margin-bottom:var(--space-3);}
 .work-link{
   display:inline-flex; align-items:center; gap:var(--space-1);
