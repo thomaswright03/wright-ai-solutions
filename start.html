@@ -47,7 +47,7 @@
 
     <noscript><p class="start-noscript">This page needs JavaScript. You can email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a> instead.</p></noscript>
 
-    <p class="start-prototype" id="prototypeNote"><strong>Prototype.</strong> Nothing you type here is sent or stored. The outline is put together in your browser from templates; the live version would write it with AI.</p>
+    <p class="start-prototype" id="prototypeNote"><strong>Prototype.</strong> Nothing you type here is sent or stored. The outline comes from templates in your browser; the live version would write it with AI.</p>
 
     <ol class="start-progress" aria-label="Steps">
       <li class="is-current" data-step="describe" aria-current="step">Describe</li>
@@ -59,32 +59,24 @@
     <section class="start-step" id="stepDescribe" aria-labelledby="startTitle">
       <p class="eyebrow" id="startEyebrow">Start a project</p>
       <h1 id="startTitle" tabindex="-1">Tell me what's <span class="grad-text">slowing your business down.</span></h1>
-      <p class="start-sub" id="startSub">One question, no forms. You'll get a project outline back on this page, then you can pick a time to talk it through.</p>
+      <p class="start-sub" id="startSub">Answer one question and get a project outline back on this page. Then pick a time to talk it through if you like.</p>
 
       <form class="start-form" id="describeForm" novalidate>
         <label class="start-label" for="problem" id="problemLabel">In a sentence or two, what's the problem?</label>
-        <textarea id="problem" name="problem" rows="4" maxlength="1200" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
+        <textarea id="problem" name="problem" rows="3" maxlength="1200" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
         <p class="start-hint" id="problemHint">Plain words are fine. No need to know what the fix is.</p>
         <p class="start-error" id="problemError" aria-live="polite"></p>
 
-        <fieldset class="chip-group">
-          <legend>How many people does this touch? <span class="start-optional">Optional</span></legend>
-          <div class="chips">
-            <label class="chip"><input type="radio" name="team" value="just me"><span>Just me</span></label>
-            <label class="chip"><input type="radio" name="team" value="2 to 10 people"><span>2–10</span></label>
-            <label class="chip"><input type="radio" name="team" value="11 to 50 people"><span>11–50</span></label>
-            <label class="chip"><input type="radio" name="team" value="more than 50 people"><span>50+</span></label>
-          </div>
-        </fieldset>
-
         <button type="submit" class="btn btn-primary btn-lg start-cta">Build my outline <span aria-hidden="true">→</span></button>
-        <p class="start-reassure">Free. No sales pitch. No email needed to see your outline.</p>
+        <p class="start-reassure">Free, no obligation. No email needed to see your outline.</p>
       </form>
+
+      <p class="start-who">I'm Thomas Wright. I scope and build every project myself. <a class="work-link" href="/#work" target="_blank" rel="noopener">See what I've built <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></a></p>
     </section>
 
     <!-- Step 2: the outline, then where to send it. -->
     <section class="start-step" id="stepOutline" aria-labelledby="outlineTitle" hidden>
-      <div class="start-loading" id="outlineLoading" role="status" aria-live="polite">
+      <div class="start-loading" id="outlineLoading" role="status" aria-live="polite" tabindex="-1">
         <span class="start-spinner" aria-hidden="true"></span>
         <span id="loadingText">Reading what you wrote…</span>
       </div>
@@ -94,12 +86,12 @@
           <p class="eyebrow">Your project outline</p>
           <h2 id="outlineTitle" tabindex="-1">Project outline</h2>
           <p class="outline-draft">A first draft from what you wrote. We'd sharpen it together on a call.</p>
+          <button type="button" class="start-textlink outline-jump" id="jumpToSave">Save it and pick a time to talk <span aria-hidden="true">↓</span></button>
         </header>
 
         <div class="outline-section">
           <h3>The problem</h3>
           <blockquote class="outline-quote" id="outlineProblem"></blockquote>
-          <p class="outline-meta" id="outlineTeam" hidden></p>
         </div>
         <div class="outline-section">
           <h3>What I'd build</h3>
@@ -114,11 +106,11 @@
           <ul class="outline-list" id="outlineNeeds"></ul>
         </div>
         <div class="outline-section">
-          <h3>First milestone</h3>
-          <p>A working version running on your own data that you can try before anything else gets built.</p>
+          <h3>A first milestone we could aim for</h3>
+          <p id="outlineMilestone"></p>
         </div>
         <div class="outline-section">
-          <h3>Something similar I've shipped</h3>
+          <h3 id="outlineShippedHeading">Something similar I've built</h3>
           <p id="outlineShipped"></p>
         </div>
         <div class="outline-section">
@@ -130,7 +122,8 @@
       </article>
 
       <div class="save" id="save" hidden>
-        <h2 id="saveTitle" tabindex="-1">Where should I send your outline?</h2>
+        <h2 id="saveTitle" tabindex="-1">Save your outline, then pick a time to talk</h2>
+        <p class="start-sub">I'll email you a copy so it's there when you need it.</p>
         <div class="save-oneTap">
           <button type="button" class="btn btn-ghost save-provider" data-provider="Google">Continue with Google</button>
           <button type="button" class="btn btn-ghost save-provider" data-provider="Apple">Continue with Apple</button>
@@ -139,42 +132,50 @@
         <form class="save-form" id="saveForm" novalidate>
           <label class="start-label" for="email">Email</label>
           <div class="save-row">
-            <input type="email" id="email" name="email" autocomplete="email" inputmode="email" aria-describedby="emailError" placeholder="you@business.com">
-            <button type="submit" class="btn btn-primary">Send my outline</button>
+            <input type="email" id="email" name="email" autocomplete="email" inputmode="email" aria-required="true" aria-describedby="emailError" placeholder="you@business.com">
+            <button type="submit" class="btn btn-primary">Save my outline</button>
           </div>
           <p class="start-error" id="emailError" aria-live="polite"></p>
         </form>
-        <p class="start-reassure">Used only to send your outline and reply to you. No newsletter. Ask and it's deleted.</p>
+        <p class="start-reassure">Google and Apple share only your name and email. It's used to send your outline and reply to you, never a newsletter, and it's deleted if you ask.</p>
       </div>
     </section>
 
     <!-- Step 3: book a 15-minute call on the page. -->
     <section class="start-step" id="stepBook" aria-labelledby="bookTitle" hidden>
-      <p class="start-sent" id="sentNote"></p>
       <h2 id="bookTitle" tabindex="-1">Want to talk it through? Pick a time.</h2>
-      <p class="start-sub">A 15-minute call with Thomas, the person who'd build it. Times are in your time zone<span id="tzName"></span>.</p>
+      <p class="start-sent" id="sentNote" role="status"></p>
+      <p class="start-prototype start-prototype-inline"><strong>Prototype.</strong> No email was sent and choosing a time won't book a real call.</p>
+      <p class="start-sub">A 15-minute call with Thomas, the person who'd build it. Times are shown in your time zone.</p>
 
       <form class="book-form" id="bookForm" novalidate>
         <fieldset class="chip-group">
           <legend>Day</legend>
-          <div class="chips book-days" id="bookDays"></div>
+          <div class="chips" id="bookDays"></div>
         </fieldset>
         <fieldset class="chip-group" id="timesGroup" hidden>
-          <legend>Time</legend>
-          <div class="chips book-times" id="bookTimes"></div>
+          <legend id="timesLegend">Time</legend>
+          <div class="chips" id="bookTimes"></div>
         </fieldset>
         <p class="start-error" id="bookError" aria-live="polite"></p>
         <button type="submit" class="btn btn-primary btn-lg start-cta" id="bookButton">Book the call</button>
         <p class="start-reassure">You'll get a calendar invite. Reschedule or cancel from it anytime.</p>
       </form>
-      <button type="button" class="start-textlink" id="skipBooking">Not now, the outline is enough</button>
+      <div class="start-textlinks">
+        <button type="button" class="start-textlink" id="backToOutline">See my outline again</button>
+        <button type="button" class="start-textlink" id="skipBooking">Not now, the outline is enough</button>
+      </div>
     </section>
 
     <section class="start-step" id="stepDone" aria-labelledby="doneTitle" hidden>
       <h2 id="doneTitle" tabindex="-1">You're booked.</h2>
       <p class="start-sub" id="doneText"></p>
       <ul class="outline-list" id="doneNext"></ul>
-      <a class="btn btn-ghost" id="icsLink" download="call-with-wright-ai-solutions.ics" href="#stepDone">Add to my calendar</a>
+      <p class="start-prototype start-prototype-inline" id="doneProto"><strong>Prototype.</strong> Nothing was sent and no call was booked. To talk for real, email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a>.</p>
+      <div class="start-textlinks">
+        <a class="btn btn-ghost" id="icsLink" download="call-with-wright-ai-solutions.ics" href="#stepDone">Add to my calendar</a>
+        <button type="button" class="start-textlink" id="bookAfterAll" hidden>Pick a time after all</button>
+      </div>
     </section>
 
   </div>

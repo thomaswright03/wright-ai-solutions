@@ -324,41 +324,80 @@ test.describe('signup flow on /start', () => {
     const sent = watchRequests(page);
     const errors = watchForErrors(page);
     await page.goto('/start?for=spreadsheets');
-    await page.getByRole('radio', { name: '2–10' }).check();
     await page.getByRole('button', { name: /Build my outline/ }).click();
 
     await expect(page.locator('#outline')).toBeVisible();
     await expect(page.locator('#outlineTitle')).toBeFocused();
     await expect(page.locator('#outlineTitle')).toContainText('pipeline');
-    await expect(page.locator('#outlineTeam')).toHaveText('Affects 2 to 10 people.');
     await expect(page.locator('.start-progress [aria-current="step"]')).toHaveText('Your outline');
 
     await page.fill('#email', 'not-an-email');
-    await page.getByRole('button', { name: 'Send my outline' }).click();
+    await page.getByRole('button', { name: 'Save my outline' }).click();
     await expect(page.locator('#emailError')).not.toBeEmpty();
     await page.fill('#email', 'jane@example.com');
-    await page.getByRole('button', { name: 'Send my outline' }).click();
+    await page.getByRole('button', { name: 'Save my outline' }).click();
 
     await expect(page.locator('#bookTitle')).toBeFocused();
     await expect(page.locator('#sentNote')).toContainText('jane@example.com');
+    await expect(page.locator('#stepBook .start-prototype')).toBeVisible();
     await page.getByRole('button', { name: 'Book the call' }).click();
     await expect(page.locator('#bookError')).toHaveText('Pick a day first.');
 
     const days = page.locator('#bookDays input');
     await expect(days).toHaveCount(10);
     await days.nth(1).check();
+    await page.getByRole('button', { name: 'Book the call' }).click();
+    await expect(page.locator('#bookError')).toHaveText('Pick a time that works.');
     await page.locator('#bookTimes input').first().check();
-    await expect(page.locator('#bookButton')).toHaveText(/^Book \w+/);
+    await expect(page.locator('#bookButton')).toHaveText(/^Book .+ at .+/);
     await page.locator('#bookButton').click();
 
     await expect(page.locator('#doneTitle')).toHaveText("You're booked.");
     await expect(page.locator('#doneNext')).toContainText('jane@example.com');
+    await expect(page.locator('#doneProto')).toBeVisible();
     await expect(page.locator('#icsLink')).toHaveAttribute('href', /^blob:/);
     expect(sent).toEqual([]);
     expect(errors).toEqual([]);
   });
 
-  test('the one-tap buttons and "not now" both finish the flow', async ({ page }) => {
+  test('the booking step fits a phone screen, even after picking the last day', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto('/start?for=leads');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await page.getByRole('button', { name: 'Continue with Apple' }).click();
+    await page.locator('#bookDays input').last().check();
+    await page.locator('#bookTimes input').last().check();
+    const { overflow, scrollX } = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      scrollX: window.scrollX,
+    }));
+    expect(overflow).toBeLessThanOrEqual(0);
+    expect(scrollX).toBe(0);
+    await expect(page.locator('#bookButton')).toBeInViewport({ ratio: 0 });
+  });
+
+  test('Back and Forward move between steps and keep what was typed', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/start');
+    await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await expect(page.locator('#outline')).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/start$/);
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#problem')).toHaveValue('We re-enter every Shopify order into QuickBooks by hand.');
+
+    await page.goForward();
+    await expect(page.locator('#outline')).toBeVisible();
+    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await page.getByRole('button', { name: 'See my outline again' }).click();
+    await expect(page.locator('#outlineTitle')).toBeFocused();
+    await expect(page.locator('#outlineTitle')).toContainText('pipeline');
+  });
+
+  test('the one-tap buttons and "not now" both finish the flow, and booking stays one tap away', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/start?for=leads');
     await page.getByRole('button', { name: /Build my outline/ }).click();
@@ -367,6 +406,38 @@ test.describe('signup flow on /start', () => {
     await page.getByRole('button', { name: /Not now/ }).click();
     await expect(page.locator('#doneTitle')).toHaveText('Your outline is on its way.');
     await expect(page.locator('#icsLink')).toBeHidden();
+    await expect(page.locator('#doneProto')).toBeVisible();
+    await page.getByRole('button', { name: 'Pick a time after all' }).click();
+    await expect(page.locator('#bookTitle')).toBeFocused();
+  });
+
+  test('the outline matches whole words in what the visitor wrote', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const cases = [
+      ['/start', 'Clients book appointments by phone and when we miss the call they go elsewhere.', /leads/],
+      ['/start', 'Our sales team spends hours entering data into Excel.', /pipeline/],
+      ['/start', 'It is important that we reply to customers quickly and we are happy to try anything.', /custom tool/],
+      ['/start?for=app', 'We copy invoices from email into QuickBooks by hand every week.', /pipeline/],
+    ];
+    for (const [path, text, title] of cases) {
+      await page.goto(path);
+      await page.fill('#problem', text);
+      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await expect(page.locator('#outlineTitle'), text).toContainText(title);
+    }
+  });
+
+  test('odd ?for= values fall back to the plain page without breaking it', async ({ page }) => {
+    const errors = watchForErrors(page);
+    for (const key of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+      await page.goto(`/start?for=${key}`);
+      await expect(page.locator('h1')).toContainText('slowing your business down');
+      await page.fill('#problem', 'Customers keep asking the same questions.');
+      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await expect(page).toHaveURL(new RegExp(`for=${key}$`));
+      await expect(page.locator('#stepOutline')).toBeVisible();
+    }
+    expect(errors).toEqual([]);
   });
 
   test('"Change what I wrote" goes back with the answer kept', async ({ page }) => {

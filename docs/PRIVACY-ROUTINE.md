@@ -47,7 +47,7 @@ Requests come in by email, or by phone and are then confirmed by email.
 
 ## Takedown from the site
 
-1. Remove or anonymize the material in `index.html` or `assets/`, and open a PR.
+1. Remove or anonymize the material wherever it appears (search for the name in `index.html`, `start.js` and `assets/`), and open a PR.
 2. Merge it once CI is green. Pushing to `main` deploys through Cloudflare Workers Builds (see `README.md`).
 3. Load the live page in a normal browser to confirm the material is gone, then log it.
 
