@@ -285,15 +285,27 @@ test('only /start may use the microphone', async ({ request }) => {
 });
 
 test.describe('signup flow on /start', () => {
-  // The prototype must not send anything anywhere: every request stays a GET for a file on this site.
+  // The only thing the page may send is the visitor's answer to this site's own
+  // /api/outline; every other request is a GET for a file on this site.
   function watchRequests(page) {
     const sent = [];
     page.on('request', req => {
       const url = new URL(req.url());
-      if (req.method() !== 'GET' || url.host !== 'localhost:4173') sent.push(`${req.method()} ${req.url()}`);
+      const outlineCall = req.method() === 'POST' && url.pathname === '/api/outline';
+      if (url.host !== 'localhost:4173' || (req.method() !== 'GET' && !outlineCall)) sent.push(`${req.method()} ${req.url()}`);
     });
     return sent;
   }
+
+  const AI_OUTLINE = {
+    kind: 'leads',
+    title: 'A lunchtime call-back agent for your dental office',
+    build: 'I\'d build an agent that texts back every caller you miss over lunch and offers them a time to come in.',
+    steps: ['A call goes unanswered.', 'The agent texts the caller back.', 'It offers open appointment times.', 'Your front desk takes over when they reply.'],
+    needs: ['Access to your phone system', 'Your appointment rules', 'How you like to greet patients'],
+    milestone: 'Texting back missed calls from one line while you watch every message.',
+    questions: ['How many calls do you miss at lunch?', 'Who books appointments today?', 'What should it never say?'],
+  };
 
   test('each ad link opens on the problem that ad named', async ({ page }) => {
     const ads = { leads: /after hours/, spreadsheets: /by hand/, support: /questions/, app: /app idea/ };
@@ -327,7 +339,7 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#outlineProblem img')).toHaveCount(0);
   });
 
-  test('a visitor goes from one answer to a booked call without anything leaving the browser', async ({ page }) => {
+  test('a visitor goes from one answer to a booked call, and only their answer leaves the browser', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const sent = watchRequests(page);
     const errors = watchForErrors(page);
@@ -461,7 +473,8 @@ test.describe('signup flow on /start', () => {
 
   test('the page says it is a prototype and is kept out of search', async ({ page }) => {
     await page.goto('/start');
-    await expect(page.locator('#prototypeNote')).toContainText('Nothing you type or say here is sent to us or stored');
+    await expect(page.locator('#prototypeNote')).toContainText('sent to an AI model run by Cloudflare');
+    await expect(page.locator('#prototypeNote')).toContainText('We don\'t store it');
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
   });
 
@@ -527,5 +540,60 @@ test.describe('signup flow on /start', () => {
     await page.goto('/start');
     await expect(page.locator('#talkButton')).toBeHidden();
     await expect(page.locator('#problemHint')).toHaveText('Plain words are fine. No need to know what the fix is.');
+  });
+
+  test('the outline the AI writes is shown, labelled as AI, with past work from the fixed text', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    let posted;
+    await page.route('**/api/outline', async route => {
+      posted = route.request().postDataJSON();
+      await route.fulfill({ json: { source: 'ai', outline: AI_OUTLINE } });
+    });
+    await page.goto('/start?for=leads');
+    await page.fill('#problem', 'We run a dental office and miss calls at lunch.');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+
+    await expect(page.locator('#outlineTitle')).toHaveText(AI_OUTLINE.title);
+    await expect(page.locator('#outlineDraft')).toContainText('Written by AI');
+    await expect(page.locator('#outlineSteps li')).toHaveCount(4);
+    await expect(page.locator('#outlineMilestone')).toHaveText(AI_OUTLINE.milestone);
+    await expect(page.locator('#outlineShipped')).toContainText('AI Lead Response Agent');
+    expect(posted).toEqual({ problem: 'We run a dental office and miss calls at lunch.', hint: 'leads' });
+  });
+
+  test('if the AI fails, is rate limited or sends junk, the template outline is shown', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const replies = [
+      { status: 500, json: { error: 'x' } },
+      { status: 429, json: { error: 'rate_limited' } },
+      { status: 200, json: { source: 'template' } },
+      { status: 200, json: { source: 'ai', outline: { kind: 'nonsense' } } },
+    ];
+    for (const reply of replies) {
+      await page.unrouteAll();
+      await page.route('**/api/outline', route => route.fulfill(reply));
+      await page.goto('/start?for=spreadsheets');
+      await page.getByRole('button', { name: /Build my outline/ }).click();
+      await expect(page.locator('#outlineTitle'), JSON.stringify(reply)).toContainText('pipeline');
+      await expect(page.locator('#outlineDraft')).not.toContainText('AI');
+    }
+  });
+
+  test('going back while the outline is being written drops the late reply', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    let release;
+    await page.route('**/api/outline', async route => {
+      await new Promise(resolve => { release = resolve; });
+      await route.fulfill({ json: { source: 'ai', outline: AI_OUTLINE } });
+    });
+    await page.goto('/start?for=leads');
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await expect(page.locator('#outlineLoading')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    release();
+    await page.waitForTimeout(500);
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#stepOutline')).toBeHidden();
   });
 });

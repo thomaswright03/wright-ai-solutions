@@ -1,5 +1,6 @@
 // Minimal static server for the browser tests. It mimics how Cloudflare Workers
-// static assets serve this repo (see wrangler.jsonc): "/privacy" serves
+// serves this repo (see wrangler.jsonc): /api/* runs worker/index.js (with no AI
+// binding, so /start falls back to its template outlines), "/privacy" serves
 // privacy.html, unknown paths get 404.html with a 404 status, files listed in
 // .assetsignore are not served, and the rules in _headers are applied (so a
 // Content-Security-Policy violation shows up as a console error in tests).
@@ -7,6 +8,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import worker from '../worker/index.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const port = Number(process.env.PORT || 4173);
@@ -64,8 +66,27 @@ function resolve(pathname) {
   return null;
 }
 
+// Hands /api/* to the Worker the way wrangler.jsonc's run_worker_first does.
+async function runWorker(req, res) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const body = ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks);
+  const request = new Request(new URL(req.url, `http://${req.headers.host}`), {
+    method: req.method,
+    headers: Object.entries(req.headers).filter(([, v]) => typeof v === 'string'),
+    body,
+  });
+  const response = await worker.fetch(request, {});
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
 createServer((req, res) => {
   const { pathname } = new URL(req.url, 'http://localhost');
+  if (pathname.startsWith('/api/')) {
+    runWorker(req, res).catch(() => { res.writeHead(500); res.end(); });
+    return;
+  }
   const file = resolve(pathname);
   const status = file ? 200 : 404;
   const target = file || join(root, '404.html');

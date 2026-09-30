@@ -1,7 +1,8 @@
 // /start: the signup flow. Each ad links here with ?for=<ad> so the page opens on
 // the problem that ad named. The visitor answers one question, sees a project
-// outline, says where to send it, then books a call. This prototype keeps
-// everything in the browser: nothing is sent or stored.
+// outline written by AI (POST /api/outline, worker/index.js), says where to send
+// it, then books a call. If the AI can't answer, the outline comes from the
+// templates below. Saving and booking are still prototypes: nothing is sent.
 
 // Wrapped so its names don't clash with script.js, which shares the page's global scope.
 (() => {
@@ -181,6 +182,9 @@
 
   const state = { problem: '', kind: 'general', email: '', provider: '', slot: null, days: [], slots: [] };
   let outlineTimers = [];
+  // Bumped for each outline request, so a reply that arrives after the visitor
+  // has gone back is ignored.
+  let outlineRequest = 0;
 
   function pickKind(text) {
     const lower = text.toLowerCase();
@@ -236,9 +240,10 @@
     const step = e.state && e.state.step;
     // Leaving while the outline is still "loading": stop it, and forget the
     // answer so Forward can't open an empty outline.
-    if (outlineTimers.length && !$('outlineLoading').hidden) {
+    if (!$('outlineLoading').hidden) {
       outlineTimers.forEach(clearTimeout);
       outlineTimers = [];
+      outlineRequest += 1;
       state.problem = '';
     }
     // Only return to steps that have something to show.
@@ -361,46 +366,85 @@
   }
   history.replaceState({ step: 'describe' }, '');
 
-  // Step 2: the outline. The live version would ask an AI model to write it.
-  function buildOutline() {
+  // Step 2: the outline, written by AI from the visitor's own words. Any
+  // failure (offline, rate limited, out of quota, a bad reply) quietly uses the
+  // matching template instead, so there's always an outline.
+  async function fetchOutline(problem) {
+    try {
+      const response = await fetch('/api/outline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problem, hint: adPage ? adPage.kind : null }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data && data.source === 'ai' && data.outline && OUTLINES[data.outline.kind] ? data.outline : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showOutline(outline, fromAI) {
+    $('outlineTitle').textContent = outline.title;
+    $('outlineProblem').textContent = state.problem;
+    $('outlineBuild').textContent = outline.build;
+    fillList($('outlineSteps'), outline.steps);
+    fillList($('outlineNeeds'), outline.needs);
+    fillList($('outlineQuestions'), outline.questions);
+    $('outlineMilestone').textContent = outline.milestone;
+    $('outlineDraft').textContent = fromAI
+      ? 'Written by AI from what you wrote, as a starting point. Thomas reads every outline and we\'d sharpen it together on a call.'
+      : 'A first draft from what you wrote. We\'d sharpen it together on a call.';
+
+    // Past work always comes from the fixed text, never from the AI.
+    const template = OUTLINES[outline.kind] || OUTLINES.general;
+    $('outlineShippedHeading').textContent = template.shippedHeading;
+    const link = document.createElement('a');
+    link.href = '/#work';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'work-link';
+    link.innerHTML = 'See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>';
+    $('outlineShipped').replaceChildren(template.shipped + ' ', link);
+
+    $('outlineLoading').hidden = true;
+    $('outline').hidden = false;
+    $('save').hidden = false;
+    render('outline');
+  }
+
+  async function buildOutline() {
     outlineTimers.forEach(clearTimeout);
-    const outline = OUTLINES[state.kind];
+    const request = ++outlineRequest;
     $('outline').hidden = true;
     $('save').hidden = true;
     $('outlineLoading').hidden = false;
+    $('loadingText').textContent = 'Reading what you wrote…';
     history.pushState({ step: 'outline' }, '');
     render('outline', { focus: false });
     $('outlineLoading').focus({ preventScroll: true });
     $('stepOutline').scrollIntoView({ behavior: scrollBehavior, block: 'start' });
 
-    const messages = ['Reading what you wrote…', 'Matching it to work I\'ve built…', 'Drafting your outline…'];
-    const pause = prefersReducedMotion ? 300 : 550;
-    outlineTimers = messages.map((text, i) => setTimeout(() => { $('loadingText').textContent = text; }, i * pause));
+    // Progress messages while the AI writes; the last one stays until it's done.
+    const messages = ['Reading what you wrote…', 'Thinking about how I\'d build it…', 'Writing your outline…', 'Almost there…'];
+    const pause = prefersReducedMotion ? 1500 : 1800;
+    outlineTimers = messages.slice(1).map((text, i) => setTimeout(() => { $('loadingText').textContent = text; }, (i + 1) * pause));
 
-    outlineTimers.push(setTimeout(() => {
-      $('outlineTitle').textContent = outline.title;
-      $('outlineProblem').textContent = state.problem;
-      $('outlineBuild').textContent = outline.build;
-      fillList($('outlineSteps'), outline.steps);
-      fillList($('outlineNeeds'), outline.needs);
-      fillList($('outlineQuestions'), outline.questions);
-      $('outlineMilestone').textContent = outline.milestone;
-      $('outlineShippedHeading').textContent = outline.shippedHeading;
-
-      const link = document.createElement('a');
-      link.href = '/#work';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.className = 'work-link';
-      link.innerHTML = 'See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>';
-      $('outlineShipped').replaceChildren(outline.shipped + ' ', link);
-
-      outlineTimers = [];
-      $('outlineLoading').hidden = true;
-      $('outline').hidden = false;
-      $('save').hidden = false;
-      render('outline');
-    }, messages.length * pause));
+    // A short minimum so the step doesn't flash past when the template answers instantly.
+    const [aiOutline] = await Promise.all([
+      fetchOutline(state.problem),
+      new Promise(resolve => setTimeout(resolve, prefersReducedMotion ? 300 : 900)),
+    ]);
+    if (request !== outlineRequest) return;
+    outlineTimers.forEach(clearTimeout);
+    outlineTimers = [];
+    if (aiOutline) {
+      state.kind = aiOutline.kind;
+      showOutline(aiOutline, true);
+    } else {
+      showOutline(OUTLINES[state.kind], false);
+    }
   }
 
   $('editProblem').addEventListener('click', () => go('describe'));

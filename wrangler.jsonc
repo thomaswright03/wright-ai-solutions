@@ -4,6 +4,15 @@
 {
   "name": "wright-ai-solutions",
   "compatibility_date": "2026-09-21",
+  // Server code for /api/* only (the /start outline). Everything else is served
+  // straight from the static files below without running it.
+  "main": "worker/index.js",
+  // Workers AI, which writes the /start outlines.
+  "ai": { "binding": "AI" },
+  // At most 5 outlines per visitor (IP) per minute, per Cloudflare location.
+  "ratelimits": [
+    { "name": "OUTLINE_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }
+  ],
   // Writes version.txt (the commit being deployed) for the post-deploy check.
   "build": {
     "command": "sh scripts/write-version.sh"
@@ -13,6 +22,8 @@
     // Serve 404.html (with a 404 status) for any unmatched path.
     "not_found_handling": "404-page",
     // /privacy serves privacy.html; /privacy.html redirects to /privacy.
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    // Only these paths run worker/index.js; every other path is a static file.
+    "run_worker_first": ["/api/*"]
   }
 }
