@@ -120,7 +120,7 @@ export async function saveRoute(request, env, ctx, url) {
   let emailed = true;
   if (send) {
     const forgetLink = `${url.origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', { id: lead.id }))}`;
-    const message = outlineEmail({ outline, source: lead.source, bookLink: on.cal ? on.cal.link : null, forgetLink, followUp: Boolean(lead.follow_up) });
+    const message = outlineEmail({ outline, source: lead.source, bookLink: on.cal ? on.cal.link : null, forgetLink, followUp: Boolean(lead.follow_up), postalAddress: cfg.postalAddress });
     emailed = await sendEmail(env, { from: cfg.from, to: [lead.email], reply_to: cfg.replyTo, ...message }, `outline-${lead.id}-${lead.sends}`);
   }
   if (isNew) {

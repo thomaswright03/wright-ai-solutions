@@ -73,7 +73,7 @@ const draftNote = source => source === 'ai'
   : 'It\'s a first draft based on what you typed. We\'d sharpen it together on a call.';
 
 // To the visitor: the outline they asked for.
-export function outlineEmail({ outline, source, bookLink, forgetLink, followUp }) {
+export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, postalAddress = '' }) {
   const subject = `Your project outline: ${outline.title}`;
   const cta = bookLink
     ? { html: button(bookLink, 'Pick a time to talk') + para('Or just reply to this email.'), text: `Pick a time to talk: ${bookLink}\nOr just reply to this email.` }
@@ -92,7 +92,7 @@ export function outlineEmail({ outline, source, bookLink, forgetLink, followUp }
         cta.html,
         SIGNATURE_HTML,
       ].join('\n'),
-      footer: `${esc(why + reminder)} <a href="${esc(forgetLink)}" style="color:${MUTED};">Delete my details</a>`,
+      footer: `${esc(why + reminder)} <a href="${esc(forgetLink)}" style="color:${MUTED};">Delete my details</a>${postalAddress ? `<br>Wright AI Solutions LLC · ${esc(postalAddress)}` : ''}`,
     }),
     text: [
       'Hi,',
@@ -108,6 +108,7 @@ export function outlineEmail({ outline, source, bookLink, forgetLink, followUp }
       '--',
       why + reminder,
       `Delete my details: ${forgetLink}`,
+      ...(postalAddress ? [`Wright AI Solutions LLC · ${postalAddress}`] : []),
     ].join('\n'),
   };
 }
@@ -171,6 +172,7 @@ export function followUpEmail({ outline, bookLink, forgetLink, postalAddress }) 
         para('Hi,'),
         para(`Following up on your outline for “${esc(outline.title)}”: if you'd like to talk it through, a 15-minute call is the quickest way to see if it's a fit.`),
         cta.html,
+        para('If you\'ve already picked a time, thank you, and you can ignore this one.'),
         SIGNATURE_HTML,
       ].join('\n'),
       footer: `${esc(why)} <a href="${esc(forgetLink)}" style="color:${MUTED};">Unsubscribe and delete my details</a><br>Wright AI Solutions LLC · ${esc(postalAddress)}`,
@@ -181,6 +183,8 @@ export function followUpEmail({ outline, bookLink, forgetLink, postalAddress }) 
       `Following up on your outline for "${outline.title}": if you'd like to talk it through, a 15-minute call is the quickest way to see if it's a fit.`,
       '',
       cta.text,
+      '',
+      'If you\'ve already picked a time, thank you, and you can ignore this one.',
       '',
       SIGNATURE_TEXT,
       '',

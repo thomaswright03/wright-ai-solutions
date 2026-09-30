@@ -231,6 +231,7 @@ test.describe('saving', () => {
       expect(part).toContain(outline.outline.build.replace(/'/g, part === toVisitor.html ? '&#39;' : '\''));
       expect(part).toContain('https://cal.com/demo/intro-call');
       expect(part).toContain(`${ORIGIN}/forget?t=`);
+      expect(part).toContain('123 Example Street, Salt Lake City, UT 84101');
       // What they typed never goes back out to the address they typed.
       expect(part).not.toContain('lunch');
     }
@@ -307,6 +308,8 @@ test.describe('saving', () => {
     const fakes = fakesWith({ POSTAL_ADDRESS: '' });
     await saveLead(fakes, { followUp: true });
     expect(await rows(fakes, 'SELECT follow_up FROM leads')).toEqual([{ follow_up: 0 }]);
+    // Without an address, the outline email doesn't show an empty address line.
+    expect(fakes.emails[0].text).not.toContain('Wright AI Solutions LLC ·');
   });
 
   test('if the email doesn\'t go through, the lead is still kept and the page is told', async () => {
