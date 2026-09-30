@@ -4,7 +4,7 @@
 // the one next-day reminder and deletes old leads.
 import { adFor } from '../outlines.js';
 import { calEvent, features, settings } from './config.js';
-import { count, dayIn, ensureSchema, hourIn, newId, sign, verify } from './db.js';
+import { count, dayIn, ensureSchema, formatIn, hourIn, inboxTag, newId, sign, verify } from './db.js';
 import { followUpEmail, leadEmail, outlineEmail } from './emails.js';
 import { clean, escapeHtml as esc, htmlResponse, json, overLimit, readJson, timeZoneOrNull, tooMany } from './http.js';
 import { page } from './pages.js';
@@ -17,6 +17,13 @@ const DAY = 24 * HOUR;
 const OUTLINE_TOKEN_AGE = 3 * 60 * 60;
 const BOOK_TOKEN_AGE = 12 * 60 * 60;
 const RETENTION_DAYS = 365;
+// Each saved outline can be emailed this many times: once, then to corrected
+// addresses. And one inbox gets at most this many outline emails a day, so the
+// form can't be used to flood someone else's inbox.
+const MAX_SENDS = 3;
+const INBOX_DAILY_LIMIT = 3;
+// Reminder emails sent per hourly run, at most.
+const REMINDERS_PER_RUN = 50;
 
 // Where the visitor came from, as the page reports it: the ad (?for=) and the
 // ad platform (?utm_source=). Only known values are kept, so the counts can't
@@ -52,6 +59,32 @@ export function normalizeEmail(value) {
   return `${local}@${domain}`;
 }
 
+// The mailbox an address reaches, for the daily cap: changing the case, adding
+// a +tag or (for Gmail) moving the dots still reaches the same person.
+export function inboxKey(email) {
+  const at = email.lastIndexOf('@');
+  const local = email.slice(0, at).toLowerCase().replace(/\+.*$/, '');
+  const domain = email.slice(at + 1).toLowerCase();
+  return domain === 'gmail.com' || domain === 'googlemail.com' ? `${local.replace(/\./g, '')}@gmail.com` : `${local}@${domain}`;
+}
+
+// Uses up one of the inbox's outline emails for today, if it has one left.
+// Counted per email sent, so moving a saved outline to another address
+// doesn't give the first one its turn back.
+async function takeInboxSend(env, email) {
+  const tag = await inboxTag(env, inboxKey(email));
+  const now = Date.now();
+  const taken = await env.DB.prepare(
+    'INSERT INTO outline_sends (tag, sent_at) SELECT ?, ? WHERE (SELECT COUNT(*) FROM outline_sends WHERE tag = ? AND sent_at > ?) < ?',
+  ).bind(tag, new Date(now).toISOString(), tag, new Date(now - DAY).toISOString(), INBOX_DAILY_LIMIT).run();
+  return Boolean(taken.meta && taken.meta.changes);
+}
+
+// The delete link for a lead. It's the same link every time (it's signed as of
+// when the lead was saved), so a retried email is identical to the first try.
+const forgetLinkFor = async (env, origin, lead) =>
+  `${origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', { id: lead.id }, Math.floor(Date.parse(lead.created_at) / 1000)))}`;
+
 export function configRoute(request, env) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
   const on = features(env);
@@ -80,56 +113,73 @@ export async function saveRoute(request, env, ctx, url) {
   const email = normalizeEmail(body.email);
   if (!email) return json({ error: 'bad_email' }, 400);
   const data = await verify(env, 'outline', body.token, OUTLINE_TOKEN_AGE);
-  if (!data) return json({ error: 'expired' }, 400);
+  if (!data || typeof data.n !== 'string') return json({ error: 'expired' }, 400);
 
   const cfg = settings(env);
   const outline = data.outline;
   const followUp = on.followUp && body.followUp === true ? 1 : 0;
   const from = cameFrom(data);
   await ensureSchema(env.DB);
-  const find = () => env.DB.prepare('SELECT * FROM leads WHERE sig = ?').bind(data.sig).first();
+  const find = () => env.DB.prepare('SELECT * FROM leads WHERE outline_id = ?').bind(data.n).first();
 
   let lead = await find();
-  let send = false;
   let isNew = false;
   if (!lead) {
+    if (!(await takeInboxSend(env, email))) return json({ error: 'inbox_limit' }, 429);
     lead = {
-      id: newId(), sig: data.sig, created_at: new Date().toISOString(), email, tz: timeZoneOrNull(body.timeZone),
+      id: newId(), outline_id: data.n, created_at: new Date().toISOString(), email, tz: timeZoneOrNull(body.timeZone),
       problem: String(data.problem), kind: outline.kind, ad: from.ad, src: from.src, source: data.source === 'ai' ? 'ai' : 'template',
-      outline: JSON.stringify(outline), follow_up: followUp, sends: 1,
+      outline: JSON.stringify(outline), follow_up: followUp, sends: 1, emailed_at: null,
     };
-    try {
-      await env.DB.prepare(
-        'INSERT INTO leads (id, sig, created_at, email, tz, problem, kind, ad, src, source, outline, follow_up, sends) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).bind(lead.id, lead.sig, lead.created_at, lead.email, lead.tz, lead.problem, lead.kind, lead.ad, lead.src, lead.source, lead.outline, lead.follow_up, lead.sends).run();
-      send = isNew = true;
-    } catch (err) {
+    const added = await env.DB.prepare(
+      'INSERT INTO leads (id, outline_id, created_at, email, tz, problem, kind, ad, src, source, outline, follow_up, sends) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (outline_id) DO NOTHING',
+    ).bind(lead.id, lead.outline_id, lead.created_at, lead.email, lead.tz, lead.problem, lead.kind, lead.ad, lead.src, lead.source, lead.outline, lead.follow_up, lead.sends).run();
+    if (added.meta && added.meta.changes) {
+      isNew = true;
+    } else {
       // A double click: the other request saved it first.
       lead = await find();
-      if (!lead) throw err;
+      if (!lead) throw new Error('lead not saved');
     }
   }
+
+  let send = isNew;
+  let correctedFrom = null;
   if (!isNew && lead.email !== email) {
-    // Fixing a typo in the address: resend to the new one, a few times at most.
-    if (lead.sends >= 3) return json({ error: 'too_many_sends' }, 429);
-    await env.DB.prepare('UPDATE leads SET email = ?, follow_up = ?, sends = sends + 1 WHERE id = ?').bind(email, followUp, lead.id).run();
-    lead = { ...lead, email, follow_up: followUp, sends: lead.sends + 1 };
+    // Fixing a typo in the address: sent again to the new one, a few times at most.
+    if (lead.sends >= MAX_SENDS) return json({ error: 'too_many_sends' }, 429);
+    if (!(await takeInboxSend(env, email))) return json({ error: 'inbox_limit' }, 429);
+    const fixed = await env.DB.prepare(
+      'UPDATE leads SET email = ?, follow_up = ?, sends = sends + 1, emailed_at = NULL WHERE id = ? AND sends < ? RETURNING sends',
+    ).bind(email, followUp, lead.id, MAX_SENDS).first();
+    if (!fixed) return json({ error: 'too_many_sends' }, 429);
+    correctedFrom = lead.email;
+    lead = { ...lead, email, follow_up: followUp, sends: Number(fixed.sends), emailed_at: null };
+    send = true;
+  } else if (!isNew && !lead.emailed_at) {
+    // The last try didn't go through: the same email again. Resend drops it if
+    // the last one actually went out after all.
     send = true;
   }
 
   let emailed = true;
   if (send) {
-    const forgetLink = `${url.origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', { id: lead.id }))}`;
+    const forgetLink = await forgetLinkFor(env, url.origin, lead);
     const message = outlineEmail({ outline, source: lead.source, bookLink: on.cal ? on.cal.link : null, forgetLink, followUp: Boolean(lead.follow_up), postalAddress: cfg.postalAddress });
     emailed = await sendEmail(env, { from: cfg.from, to: [lead.email], reply_to: cfg.replyTo, ...message }, `outline-${lead.id}-${lead.sends}`);
+    if (emailed) await env.DB.prepare('UPDATE leads SET emailed_at = ? WHERE id = ? AND email = ?').bind(new Date().toISOString(), lead.id, lead.email).run();
   }
-  if (isNew) {
-    const copy = leadEmail({ lead, outline, adminLink: `${url.origin}/admin` });
-    ctx.waitUntil(Promise.allSettled([
-      sendEmail(env, { from: cfg.from, to: [cfg.leadsTo], reply_to: lead.email, ...copy }, `lead-${lead.id}`),
-      notify(env, { title: 'New lead', body: `Someone saved an outline about ${KIND_WORDS[lead.kind] || 'a project'}, from ${fromWords(from)}. Details are in your email.`, click: `${url.origin}/admin` }),
-      count(env, cfg.ownerTz, from, 'save'),
-    ]));
+  if (isNew || correctedFrom) {
+    // Thomas's copy, with Reply-To set to the visitor, again after a corrected address.
+    const copy = leadEmail({ lead, outline, adminLink: `${url.origin}/admin`, correctedFrom });
+    const tasks = [sendEmail(env, { from: cfg.from, to: [cfg.leadsTo], reply_to: lead.email, ...copy }, `lead-${lead.id}-${lead.sends}`)];
+    if (isNew) {
+      tasks.push(
+        notify(env, { title: 'New lead', body: `Someone saved an outline about ${KIND_WORDS[lead.kind] || 'a project'}, from ${fromWords(from)}. Details are in your email.`, click: `${url.origin}/admin` }),
+        count(env, cfg.ownerTz, from, 'save'),
+      );
+    }
+    ctx.waitUntil(Promise.allSettled(tasks));
   }
 
   const reply = { ok: true, emailed };
@@ -162,8 +212,8 @@ export async function slotsRoute(request, env, ctx, url) {
   return json({ times: times.filter(t => Date.parse(t) >= soonest).slice(0, 400) });
 }
 
-const ownerTime = (timeZone, iso) => new Intl.DateTimeFormat('en-US', {
-  timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+const ownerTime = (timeZone, iso) => formatIn(timeZone, {
+  weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
 }).format(new Date(iso));
 
 // POST /api/book: { lead, start, name, timeZone }.
@@ -266,6 +316,8 @@ export async function runSchedule(env, now = Date.now()) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM leads WHERE created_at < ?').bind(iso(now - RETENTION_DAYS * DAY)),
     env.DB.prepare('DELETE FROM counts WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
+    env.DB.prepare('DELETE FROM ai_daily WHERE day < ?').bind(iso(now - 2 * DAY).slice(0, 10)),
+    env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
   ]);
 
   const on = features(env);
@@ -273,20 +325,25 @@ export async function runSchedule(env, now = Date.now()) {
   const cal = calEvent(env);
   // Saved 12 to 72 hours ago, asked for a reminder, didn't book, not reminded yet.
   // With the mid-morning window below, anything saved before about 10pm goes
-  // out the next morning, matching the "tomorrow" on the page.
+  // out the next morning, matching the "tomorrow" on the page. All of them are
+  // checked, so people it isn't morning for yet can't hold up those it is.
   const { results } = await env.DB.prepare(
-    'SELECT id, email, tz, outline FROM leads WHERE follow_up = 1 AND booked_at IS NULL AND follow_up_sent_at IS NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at LIMIT 50',
+    'SELECT id, email, tz, outline, created_at FROM leads WHERE follow_up = 1 AND booked_at IS NULL AND follow_up_sent_at IS NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at',
   ).bind(iso(now - 12 * HOUR), iso(now - 72 * HOUR)).all();
 
+  let sent = 0;
   for (const lead of results || []) {
+    if (sent >= REMINDERS_PER_RUN) break;
     // Mid-morning where they are, not at 3am.
     const hour = hourIn(timeZoneOrNull(lead.tz) || cfg.ownerTz, new Date(now));
     if (hour < 9 || hour >= 11) continue;
-    const claim = await env.DB.prepare('UPDATE leads SET follow_up_sent_at = ? WHERE id = ? AND follow_up_sent_at IS NULL').bind(iso(now), lead.id).run();
+    // Claimed first, and only if they still haven't booked.
+    const claim = await env.DB.prepare('UPDATE leads SET follow_up_sent_at = ? WHERE id = ? AND follow_up_sent_at IS NULL AND booked_at IS NULL').bind(iso(now), lead.id).run();
     if (!claim.meta || !claim.meta.changes) continue;
-    const forgetLink = `${cfg.siteUrl}/forget?t=${encodeURIComponent(await sign(env, 'lead', { id: lead.id }))}`;
+    sent += 1;
+    const forgetLink = await forgetLinkFor(env, cfg.siteUrl, lead);
     const message = followUpEmail({ outline: JSON.parse(lead.outline), bookLink: cal ? cal.link : null, forgetLink, postalAddress: cfg.postalAddress });
-    const sent = await sendEmail(env, {
+    const delivered = await sendEmail(env, {
       from: cfg.from,
       to: [lead.email],
       reply_to: cfg.replyTo,
@@ -294,6 +351,6 @@ export async function runSchedule(env, now = Date.now()) {
       headers: { 'List-Unsubscribe': `<${forgetLink}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
     }, `follow-up-${lead.id}`);
     // Not sent: try again next hour, while it's still morning there.
-    if (!sent) await env.DB.prepare('UPDATE leads SET follow_up_sent_at = NULL WHERE id = ?').bind(lead.id).run();
+    if (!delivered) await env.DB.prepare('UPDATE leads SET follow_up_sent_at = NULL WHERE id = ?').bind(lead.id).run();
   }
 }

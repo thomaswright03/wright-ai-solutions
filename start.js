@@ -6,7 +6,7 @@
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
 // outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=9';
+import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=10';
 
 const $ = id => document.getElementById(id);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -410,6 +410,7 @@ const SAVE_ERRORS = {
   bad_email: 'That email doesn\'t look right. Check it and try again.',
   expired: 'This outline has been open a while. Choose "Change what I wrote" above and build it again to save it.',
   too_many_sends: 'It\'s already been sent a few times. Check your inbox and spam folder.',
+  inbox_limit: 'That address has already been sent a few outlines today. Try again tomorrow, or email t@thomasewright.com.',
   rate_limited: 'Too many tries. Wait a minute, then try again.',
 };
 
@@ -614,8 +615,14 @@ $('bookForm').addEventListener('submit', async e => {
     return;
   }
   if (error === 'taken') {
-    showError($('bookError'), null, 'Someone just took that time. Pick another.');
-    loadTimes();
+    // The form is hidden while the times reload, so focus waits on the heading,
+    // then goes to the first day with the message beside it.
+    $('bookTitle').focus({ preventScroll: true });
+    await loadTimes();
+    if (!$('bookForm').hidden) {
+      showError($('bookError'), null, 'Someone just took that time. Pick another.');
+      $('bookDays').querySelector('input').focus();
+    }
     return;
   }
   const expired = error === 'expired' || error === 'gone';
@@ -644,7 +651,9 @@ function finish(booked, note = '') {
     }
     fillList($('doneNext'), [
       `Cal.com is sending the calendar invite to ${state.email}, with links to reschedule or cancel.`,
-      'Your outline is in a separate email. Reply to it to add anything you forgot.',
+      state.emailed
+        ? 'Your outline is in a separate email. Reply to it to add anything you forgot.'
+        : 'Thomas has your outline and will go through it with you on the call.',
     ]);
   } else {
     $('doneTitle').textContent = state.emailed ? 'Your outline is on its way.' : 'Your outline is saved.';

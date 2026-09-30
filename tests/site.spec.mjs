@@ -544,6 +544,15 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#sentNote')).toHaveText('Saved. The email didn\'t go through, but Thomas has your details and will reply to emaildown@example.com.');
     await expect(page.locator('#bookForm')).toBeVisible();
     expect((await services.state()).alerts.map(a => a.title)).toEqual(['New lead']);
+
+    // Booked anyway: the page doesn't point to an outline email that never came.
+    await page.locator('#bookDays input').first().check();
+    await page.locator('#bookTimes input').first().check();
+    await page.fill('#name', 'Pat Doe');
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#doneTitle')).toHaveText('You\'re booked.');
+    await expect(page.locator('#doneNext')).toContainText('Thomas has your outline and will go through it with you on the call.');
+    await expect(page.locator('#doneNext')).not.toContainText('separate email');
   });
 
   test('saving errors say what to do next', async ({ page }) => {
@@ -557,6 +566,7 @@ test.describe('signup flow on /start', () => {
     const cases = [
       [{ status: 400, json: { error: 'expired' } }, /open a while/],
       [{ status: 429, json: { error: 'too_many_sends' } }, /already been sent a few times/],
+      [{ status: 429, json: { error: 'inbox_limit' } }, /a few outlines today.*t@thomasewright\.com/],
       [{ status: 429, body: '' }, /Too many tries/],
       [{ status: 500, json: { error: 'server_error' } }, /couldn't be sent just now.*t@thomasewright\.com/],
     ];
@@ -620,6 +630,9 @@ test.describe('signup flow on /start', () => {
     await page.locator('#bookButton').click();
     await expect(page.locator('#bookError')).toHaveText('Someone just took that time. Pick another.');
     await expect(page.locator('#bookForm')).toBeVisible();
+    // Keyboard and screen reader users land back on the choice of day, not at the top of the page.
+    await expect(page.locator('#bookDays input').first()).toBeFocused();
+    await expect(page.locator('#name')).toHaveValue('First Visitor');
     await page.locator('#bookDays input').nth(1).check();
     await page.locator('#bookTimes input').first().check();
     expect(await page.locator('#bookButton').textContent()).not.toBe(taken);
@@ -723,6 +736,13 @@ test.describe('signup flow on /start', () => {
     await expect(admin.locator('main')).toContainText('pipeline');
     await expect(admin.locator('table').first()).toContainText('reports');
     await expect(admin.locator('table').first()).toContainText('meta');
+
+    // Deleting works from the page itself, the way a browser really sends it.
+    await admin.getByRole('button', { name: 'Delete this lead' }).click();
+    await expect(admin.locator('main')).toContainText('No leads yet.');
+    await expect(admin.locator('main')).not.toContainText('listed@example.com');
+    const left = await page.request.post(`/__test/sql?mode=${encodeURIComponent(services.mode)}`, { data: { sql: 'SELECT COUNT(*) AS n FROM leads' } });
+    expect(await left.json()).toEqual([{ n: 0 }]);
     expect(errors).toEqual([]);
     await context.close();
   });

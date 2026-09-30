@@ -18,6 +18,8 @@ export const settings = env => ({
   // Thomas's own time zone, for phone alerts and the daily counts.
   ownerTz: timeZoneOrNull(env.OWNER_TZ) || 'America/Denver',
   postalAddress: clean(env.POSTAL_ADDRESS || ''),
+  // AI outlines a day (UTC) before visitors get the templates instead.
+  aiDailyLimit: /^\d+$/.test(String(env.AI_DAILY_LIMIT ?? '')) ? Number(env.AI_DAILY_LIMIT) : 300,
 });
 
 // A Cal.com event link such as https://cal.com/thomas/intro-call, split into

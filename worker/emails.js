@@ -116,8 +116,12 @@ export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, 
 const AD_WORDS = ad => (ad === 'none' ? 'no ad' : `the "${ad}" ad`);
 
 // To Thomas: everything about a new lead, with Reply-To set to the visitor.
-export function leadEmail({ lead, outline, adminLink }) {
-  const subject = `New lead: ${outline.title}`;
+// Sent again when they correct their address, so a reply reaches the right one.
+export function leadEmail({ lead, outline, adminLink, correctedFrom = null }) {
+  const subject = `${correctedFrom ? 'Corrected address' : 'New lead'}: ${outline.title}`;
+  const intro = (email, oldEmail) => (correctedFrom
+    ? `${email} saved an outline on /start, then corrected their address (it was ${oldEmail}). Reply to this email to answer them directly.`
+    : `${email} saved an outline on /start. Reply to this email to answer them directly.`);
   const facts = [
     ['Email', lead.email],
     ['Came from', `${AD_WORDS(lead.ad)}${lead.src !== 'direct' ? ` (${lead.src})` : ''}`],
@@ -130,7 +134,7 @@ export function leadEmail({ lead, outline, adminLink }) {
       title: subject,
       preheader: `${lead.email} saved an outline on /start.`,
       body: [
-        para(`<strong>${esc(lead.email)}</strong> saved an outline on /start. Reply to this email to answer them directly.`),
+        para(intro(`<strong>${esc(lead.email)}</strong>`, esc(correctedFrom || ''))),
         `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">${facts.map(([k, v]) =>
           `<tr><td style="padding:2px 16px 2px 0;color:${MUTED};">${esc(k)}</td><td style="padding:2px 0;">${esc(v)}</td></tr>`).join('')}</table>`,
         h2('In their words'),
@@ -141,7 +145,7 @@ export function leadEmail({ lead, outline, adminLink }) {
       footer: esc('Sent by wright-ai-solutions.com/start. Their details are also in your leads list.'),
     }),
     text: [
-      `${lead.email} saved an outline on /start. Reply to this email to answer them directly.`,
+      intro(lead.email, correctedFrom),
       '',
       ...facts.map(([k, v]) => `${k}: ${v}`),
       '',

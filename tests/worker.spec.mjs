@@ -115,6 +115,27 @@ test.describe('outline', () => {
     }
   });
 
+  test('an outline carrying any web address, handle or spelled-out domain is replaced; file names and libraries are fine', () => {
+    const withBuild = extra => validateOutline({ ...GOOD, build: `${GOOD.build} ${extra}` });
+    for (const extra of ['Log in at payroll-verify.top to start.', 'See wright-ai.shop.', 'Visit evil dot com.', 'Message @support_desk.',
+      'Go to www.example.org.', 'Open example。com today.', 'Reply to billing(at)example[dot]com.', 'Download files.zip first.']) {
+      expect(withBuild(extra), extra).toBeNull();
+    }
+    for (const extra of ['It exports a report.csv each night, e.g. for payroll.', 'It runs on Node.js at 9 a.m., i.e. before you open.', 'Version 2.5 works.']) {
+      expect(withBuild(extra), extra).not.toBeNull();
+    }
+  });
+
+  test('past the daily cap, outlines come from the templates without asking the AI', async () => {
+    const ai = fakeAI(GOOD);
+    const fakes = fakesWith({ AI: ai, AI_DAILY_LIMIT: '2' });
+    const sources = [];
+    for (let i = 0; i < 3; i++) sources.push((await (await send(fakes, post('/api/outline', { problem }))).json()).source);
+    expect(sources).toEqual(['ai', 'ai', 'template']);
+    expect(ai.calls).toHaveLength(2);
+    expect(await rows(fakes, 'SELECT day, n FROM ai_daily')).toEqual([{ day: new Date().toISOString().slice(0, 10), n: 3 }]);
+  });
+
   test('a year range is not mistaken for a phone number', async () => {
     expect(validateOutline({ ...GOOD, milestone: 'A report covering 2025-2026 that updates itself every week.' })).not.toBeNull();
   });
@@ -261,9 +282,79 @@ test.describe('saving', () => {
     for (const email of ['pat@exmple.com', 'pat2@example.com']) {
       expect((await send(fakes, post('/api/save', { token: outline.token, email }))).status).toBe(200);
     }
-    expect(fakes.emails.slice(2).map(e => e.to[0])).toEqual(['pat@exmple.com', 'pat2@example.com']);
-    expect((await send(fakes, post('/api/save', { token: outline.token, email: 'pat3@example.com' }))).status).toBe(429);
+    // Each corrected address gets the outline, and Thomas a copy that replies to it.
+    expect(fakes.emails.slice(2).map(e => [e.to[0], e.reply_to])).toEqual([
+      ['pat@exmple.com', 't@thomasewright.com'], ['t@thomasewright.com', 'pat@exmple.com'],
+      ['pat2@example.com', 't@thomasewright.com'], ['t@thomasewright.com', 'pat2@example.com'],
+    ]);
+    expect(fakes.emails[5].subject).toBe(`Corrected address: ${outline.outline.title}`);
+    expect(fakes.emails[5].text).toContain('pat2@example.com saved an outline on /start, then corrected their address (it was pat@exmple.com).');
+    expect(fakes.alerts).toHaveLength(1);
+    const res = await send(fakes, post('/api/save', { token: outline.token, email: 'pat3@example.com' }));
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: 'too_many_sends' });
     expect(await rows(fakes, 'SELECT email, sends FROM leads')).toEqual([{ email: 'pat2@example.com', sends: 3 }]);
+  });
+
+  test('a token is only accepted exactly as it was written', async () => {
+    const fakes = new FakeServices();
+    const { outline } = await saveLead(fakes);
+    const [version, payload, signature] = outline.token.split('.');
+    // Spellings a lenient base64 decoder reads as the same signature: with a
+    // space, a line break or padding, or with the last letter's 2 unused bits
+    // set (the next letter of the base64 alphabet).
+    const last = signature.at(-1);
+    expect('AEIMQUYcgkosw048').toContain(last);
+    const respelled = [`${signature.slice(0, 5)} ${signature.slice(5)}`, `${signature}=`, `${signature.slice(0, 5)}\n${signature.slice(5)}`,
+      signature.slice(0, -1) + String.fromCharCode(last.charCodeAt(0) + 1)];
+    for (const sig of respelled) expect(Buffer.from(sig.replace(/\s|=/g, ''), 'base64url').equals(Buffer.from(signature, 'base64url'))).toBe(true);
+    for (const sig of respelled) {
+      const res = await send(fakes, post('/api/save', { token: `${version}.${payload}.${sig}`, email: 'someone@example.com' }));
+      expect(res.status, JSON.stringify(sig)).toBe(400);
+    }
+    expect(fakes.emails.map(e => e.to[0])).not.toContain('someone@example.com');
+    expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM leads')).toEqual([{ n: 1 }]);
+  });
+
+  test('two people who type the same thing in the same second get separate leads', async () => {
+    const fakes = new FakeServices();
+    const realNow = Date.now;
+    const frozen = realNow();
+    Date.now = () => frozen;
+    let first;
+    let second;
+    try {
+      first = await (await send(fakes, post('/api/outline', { problem, ad: 'leads' }))).json();
+      second = await (await send(fakes, post('/api/outline', { problem, ad: 'leads' }))).json();
+    } finally {
+      Date.now = realNow;
+    }
+    expect(first.token).not.toBe(second.token);
+    await send(fakes, post('/api/save', { token: first.token, email: 'alice@example.com' }));
+    await send(fakes, post('/api/save', { token: second.token, email: 'bob@example.com' }));
+    expect(await rows(fakes, 'SELECT email FROM leads ORDER BY email')).toEqual([{ email: 'alice@example.com' }, { email: 'bob@example.com' }]);
+  });
+
+  test('one inbox gets at most three outline emails a day, however the address is written', async () => {
+    const fakes = new FakeServices();
+    for (const email of ['pat.smith@gmail.com', 'Pat.Smith+plans@gmail.com']) {
+      expect((await saveLead(fakes, { email })).saved, email).toMatchObject({ ok: true, emailed: true });
+    }
+    // Moving a saved outline to another address doesn't hand the inbox its turn back.
+    const { outline: moved } = await saveLead(fakes, { email: 'patsmith@googlemail.com' });
+    expect((await send(fakes, post('/api/save', { token: moved.token, email: 'elsewhere@example.com' }))).status).toBe(200);
+    const { res, saved } = await saveLead(fakes, { email: 'p.a.t.smith@gmail.com' });
+    expect(res.status).toBe(429);
+    expect(saved).toEqual({ error: 'inbox_limit' });
+    // Nor can a corrected address be pointed at that inbox.
+    const { outline } = await saveLead(fakes, { email: 'someone@example.com' });
+    const fix = await send(fakes, post('/api/save', { token: outline.token, email: 'PatSmith@gmail.com' }));
+    expect(await fix.json()).toEqual({ error: 'inbox_limit' });
+    expect(fakes.emails.filter(e => /smith/i.test(e.to[0]))).toHaveLength(3);
+    // What's kept for counting can't be read back as an address.
+    const tags = await rows(fakes, 'SELECT tag FROM outline_sends');
+    expect(tags).toHaveLength(5);
+    expect(tags.every(({ tag }) => /^[A-Za-z0-9_-]{22}$/.test(tag))).toBe(true);
   });
 
   test('only an outline this site wrote, recently, can be saved', async () => {
@@ -312,11 +403,21 @@ test.describe('saving', () => {
     expect(fakes.emails[0].text).not.toContain('Wright AI Solutions LLC ·');
   });
 
-  test('if the email doesn\'t go through, the lead is still kept and the page is told', async () => {
+  test('if the email doesn\'t go through, the lead is still kept, the page is told, and saving again sends it', async () => {
     const fakes = new FakeServices({ emailDown: true });
-    const { saved } = await saveLead(fakes);
+    const { outline, saved } = await saveLead(fakes);
     expect(saved).toMatchObject({ ok: true, emailed: false });
-    expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM leads')).toEqual([{ n: 1 }]);
+    expect(await rows(fakes, 'SELECT COUNT(*) AS n, MAX(emailed_at) AS emailed_at FROM leads')).toEqual([{ n: 1, emailed_at: null }]);
+
+    fakes.options.emailDown = false;
+    const again = await (await send(fakes, post('/api/save', { token: outline.token, email: 'pat@example.com' }))).json();
+    expect(again).toMatchObject({ ok: true, emailed: true });
+    expect(fakes.emails.map(e => e.to[0])).toEqual(['pat@example.com']);
+    // Once it's gone out, saving again sends nothing more.
+    const third = await (await send(fakes, post('/api/save', { token: outline.token, email: 'pat@example.com' }))).json();
+    expect(third).toMatchObject({ ok: true, emailed: true });
+    expect(fakes.emails).toHaveLength(1);
+    expect(await rows(fakes, 'SELECT sends FROM leads')).toEqual([{ sends: 1 }]);
   });
 
   test('saving is rate limited per visitor', async () => {
@@ -499,11 +600,27 @@ test.describe('leads list', () => {
     });
     expect((await send(fakes, del('https://evil.example'))).status).toBe(403);
     expect((await send(fakes, del(null))).status).toBe(403);
+    const crossSite = del('null');
+    crossSite.headers.set('Sec-Fetch-Site', 'cross-site');
+    expect((await send(fakes, crossSite)).status).toBe(403);
     expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM leads')).toEqual([{ n: 1 }]);
     const res = await send(fakes, del(ORIGIN));
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/admin');
     expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM leads')).toEqual([{ n: 0 }]);
+
+    // A browser that sends "Origin: null" still marks the form as this site's own.
+    await saveLead(fakes);
+    const [{ id: second }] = await rows(fakes, 'SELECT id FROM leads');
+    const sameSite = new Request(`${ORIGIN}/admin/delete`, {
+      method: 'POST',
+      headers: { ...basic('local-demo-password'), Origin: 'null', 'Sec-Fetch-Site': 'same-origin' },
+      body: new URLSearchParams({ id: second }),
+    });
+    expect((await send(fakes, sameSite)).status).toBe(303);
+    expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM leads')).toEqual([{ n: 0 }]);
+    // The list itself sends its address only within this site, so browsers send a real Origin.
+    expect((await send(fakes, get('/admin', basic('local-demo-password')))).headers.get('referrer-policy')).toBe('same-origin');
   });
 
   test('downloads as a spreadsheet that can\'t run formulas', async () => {
@@ -545,7 +662,7 @@ test.describe('hourly job', () => {
 
   async function addLead(fakes, overrides) {
     const lead = {
-      id: `lead${Math.random().toString(36).slice(2, 12)}`, sig: Math.random().toString(36), created_at: new Date(NOW - 20 * HOUR).toISOString(),
+      id: `lead${Math.random().toString(36).slice(2, 12)}`, outline_id: Math.random().toString(36), created_at: new Date(NOW - 20 * HOUR).toISOString(),
       email: 'pat@example.com', tz: 'America/Denver', problem, kind: 'leads', ad: 'leads', src: 'google', source: 'template',
       outline: JSON.stringify(templateOutline('leads')), follow_up: 1, sends: 1, booked_at: null, ...overrides,
     };
@@ -584,6 +701,46 @@ test.describe('hourly job', () => {
 
     await runHourly(fakes, NOW + HOUR);
     expect(fakes.emails).toHaveLength(1);
+  });
+
+  test('people it isn\'t morning for yet don\'t hold up those it is, and each run sends at most 50', async () => {
+    const fakes = new FakeServices();
+    await ensureSchema(fakes.env.DB);
+    // Saved earlier, so they come first, but it's 1am in Tokyo.
+    for (let i = 0; i < 60; i++) await addLead(fakes, { email: `asleep${i}@example.com`, tz: 'Asia/Tokyo', created_at: new Date(NOW - 30 * HOUR).toISOString() });
+    // 9:17 and then 10:17 in Los Angeles: both mid-morning.
+    for (let i = 0; i < 55; i++) await addLead(fakes, { email: `due${i}@example.com`, tz: 'America/Los_Angeles' });
+    await runHourly(fakes);
+    expect(fakes.emails).toHaveLength(50);
+    expect(fakes.emails.every(e => e.to[0].startsWith('due'))).toBe(true);
+    await runHourly(fakes, NOW + HOUR);
+    expect(fakes.emails).toHaveLength(55);
+  });
+
+  test('the reminder carries the same delete link as the outline email', async () => {
+    const fakes = new FakeServices();
+    await saveLead(fakes, { followUp: true, timeZone: 'America/New_York' });
+    const [lead] = await rows(fakes, 'SELECT created_at FROM leads');
+    // The first mid-morning hour in New York at least 12 hours after saving.
+    const hourInNewYork = t => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(new Date(t)));
+    let when = Date.parse(lead.created_at) + 12 * HOUR;
+    while (![9, 10].includes(hourInNewYork(when))) when += 15 * 60 * 1000;
+    await runHourly(fakes, when);
+    const reminder = fakes.emails.at(-1);
+    expect(reminder.subject).toMatch(/^Following up/);
+    const linkIn = email => email.text.match(/delete my details: (\S+)/i)[1];
+    expect(linkIn(reminder)).toBe(linkIn(fakes.emails[0]));
+  });
+
+  test('the counts behind the daily caps are cleared out after two days', async () => {
+    const fakes = new FakeServices();
+    await ensureSchema(fakes.env.DB);
+    await fakes.env.DB.prepare("INSERT INTO ai_daily (day, n) VALUES ('2026-10-01', 5), ('2026-10-06', 7), ('2026-10-07', 2)").run();
+    await fakes.env.DB.prepare('INSERT INTO outline_sends (tag, sent_at) VALUES (?, ?), (?, ?)')
+      .bind('old', new Date(NOW - 50 * HOUR).toISOString(), 'recent', new Date(NOW - 20 * HOUR).toISOString()).run();
+    await runHourly(fakes);
+    expect(await rows(fakes, 'SELECT day FROM ai_daily ORDER BY day')).toEqual([{ day: '2026-10-06' }, { day: '2026-10-07' }]);
+    expect(await rows(fakes, 'SELECT tag FROM outline_sends')).toEqual([{ tag: 'recent' }]);
   });
 
   test('a reminder that fails to send is tried again the next hour', async () => {

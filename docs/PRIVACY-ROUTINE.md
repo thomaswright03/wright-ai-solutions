@@ -36,7 +36,7 @@ Outlines saved on `/start` go in the leads list, a Cloudflare D1 database (`wrig
 
 The Worker also does these by itself:
 
-- The Worker's hourly job deletes each lead a year (365 days) after it was saved, and daily counts after 400 days (about 13 months).
+- The Worker's hourly job deletes each lead a year (365 days) after it was saved, and daily counts after 400 days (about 13 months). It also deletes, after two days, the coded (hashed) form of each address an outline was emailed to, which is kept only to cap outline emails at 3 a day per inbox.
 - The "Delete my details" link in every email from `/start` asks the visitor to confirm, then deletes their entry and cancels the reminder. It doesn't touch the copy in the mailbox or a call booked in Cal.com; the page it shows tells them how to have those removed.
 - A reminder goes out at most once per lead, and only if they ticked the box and haven't booked a call through the page.
 
@@ -44,7 +44,7 @@ The Worker also does these by itself:
 
 On the first working day of January, April, July and October:
 
-1. In the mailbox, search for inquiry threads (including "New lead" emails from `/start`) whose last message is more than two years old and that never became a project. Delete them, then empty the trash.
+1. In the mailbox, search for inquiry threads (including "New lead" and "Corrected address" emails from `/start`) whose last message is more than two years old and that never became a project. Delete them, then empty the trash.
 2. On the phone, delete calls and texts from those same people that are more than two years old.
 3. Open `/admin` and check that the oldest lead (the last row of the CSV, or the last one listed if there are fewer than 200) was saved less than a year ago. If it's older, the hourly job isn't running: check the Worker's cron trigger in the Cloudflare dashboard, and delete the old leads with **Delete this lead**. Delete any leads spreadsheet downloaded since the last clean-up.
 4. Add one line to the request log: the date, "quarterly clean-up", and how many threads were deleted.

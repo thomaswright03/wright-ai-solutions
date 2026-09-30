@@ -3,7 +3,7 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { dayIn, ensureSchema } from './db.js';
+import { dayIn, ensureSchema, formatIn } from './db.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
 import { page } from './pages.js';
 
@@ -31,7 +31,12 @@ async function signedIn(request, env) {
   return difference === 0;
 }
 
-const notFound = () => htmlResponse(page({ title: 'Page not found', body: '<h1>Page not found</h1>' }), 404);
+// The Worker's pages send no referrer at all, which makes browsers label a
+// form's POST as coming from nowhere (Origin: null). The leads list sends it
+// within this site only, so its delete button's POST says where it came from.
+const adminPage = (body, status = 200, extra = {}) => htmlResponse(body, status, { 'Referrer-Policy': 'same-origin', ...extra });
+
+const notFound = () => adminPage(page({ title: 'Page not found', body: '<h1>Page not found</h1>' }), 404);
 
 const STEPS = [['view', 'Visits'], ['outline', 'Outlines'], ['save', 'Saved'], ['book', 'Booked']];
 
@@ -58,7 +63,7 @@ function countsTable(rows) {
 }
 
 function leadCard(lead, timeZone) {
-  const when = iso => new Intl.DateTimeFormat('en-US', { timeZone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
+  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
   let outline = null;
   try { outline = JSON.parse(lead.outline); } catch { /* shown without it */ }
   const booked = lead.booked_at === 'pending'
@@ -119,9 +124,9 @@ async function csv(env) {
 
 export async function adminRoute(request, env, url) {
   if (!features(env).admin) return notFound();
-  if (await overLimit(env.ADMIN_LIMIT, request)) return htmlResponse('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
+  if (await overLimit(env.ADMIN_LIMIT, request)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
   if (!(await signedIn(request, env))) {
-    return htmlResponse(page({ title: 'Sign in', body: '<h1>Sign in to see your leads</h1><p>Use the ADMIN_PASSWORD you set in Cloudflare. Any username works.</p>' }), 401, {
+    return adminPage(page({ title: 'Sign in', body: '<h1>Sign in to see your leads</h1><p>Use the ADMIN_PASSWORD you set in Cloudflare. Any username works.</p>' }), 401, {
       'WWW-Authenticate': 'Basic realm="Leads", charset="UTF-8"',
     });
   }
@@ -129,10 +134,12 @@ export async function adminRoute(request, env, url) {
   const timeZone = settings(env).ownerTz;
 
   if (url.pathname === '/admin/delete') {
-    if (request.method !== 'POST') return htmlResponse('Method not allowed', 405, { Allow: 'POST' });
+    if (request.method !== 'POST') return adminPage('Method not allowed', 405, { Allow: 'POST' });
     // The browser re-sends the password on any request to this site, so only a
-    // form on this site's own page may delete.
-    if (request.headers.get('Origin') !== url.origin) return htmlResponse('Forbidden', 403);
+    // form on this site's own page may delete. Browsers mark where a request
+    // came from in headers no page can set: Origin, and Sec-Fetch-Site.
+    const fromThisSite = request.headers.get('Origin') === url.origin || request.headers.get('Sec-Fetch-Site') === 'same-origin';
+    if (!fromThisSite) return adminPage('Forbidden', 403);
     const form = await request.formData().catch(() => null);
     const id = form ? form.get('id') : null;
     if (typeof id === 'string' && /^[A-Za-z0-9_-]{10,40}$/.test(id)) {
@@ -140,7 +147,7 @@ export async function adminRoute(request, env, url) {
     }
     return new Response(null, { status: 303, headers: { Location: '/admin', 'Cache-Control': 'no-store' } });
   }
-  if (request.method !== 'GET') return htmlResponse('Method not allowed', 405, { Allow: 'GET' });
+  if (request.method !== 'GET') return adminPage('Method not allowed', 405, { Allow: 'GET' });
   if (url.pathname === '/admin/leads.csv') return csv(env);
   if (url.pathname !== '/admin') return notFound();
 
@@ -156,5 +163,5 @@ export async function adminRoute(request, env, url) {
 <p>${Number(total) || 0} saved outline${Number(total) === 1 ? '' : 's'}, newest first${Number(total) > LIST_LIMIT ? ` (showing the latest ${LIST_LIMIT})` : ''}. Each is deleted automatically a year after it was saved. <a href="/admin/leads.csv">Download all as a spreadsheet (CSV)</a></p>
 ${countsTable(counts.results || [])}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
-  return htmlResponse(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
+  return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

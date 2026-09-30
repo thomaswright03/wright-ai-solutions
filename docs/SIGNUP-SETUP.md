@@ -23,7 +23,7 @@ The first five rows follow `features()` in `worker/config.js`. The last two are 
 | Phone alerts | `NTFY_TOPIC` (part 5) | No alerts. The lead email still arrives |
 | Daily counts per ad | `DB` (part 1) | Nothing is counted |
 
-The AI outline needs nothing: Workers AI is already bound as `AI` in `wrangler.jsonc`, and when it can't answer, the outline comes from the matching template in `outlines.js`. About 90 outlines a day fit Workers AI's free daily allowance (the estimate in `worker/outline.js`). Past that, on the Workers Free plan, visitors get the template outline.
+The AI outline needs nothing: Workers AI is already bound as `AI` in `wrangler.jsonc`, and when it can't answer, the outline comes from the matching template in `outlines.js`. About 90 outlines a day fit Workers AI's free daily allowance (the estimate in `worker/outline.js`). Past that, on the Workers Free plan, visitors get the template outline. Once the database is connected, the AI writes at most 300 outlines a day (`AI_DAILY_LIMIT`, below), which caps what a flood of requests could cost on the Paid plan.
 
 ## 1. Leads database (Cloudflare D1, about 2 minutes)
 
@@ -118,3 +118,4 @@ Optional overrides also go in `vars`. Their defaults are in `worker/config.js`:
 | `LEADS_TO` | `t@thomasewright.com` | Where the copy of each lead goes |
 | `OWNER_TZ` | `America/Denver` | The daily counts, times in `/admin` and phone alerts, and reminders when a visitor's time zone is unknown |
 | `SITE_URL` | `https://wright-ai-solutions.com` | The delete link in reminder emails |
+| `AI_DAILY_LIMIT` | `300` | How many outlines a day (UTC) the AI writes before visitors get the template outlines |

@@ -6,13 +6,14 @@ import { bytesToText, fromBase64url, textToBytes, toBase64url } from './http.js'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
-  // One row per saved outline. `sig` is the outline token's signature, so the
-  // same outline saved twice (a double click) stays one lead.
+  // One row per saved outline. `outline_id` is the random ID in the outline's
+  // token, so the same outline saved twice (a double click) stays one lead.
   `CREATE TABLE IF NOT EXISTS leads (
     id TEXT PRIMARY KEY,
-    sig TEXT NOT NULL UNIQUE,
+    outline_id TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL,
     email TEXT NOT NULL,
+    emailed_at TEXT,
     tz TEXT,
     problem TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -38,6 +39,12 @@ const SCHEMA = [
     n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, ad, src, step)
   )`,
+  // How many outlines the AI was asked for each day (UTC), for the daily cap.
+  'CREATE TABLE IF NOT EXISTS ai_daily (day TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  // One row per outline email, for the daily cap per inbox. `tag` stands in for
+  // the address (see inboxTag), and rows are deleted after two days.
+  'CREATE TABLE IF NOT EXISTS outline_sends (tag TEXT NOT NULL, sent_at TEXT NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS outline_sends_tag ON outline_sends (tag, sent_at)',
 ];
 
 const ready = new WeakMap();
@@ -82,29 +89,35 @@ function signingKey(DB) {
 }
 
 // "v1.<data>.<signature>": the data is readable by whoever holds the token, but
-// only this Worker can make a signature that matches it.
-export async function sign(env, purpose, data) {
+// only this Worker can make a signature that matches it. `iat` (issued at, in
+// seconds) can be fixed so the same token comes out every time, as the delete
+// link does, so a retried email is identical to the first try.
+export async function sign(env, purpose, data, iat = Math.floor(Date.now() / 1000)) {
   const key = await signingKey(env.DB);
-  const payload = toBase64url(JSON.stringify({ ...data, p: purpose, iat: Math.floor(Date.now() / 1000) }));
+  const payload = toBase64url(JSON.stringify({ ...data, p: purpose, iat }));
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, textToBytes(`v1.${payload}`)));
   return `v1.${payload}.${toBase64url(signature)}`;
 }
 
 // The token's data if it's genuine, made for this purpose and younger than
-// maxAge seconds (when given); otherwise null.
+// maxAge seconds (when given); otherwise null. Each token has exactly one
+// spelling: base64 decoding forgives spaces, padding and unused bits, so a
+// signature is only accepted written the way sign() writes it.
 export async function verify(env, purpose, token, maxAge) {
   if (typeof token !== 'string' || token.length > 20000) return null;
   const parts = token.split('.');
-  if (parts.length !== 3 || parts[0] !== 'v1') return null;
+  if (parts.length !== 3 || parts[0] !== 'v1' || !/^[A-Za-z0-9_-]{43}$/.test(parts[2])) return null;
   try {
+    const signature = fromBase64url(parts[2]);
+    if (toBase64url(signature) !== parts[2]) return null;
     const key = await signingKey(env.DB);
-    const genuine = await crypto.subtle.verify('HMAC', key, fromBase64url(parts[2]), textToBytes(`v1.${parts[1]}`));
+    const genuine = await crypto.subtle.verify('HMAC', key, signature, textToBytes(`v1.${parts[1]}`));
     if (!genuine) return null;
     const data = JSON.parse(bytesToText(fromBase64url(parts[1])));
     if (!data || data.p !== purpose || typeof data.iat !== 'number') return null;
     const age = Date.now() / 1000 - data.iat;
     if (age < -300 || (maxAge && age > maxAge)) return null;
-    return { ...data, sig: parts[2] };
+    return data;
   } catch {
     return null;
   }
@@ -112,8 +125,25 @@ export async function verify(env, purpose, token, maxAge) {
 
 export const newId = () => toBase64url(crypto.getRandomValues(new Uint8Array(16)));
 
+// A keyed hash that stands in for an inbox: the same inbox always gives the
+// same tag, but a tag can't be read back as the address.
+export async function inboxTag(env, inbox) {
+  const key = await signingKey(env.DB);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, textToBytes(`inbox.${inbox}`)));
+  return toBase64url(mac.subarray(0, 16));
+}
+
+// Making a date formatter is slow next to using one, so each is made once.
+// Time zones are checked names, so there are only a few hundred at most.
+const formats = new Map();
+export function formatIn(timeZone, options) {
+  const key = `${timeZone}|${JSON.stringify(options)}`;
+  if (!formats.has(key)) formats.set(key, new Intl.DateTimeFormat('en-US', { timeZone, ...options }));
+  return formats.get(key);
+}
+
 function partsIn(timeZone, date, options) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone, ...options }).formatToParts(date);
+  const parts = formatIn(timeZone, options).formatToParts(date);
   return Object.fromEntries(parts.map(p => [p.type, p.value]));
 }
 

@@ -6,7 +6,7 @@
 // stored only if they choose to save the outline (see leads.js).
 import { KINDS, OUTLINES, adFor, pickKind } from '../outlines.js';
 import { features, settings } from './config.js';
-import { count, sign } from './db.js';
+import { count, ensureSchema, newId, sign } from './db.js';
 import { cameFrom } from './leads.js';
 import { clean, clientIp, json, overLimit, readJson, tooMany, withTimeout } from './http.js';
 import { passedBotCheck } from './services.js';
@@ -78,13 +78,20 @@ function list(value, min, max, maxLength) {
 }
 
 // Prices and promises the business can't back, and anything that would let
-// the outline email carry someone's link, address or number to a stranger.
+// the outline email carry someone's link, address, handle or number to a
+// stranger: any web address or "@", and a domain spelled out ("example dot com").
 const REJECT = [
   /[$€£]\s?\d/,
   /\bguarantee/i,
-  /https?:|www\.|\b[a-z0-9-]+\.(com|net|org|io|co|app|dev|ai|xyz|info|biz|ly|me|us|ru|cn)\b/i,
-  /[^\s@]+@[^\s@]+\.[a-z]{2,}/i,
+  /https?:|www\.|@/i,
+  /(?:\bdot|\(dot\)|\[dot\])\s*(?:com|net|org|co|io|ai|app|dev|info|biz|xyz|top|shop|site|online|store|live|me|us|uk)\b/i,
 ];
+// Something like a domain name: a letter or digit, a dot (or a look-alike), then
+// a word of two or more letters. Only file types and code libraries that aren't
+// also web address endings may appear that way ("report.csv", "Node.js").
+const DOTTED = /[\p{L}\p{N}_-][.\u3002\uFF0E\uFF61](\p{L}[\p{L}\p{N}-]+)/gu;
+const FILE_TYPES = new Set(['js', 'ts', 'jsx', 'tsx', 'csv', 'pdf', 'xls', 'xlsx', 'doc', 'docx', 'pptx', 'txt', 'json', 'xml', 'html', 'htm', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'mp3', 'mp4', 'wav', 'sql', 'yml', 'yaml', 'ics', 'vcf']);
+const hasDomain = s => [...s.matchAll(DOTTED)].some(m => !FILE_TYPES.has(m[1].toLowerCase()));
 // A run of 9 or more digits, however it's punctuated, reads as a phone number
 // (a year range like "2025-2026" has only 8).
 const hasPhoneNumber = s => (s.match(/\+?[\d(][\d\s().-]{7,}\d/g) || []).some(m => m.replace(/\D/g, '').length >= 9);
@@ -112,7 +119,7 @@ export function validateOutline(raw) {
   };
   if (Object.values(outline).some(v => v === null)) return null;
   const all = JSON.stringify(outline);
-  if (REJECT.some(re => re.test(all)) || hasPhoneNumber(all)) return null;
+  if (REJECT.some(re => re.test(all)) || hasDomain(all) || hasPhoneNumber(all)) return null;
   return outline;
 }
 
@@ -123,11 +130,24 @@ export function templateOutline(kind) {
   return { kind: key, title, build, steps: [...steps], needs: [...needs], milestone, questions: [...questions] };
 }
 
+// Counts one more AI outline for today and says whether it's within the daily
+// cap (settings().aiDailyLimit). The day is UTC, when the free allowance
+// resets. On the Paid plan the cap limits what a flood of requests could cost.
+// Without the database there's nothing to count in, so no cap.
+async function underDailyCap(env) {
+  if (!env.DB) return true;
+  await ensureSchema(env.DB);
+  const used = await env.DB.prepare('INSERT INTO ai_daily (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1 RETURNING n')
+    .bind(new Date().toISOString().slice(0, 10)).first('n');
+  return Number(used) <= settings(env).aiDailyLimit;
+}
+
 async function writeWithAI(env, problem, hint) {
-  // No AI binding (the local test server), the daily quota used up, a timeout or
-  // an unusable reply all end the same way: the template.
+  // No AI binding (the local test server), the daily cap or quota used up, a
+  // timeout or an unusable reply all end the same way: the template.
   if (!env.AI) return null;
   try {
+    if (!(await underDailyCap(env))) return null;
     const result = await withTimeout(env.AI.run(MODEL, {
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -148,7 +168,8 @@ async function writeWithAI(env, problem, hint) {
 
 // POST /api/outline: { problem, ad, src, turnstile }. Answers
 // { source: 'ai' | 'template', outline, token? }. The token (only once saving
-// is switched on) carries the outline, signed, to /api/save.
+// is switched on) carries the outline, signed, to /api/save, with a random ID
+// that makes it one lead however many times it's saved.
 export async function outlineRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, MAX_BODY);
   if (error) return error;
@@ -172,7 +193,7 @@ export async function outlineRoute(request, env, ctx, url) {
   const outline = written || templateOutline(pickKind(problem, hint));
   const source = written ? 'ai' : 'template';
   const reply = { source, outline };
-  if (on.save) reply.token = await sign(env, 'outline', { problem, outline, source, ...from });
+  if (on.save) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, ...from });
   ctx.waitUntil(count(env, settings(env).ownerTz, from, 'outline').catch(() => {}));
   return json(reply);
 }

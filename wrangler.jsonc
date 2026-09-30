@@ -27,7 +27,8 @@
   // Settings that aren't secrets. Secrets (RESEND_API_KEY, TURNSTILE_SECRET,
   // ADMIN_PASSWORD, NTFY_TOPIC, optionally CAL_API_KEY) are set in the
   // Cloudflare dashboard, never here. Optional overrides, with their defaults in
-  // worker/config.js: EMAIL_FROM, REPLY_TO, LEADS_TO, OWNER_TZ, SITE_URL.
+  // worker/config.js: EMAIL_FROM, REPLY_TO, LEADS_TO, OWNER_TZ, SITE_URL,
+  // AI_DAILY_LIMIT.
   "vars": {},
   // Writes version.txt (the commit being deployed) for the post-deploy check.
   "build": {
