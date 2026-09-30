@@ -22,17 +22,35 @@ const ignored = readFileSync(join(root, '.assetsignore'), 'utf8')
   .split('\n').map(l => l.trim()).filter(Boolean);
 const isIgnored = rel => rel === '_headers' || ignored.some(p => rel === p || rel.startsWith(p + '/'));
 
-// _headers: blocks of "<path pattern>" followed by indented "Name: value" lines.
+// _headers: blocks of "<path pattern>" followed by indented "Name: value" lines,
+// or "! Name" to drop a header an earlier rule set. "#" lines are comments.
 const headerRules = [];
 for (const line of readFileSync(join(root, '_headers'), 'utf8').split('\n')) {
-  if (!line.trim()) continue;
+  if (!line.trim() || line.trim().startsWith('#')) continue;
   if (!/^\s/.test(line)) {
     const pattern = new RegExp('^' + line.trim().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
-    headerRules.push({ pattern, headers: [] });
+    headerRules.push({ pattern, detach: [], headers: [] });
+  } else if (line.trim().startsWith('!')) {
+    headerRules.at(-1).detach.push(line.trim().slice(1).trim().toLowerCase());
   } else {
     const i = line.indexOf(':');
     headerRules.at(-1).headers.push([line.slice(0, i).trim(), line.slice(i + 1).trim()]);
   }
+}
+
+// Like Cloudflare: rules apply in order, "! Name" removes what earlier rules set,
+// and a header set by two rules gets both values joined with a comma.
+function headersFor(pathname) {
+  const out = new Map();
+  for (const rule of headerRules) {
+    if (!rule.pattern.test(pathname)) continue;
+    for (const name of rule.detach) out.delete(name);
+    for (const [name, value] of rule.headers) {
+      const key = name.toLowerCase();
+      out.set(key, out.has(key) ? [name, `${out.get(key)[1]}, ${value}`] : [name, value]);
+    }
+  }
+  return out.values();
 }
 
 function resolve(pathname) {
@@ -51,9 +69,7 @@ createServer((req, res) => {
   const file = resolve(pathname);
   const status = file ? 200 : 404;
   const target = file || join(root, '404.html');
-  for (const rule of headerRules) {
-    if (rule.pattern.test(pathname)) for (const [k, v] of rule.headers) res.setHeader(k, v);
-  }
+  for (const [k, v] of headersFor(pathname)) res.setHeader(k, v);
   res.writeHead(status, { 'Content-Type': types[extname(target)] || 'application/octet-stream' });
   res.end(readFileSync(target));
 }).listen(port, () => console.log(`Serving ${root} on http://localhost:${port}`));

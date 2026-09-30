@@ -209,6 +209,7 @@
   // outline again" and "Pick a time after all" all land in the same state.
   const STEPS = ['describe', 'outline', 'book', 'done'];
   function render(step, { focus = true } = {}) {
+    if (step !== 'describe') stopTalking();
     $('stepDescribe').hidden = step !== 'describe';
     $('stepOutline').hidden = step !== 'outline';
     $('stepBook').hidden = step !== 'book';
@@ -249,8 +250,12 @@
 
   // Step 1: the ad-matched opening. Listeners go on first, so the form is
   // always handled here and never submitted to the server.
+  // Set by the voice button below, when the browser supports it.
+  let stopTalking = () => {};
+
   $('describeForm').addEventListener('submit', e => {
     e.preventDefault();
+    stopTalking();
     const problem = $('problem').value.trim();
     if (problem.length < 10) {
       showError($('problemError'), $('problem'), 'Add a sentence about the problem so the outline has something to work with.');
@@ -262,6 +267,87 @@
     state.kind = pickKind(problem);
     buildOutline();
   });
+
+  // "Talk instead": the browser's own speech recognition types what the visitor
+  // says into the box. Hidden where the browser can't do it (Firefox, for one) or
+  // where the page's Permissions-Policy blocks the microphone.
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micAllowed = !document.featurePolicy || document.featurePolicy.allowsFeature('microphone');
+  if (Recognition && micAllowed) {
+    const button = $('talkButton');
+    const status = $('talkStatus');
+    let recognition = null;
+    let before = '';
+    let heard = '';
+
+    const VOICE_ERRORS = {
+      'not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
+      'service-not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
+      'no-speech': 'I didn\'t hear anything. Try again a little closer to your microphone.',
+      'audio-capture': 'No microphone was found. You can type instead.',
+      'network': 'Talking needs an internet connection. You can type instead.',
+    };
+
+    const say = (text, isError = false) => {
+      status.hidden = !text;
+      status.textContent = text;
+      status.classList.toggle('is-error', isError);
+    };
+    const setListening = on => {
+      button.classList.toggle('is-listening', on);
+      $('talkLabel').textContent = on ? 'Stop' : 'Talk instead';
+    };
+
+    button.hidden = false;
+    $('problemInput').classList.add('has-voice');
+    $('problemHint').textContent = 'Plain words are fine, typed or spoken. If you talk, your browser turns it into text and may use its maker\'s speech service to do it (Google, in Chrome).';
+
+    stopTalking = () => { if (recognition) recognition.stop(); };
+
+    button.addEventListener('click', () => {
+      if (recognition) { stopTalking(); return; }
+      const current = $('problem').value.trim();
+      // Talking replaces the ad's example; anything the visitor wrote is kept.
+      before = adPage && current === adPage.prefill ? '' : current;
+      heard = '';
+      recognition = new Recognition();
+      recognition.lang = navigator.language || 'en-US';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setListening(true);
+        say('Listening… Explain it like you would to a friend, then tap Stop.');
+      };
+      recognition.onresult = e => {
+        heard = Array.from(e.results, r => r[0].transcript.trim()).filter(Boolean).join(' ');
+        $('problem').value = [before, heard].filter(Boolean).join(' ');
+        showError($('problemError'), $('problem'), '');
+      };
+      recognition.onerror = e => {
+        if (e.error !== 'aborted') say(VOICE_ERRORS[e.error] || 'Talking isn\'t working in this browser right now. You can type instead.', true);
+      };
+      recognition.onend = () => {
+        recognition = null;
+        setListening(false);
+        if (heard) {
+          say('Got it. Fix anything I misheard, then build your outline.');
+          const box = $('problem');
+          box.focus();
+          box.setSelectionRange(box.value.length, box.value.length);
+        } else if (!status.classList.contains('is-error')) {
+          say('');
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (err) {
+        recognition = null;
+        say('Talking isn\'t working in this browser right now. You can type instead.', true);
+      }
+    });
+  }
 
   if (adPage) {
     $('startEyebrow').textContent = adPage.eyebrow;

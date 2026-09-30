@@ -276,6 +276,14 @@ test('every response carries the security headers from _headers', async ({ reque
   }
 });
 
+test('only /start may use the microphone', async ({ request }) => {
+  const policy = async path => (await request.get(path)).headers()['permissions-policy'];
+  expect(await policy('/start?for=leads')).toBe('camera=(), microphone=(self), geolocation=(), interest-cohort=()');
+  for (const path of ['/', '/privacy', '/no/such/page']) {
+    expect(await policy(path), path).toBe('camera=(), microphone=(), geolocation=(), interest-cohort=()');
+  }
+});
+
 test.describe('signup flow on /start', () => {
   // The prototype must not send anything anywhere: every request stays a GET for a file on this site.
   function watchRequests(page) {
@@ -453,7 +461,71 @@ test.describe('signup flow on /start', () => {
 
   test('the page says it is a prototype and is kept out of search', async ({ page }) => {
     await page.goto('/start');
-    await expect(page.locator('#prototypeNote')).toContainText('Nothing you type here is sent or stored');
+    await expect(page.locator('#prototypeNote')).toContainText('Nothing you type or say here is sent to us or stored');
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+  });
+
+  // A stand-in for the browser's speech recognition, driven from the test.
+  const fakeSpeech = () => {
+    window.SpeechRecognition = class {
+      start() { window.fakeRecognition = this; setTimeout(() => this.onstart?.(), 0); }
+      stop() { setTimeout(() => this.onend?.(), 0); }
+    };
+    window.speak = (...phrases) => window.fakeRecognition.onresult({
+      results: phrases.map(p => Object.assign([{ transcript: p }], { isFinal: true })),
+    });
+    window.speechError = error => { window.fakeRecognition.onerror({ error }); window.fakeRecognition.onend(); };
+  };
+
+  test('"Talk instead" types what the visitor says into the box, replacing the ad example', async ({ page }) => {
+    await page.addInitScript(fakeSpeech);
+    await page.goto('/start?for=leads');
+    const talk = page.getByRole('button', { name: 'Talk instead' });
+    await expect(talk).toBeVisible();
+    await talk.click();
+    await expect(page.locator('#talkStatus')).toContainText('Listening');
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
+
+    await page.evaluate(() => window.speak('We run a dental office', ' and miss calls at lunch'));
+    await expect(page.locator('#problem')).toHaveValue('We run a dental office and miss calls at lunch');
+
+    await page.getByRole('button', { name: 'Stop' }).click();
+    await expect(talk).toBeVisible();
+    await expect(page.locator('#problem')).toBeFocused();
+    await expect(page.locator('#talkStatus')).toContainText('Got it');
+  });
+
+  test('talking adds to what the visitor already typed, and errors say what to do', async ({ page }) => {
+    await page.addInitScript(fakeSpeech);
+    await page.goto('/start');
+    await page.fill('#problem', 'Our shop is busy.');
+    await page.getByRole('button', { name: 'Talk instead' }).click();
+    await page.evaluate(() => window.speak('We never answer the phone'));
+    await expect(page.locator('#problem')).toHaveValue('Our shop is busy. We never answer the phone');
+    await page.getByRole('button', { name: 'Stop' }).click();
+
+    await page.getByRole('button', { name: 'Talk instead' }).click();
+    await page.evaluate(() => window.speechError('not-allowed'));
+    await expect(page.locator('#talkStatus')).toContainText('microphone is blocked');
+    await expect(page.locator('#talkStatus')).toHaveClass(/is-error/);
+    await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible();
+  });
+
+  test('building the outline while listening stops the microphone', async ({ page }) => {
+    await page.addInitScript(fakeSpeech);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/start');
+    await page.getByRole('button', { name: 'Talk instead' }).click();
+    await page.evaluate(() => window.speak('Customers ask the same questions all day'));
+    await page.getByRole('button', { name: /Build my outline/ }).click();
+    await expect(page.locator('#outlineTitle')).toContainText('repeat questions');
+    await expect(page.locator('#talkLabel')).toHaveText('Talk instead');
+  });
+
+  test('without speech recognition there is no talk button', async ({ page }) => {
+    await page.addInitScript(() => { delete window.SpeechRecognition; delete window.webkitSpeechRecognition; });
+    await page.goto('/start');
+    await expect(page.locator('#talkButton')).toBeHidden();
+    await expect(page.locator('#problemHint')).toHaveText('Plain words are fine. No need to know what the fix is.');
   });
 });

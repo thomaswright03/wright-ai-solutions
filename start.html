@@ -47,7 +47,7 @@
 
     <noscript><p class="start-noscript">This page needs JavaScript. You can email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a> instead.</p></noscript>
 
-    <p class="start-prototype" id="prototypeNote"><strong>Prototype.</strong> Nothing you type here is sent or stored. The outline comes from templates in your browser; the live version would write it with AI.</p>
+    <p class="start-prototype" id="prototypeNote"><strong>Prototype.</strong> Nothing you type or say here is sent to us or stored. The outline comes from templates in your browser; the live version would write it with AI.</p>
 
     <ol class="start-progress" aria-label="Steps">
       <li class="is-current" data-step="describe" aria-current="step">Describe</li>
@@ -63,7 +63,16 @@
 
       <form class="start-form" id="describeForm" novalidate>
         <label class="start-label" for="problem" id="problemLabel">In a sentence or two, what's the problem?</label>
-        <textarea id="problem" name="problem" rows="3" maxlength="1200" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
+        <!-- autocomplete="off" stops the browser restoring an old value over the ad's example on reload. -->
+        <div class="start-input" id="problemInput">
+          <textarea id="problem" name="problem" rows="3" maxlength="1200" autocomplete="off" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
+          <!-- Shown by start.js only where the browser can turn speech into text. -->
+          <button type="button" class="talk" id="talkButton" hidden>
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+            <span id="talkLabel">Talk instead</span>
+          </button>
+        </div>
+        <p class="start-talk-status" id="talkStatus" aria-live="polite" hidden></p>
         <p class="start-hint" id="problemHint">Plain words are fine. No need to know what the fix is.</p>
         <p class="start-error" id="problemError" aria-live="polite"></p>
 
