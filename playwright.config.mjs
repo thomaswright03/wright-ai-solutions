@@ -14,7 +14,7 @@ export default defineConfig({
     launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },
   webServer: {
-    command: 'node tests/serve.mjs',
+    command: 'node --disable-warning=ExperimentalWarning tests/serve.mjs',
     url: `http://localhost:${port}/`,
     reuseExistingServer: !process.env.CI,
   },

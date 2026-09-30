@@ -1,0 +1,21 @@
+/* The private leads list at /admin (written by worker/admin.js). Uses the
+   tokens and base styles from styles.css, which loads first. */
+.admin .legal-inner{max-width:960px;}
+.admin h1{margin-bottom:var(--space-3);}
+.admin-muted{color:var(--text-dimmer); font-weight:400;}
+.admin-scroll{overflow-x:auto; margin:var(--space-6) 0;}
+.admin-table{border-collapse:collapse; width:100%; font-size:var(--fs-sm);}
+.admin-table caption{text-align:left; font-weight:600; margin-bottom:var(--space-2);}
+.admin-table th, .admin-table td{text-align:right; padding:var(--space-2) var(--space-3); border-bottom:1px solid var(--border); white-space:nowrap;}
+.admin-table th:first-child, .admin-table td:first-child{text-align:left;}
+.admin-table tfoot th, .admin-table tfoot td{font-weight:700;}
+.admin-lead{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-5); margin-top:var(--space-4);}
+.admin-lead h2{font-size:var(--fs-lg); margin:0 0 var(--space-1); overflow-wrap:anywhere;}
+.admin-lead h2 a{color:var(--text);}
+.admin-facts{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:var(--space-3); margin:var(--space-4) 0;}
+.admin-facts dt{font-size:var(--fs-xs); font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dimmer);}
+.admin-facts dd{margin:0; font-size:var(--fs-sm);}
+.admin-lead details{margin-top:var(--space-3);}
+.admin-lead summary{cursor:pointer; font-weight:600; min-height:44px; display:flex; align-items:center;}
+.admin-lead blockquote{border-left:3px solid var(--accent-1); padding-left:var(--space-4); margin:var(--space-3) 0; white-space:pre-line; overflow-wrap:anywhere;}
+.admin-delete{margin-top:var(--space-4);}
