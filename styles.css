@@ -225,7 +225,7 @@ img{max-width:100%; display:block;}
 .hero-stats{display:flex; gap:var(--space-7); flex-wrap:wrap;}
 .hero-stats div{display:flex; flex-direction:column; gap:var(--space-1);}
 .hero-stats strong{font-family:'Space Grotesk', sans-serif; font-size:var(--fs-3xl);}
-.hero-stats span{font-size:var(--fs-sm); color:var(--text-dimmer);}
+.hero-stats span{font-size:var(--fs-sm); color:var(--text-dimmer); max-width:24ch;}
 
 /* section generic */
 section{position:relative; z-index:1; padding:var(--space-9) 0;}
