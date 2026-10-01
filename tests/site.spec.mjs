@@ -273,3 +273,30 @@ test('every response carries the security headers from _headers', async ({ reque
     expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
   }
 });
+
+test.describe('project cards', () => {
+  test('every project card has a Problem and a Solution heading, and maybe a Result, each followed by text', async ({ page }) => {
+    await page.goto('/');
+    const cards = await page.locator('.work-item').all();
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      const title = (await card.locator('h3').textContent()).trim();
+      const parts = await card.locator('h4').evaluateAll(headings => headings.map(h => {
+        const next = h.nextElementSibling;
+        return { label: h.textContent.trim(), text: next?.tagName === 'P' ? next.textContent.trim() : '' };
+      }));
+      expect(['Problem,Solution', 'Problem,Solution,Result'], `${title}: h4 headings`).toContain(parts.map(p => p.label).join());
+      for (const { label, text } of parts) expect(text, `${title}: text after "${label}"`).not.toBe('');
+    }
+  });
+
+  test('the lead agent\'s revenue is its contracts at $70 each, and the hero shows the same figure', async ({ page }) => {
+    await page.goto('/');
+    const card = page.locator('.work-item', { has: page.locator('h3', { hasText: 'AI Lead Response Agent' }) });
+    const result = await card.locator('h4:text-is("Result") + p').textContent();
+    const contracts = Number(result.match(/signed (\d+) contracts/)[1]);
+    const dollars = result.match(/\$(\d[\d,]*) in revenue/)[1];
+    expect(Number(dollars.replace(/,/g, '')), result).toBe(contracts * 70);
+    await expect(page.locator('.hero-stats strong').first()).toHaveText(`$${dollars}`);
+  });
+});
