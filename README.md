@@ -39,7 +39,7 @@ node scripts/eval-outlines.mjs --out=docs/EVAL-RESULTS.md                       
 node scripts/eval-outlines.mjs --dry-run                                             # checks the cases without calling the AI
 ```
 
-The site also runs the same cases on itself (`worker/eval.js`): a batch of 12 in each hourly run until all 24 are done, then again a week later, and straight away whenever the model, the prompt or the cases change. It counts toward the daily AI cap and only runs while fewer than 40 outlines have been written that day, so visitors keep most of the free allowance. The latest result is public at [`/api/eval`](https://wright-ai-solutions.com/api/eval) and on `/admin`, and a phone alert goes out if it falls below 90%. No visitor's text is involved.
+The site also runs the same cases on itself (`worker/eval.js`): a batch of 12 in each hourly run until all 24 are done, then again a week later, and straight away whenever the model, the prompt or the cases change. It counts toward the daily AI cap and only runs while fewer than 40 outlines have been written that day, so visitors keep most of the free allowance. The latest result is public at `https://wright-ai-solutions.com/api/eval` and on `/admin`, and a phone alert goes out if it falls below 90%. No visitor's text is involved.
 
 `.github/workflows/eval-outlines.yml` runs the eval on GitHub whenever the prompt, checks or cases change on `main`, and on demand from the Actions tab. It needs the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` repository secrets; until they're set, its "Run the eval" job shows as skipped and the run summary says "Not run", after checking the cases without calling the AI.
 
