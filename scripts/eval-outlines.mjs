@@ -12,7 +12,8 @@
 // alone, so a weaker prompt can't hide behind the guard. Options:
 //   --dry-run   check the cases and print the requests without calling the AI
 //   --min=0.9   the pass rate, for both scores, below which it exits with an
-//               error (default 0.9)
+//               error (default 0.9). A run where the AI didn't answer every
+//               case isn't scored: it exits with 3 and records nothing.
 //   --out=FILE  also write the result as Markdown, e.g. docs/EVAL-RESULTS.md,
 //               so it can be committed next to the prompt it measured
 //   --json=FILE also write it as one row for eval-history.csv
@@ -104,8 +105,13 @@ async function main() {
   const ours = score(site);
   const model = score(alone);
   const pct = rate => `${Math.round(rate * 100)}%`;
+  // A case the AI didn't answer (an outage, or the day's allowance used up)
+  // says nothing about the prompt, so such a run isn't scored or recorded.
+  const unanswered = alone.filter(r => r.outcome === 'error').length;
   const ok = ours.rate >= minRate && model.rate >= minRate;
-  const verdict = `${ok ? 'Passed' : 'Below the bar'}: ${ours.passed}/${cases.length} right as the site runs it (${pct(ours.rate)}), ${model.passed}/${cases.length} by the model alone (${pct(model.rate)}). Kind right on ${model.kindRight}/${model.kindTotal}.`;
+  const verdict = unanswered
+    ? `Not scored: the AI didn't answer ${unanswered} of ${cases.length} cases (an outage, or the day's Workers AI allowance used up). Run it again later.`
+    : `${ok ? 'Passed' : 'Below the bar'}: ${ours.passed}/${cases.length} right as the site runs it (${pct(ours.rate)}), ${model.passed}/${cases.length} by the model alone (${pct(model.rate)}). Kind right on ${model.kindRight}/${model.kindTotal}.`;
   console.log(`\n${verdict}`);
   const markdown = [
     '# AI outline eval result',
@@ -120,7 +126,7 @@ async function main() {
     '',
   ].join('\n');
   if (outArg) writeFileSync(outArg.slice(6), markdown);
-  if (jsonArg) {
+  if (jsonArg && !unanswered) {
     const failed = cases.filter((c, i) => !site[i].pass || !alone[i].pass).map(c => c.id);
     writeFileSync(jsonArg.slice(7), JSON.stringify({
       finished_at: new Date().toISOString(),
@@ -136,6 +142,7 @@ async function main() {
     }));
   }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
+  if (unanswered) process.exit(3);
   if (!ok) {
     console.error(`Below the ${pct(minRate)} bar.`);
     process.exit(1);
