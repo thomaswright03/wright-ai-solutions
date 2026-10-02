@@ -26,7 +26,8 @@ const SCHEMA = [
     sends INTEGER NOT NULL DEFAULT 1,
     name TEXT,
     booked_at TEXT,
-    booking_uid TEXT
+    booking_uid TEXT,
+    booking_start TEXT
   )`,
   'CREATE INDEX IF NOT EXISTS leads_created_at ON leads (created_at)',
   // Daily totals per ad and ad platform: page views, outlines, saves, bookings.
@@ -54,13 +55,42 @@ const SCHEMA = [
   // the address (see inboxTag), and rows are deleted after two days.
   'CREATE TABLE IF NOT EXISTS outline_sends (tag TEXT NOT NULL, sent_at TEXT NOT NULL)',
   'CREATE INDEX IF NOT EXISTS outline_sends_tag ON outline_sends (tag, sent_at)',
+  // The AI outline eval the site runs on itself (eval.js): one row per run,
+  // with each sample problem's result added as it's done.
+  `CREATE TABLE IF NOT EXISTS eval_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version TEXT NOT NULL,
+    model TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    results TEXT NOT NULL DEFAULT '[]'
+  )`,
 ];
+
+// Columns added to a table after it first went live. CREATE TABLE IF NOT
+// EXISTS leaves an existing table as it is, so these are added on first use.
+//   leads.booking_start: the time the visitor picked, kept while Cal.com's
+//   answer is unclear ('pending'), so /admin can show it and mark it booked.
+const ADDED_COLUMNS = [
+  ['leads', 'booking_start', 'TEXT'],
+];
+
+async function addColumns(DB) {
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const { results } = await DB.prepare(`PRAGMA table_info(${table})`).all();
+    if ((results || []).some(c => c.name === column)) continue;
+    await DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run().catch(err => {
+      // Another copy of the Worker added it a moment ago.
+      if (!/duplicate column/i.test(String(err && err.message))) throw err;
+    });
+  }
+}
 
 const ready = new WeakMap();
 
 export function ensureSchema(DB) {
   if (!ready.has(DB)) {
-    const setup = DB.batch(SCHEMA.map(sql => DB.prepare(sql))).catch(err => {
+    const setup = DB.batch(SCHEMA.map(sql => DB.prepare(sql))).then(() => addColumns(DB)).catch(err => {
       ready.delete(DB);
       throw err;
     });

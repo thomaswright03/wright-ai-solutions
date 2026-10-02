@@ -19,3 +19,8 @@
 .admin-lead summary{cursor:pointer; font-weight:600; min-height:44px; display:flex; align-items:center;}
 .admin-lead blockquote{border-left:3px solid var(--accent-1); padding-left:var(--space-4); margin:var(--space-3) 0; white-space:pre-line; overflow-wrap:anywhere;}
 .admin-delete{margin-top:var(--space-4);}
+.admin-booking{margin-top:var(--space-4); padding:var(--space-4); border:1px solid var(--accent-1); border-radius:var(--radius);}
+.admin-booking p{margin:0 0 var(--space-3);}
+.admin-booking button{margin:var(--space-1) var(--space-2) var(--space-1) 0;}
+.admin-eval{margin:var(--space-6) 0;}
+.admin-eval h2{font-size:var(--fs-lg); margin:0 0 var(--space-2);}

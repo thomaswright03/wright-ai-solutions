@@ -237,11 +237,13 @@ export async function bookRoute(request, env, ctx, url) {
   const lead = await env.DB.prepare('SELECT id, email, ad, src, kind, outline, booked_at FROM leads WHERE id = ?').bind(data.id).first();
   if (!lead) return json({ error: 'gone' }, 410);
   // Claim the lead first, so two tabs can't book two calls for it. A lead
-  // still 'pending' is one whose booking Cal.com never clearly answered.
-  const claim = await env.DB.prepare("UPDATE leads SET booked_at = 'pending' WHERE id = ? AND booked_at IS NULL").bind(lead.id).run();
+  // still 'pending' is one whose booking Cal.com never clearly answered;
+  // booking_start and the name keep what was asked for, for Thomas to check
+  // against the calendar on /admin.
+  const startIso = new Date(start).toISOString();
+  const claim = await env.DB.prepare("UPDATE leads SET booked_at = 'pending', booking_start = ?, name = ? WHERE id = ? AND booked_at IS NULL").bind(startIso, name, lead.id).run();
   if (!claim.meta || !claim.meta.changes) return json({ error: lead.booked_at === 'pending' ? 'unconfirmed' : 'already_booked' }, 409);
 
-  const startIso = new Date(start).toISOString();
   let booking = null;
   try {
     booking = await bookCall(env, on.cal, {
@@ -262,19 +264,23 @@ export async function bookRoute(request, env, ctx, url) {
     // Free the lead only when it's certain nothing was booked. While it's
     // uncertain the lead stays 'pending', so a retry can't make a second call.
     if (!booking || booking.taken) {
-      await env.DB.prepare("UPDATE leads SET booked_at = NULL WHERE id = ? AND booked_at = 'pending'").bind(lead.id).run();
+      await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(lead.id).run();
     }
   }
   if (!booking) return json({ error: 'booking_failed' }, 502);
   if (booking.taken) return json({ error: 'taken' }, 409);
+  const cfg = settings(env);
   if (booking.uncertain) {
-    ctx.waitUntil(notify(env, { title: 'Booking unconfirmed', body: 'Cal.com didn\'t confirm a booking from /start. Check your calendar; the lead is marked on your leads list.', click: `${url.origin}/admin` }).catch(() => {}));
+    ctx.waitUntil(notify(env, {
+      title: 'Booking unconfirmed',
+      body: `Cal.com didn't confirm a call for ${ownerTime(cfg.ownerTz, startIso)}. Check your calendar, then mark it booked or not on your leads list.`,
+      click: `${url.origin}/admin`,
+    }).catch(() => {}));
     return json({ error: 'unconfirmed' }, 502);
   }
 
   const bookedAt = new Date(Number.isFinite(Date.parse(booking.start)) ? Date.parse(booking.start) : start).toISOString();
   await env.DB.prepare('UPDATE leads SET name = ?, booked_at = ?, booking_uid = ? WHERE id = ?').bind(name, bookedAt, booking.uid, lead.id).run();
-  const cfg = settings(env);
   ctx.waitUntil(Promise.allSettled([
     notify(env, { title: 'Call booked', body: `${ownerTime(cfg.ownerTz, bookedAt)}, about ${KIND_WORDS[lead.kind] || 'a project'}, from ${fromWords(lead)}. It's on your calendar.`, click: `${url.origin}/admin` }),
     count(env, cfg.ownerTz, lead, 'book'),

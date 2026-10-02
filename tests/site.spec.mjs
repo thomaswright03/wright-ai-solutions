@@ -1,5 +1,6 @@
 // Browser checks for the static site, run in CI against tests/serve.mjs.
 import { test, expect } from '@playwright/test';
+import { smokeTest } from '../scripts/smoke-test.mjs';
 
 const PAGES = [
   { path: '/', status: 200 },
@@ -545,6 +546,42 @@ test.describe('signup flow on /start', () => {
     await page.locator('#bookButton').click();
     await expect(page.locator('#bookError')).toContainText('didn\'t confirm the booking');
     expect((await services.state()).bookings).toHaveLength(1);
+  });
+
+  test('an unconfirmed booking can be freed from the leads list, and the visitor can then book from the page', async ({ page, browser }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    // The first booking request is lost before Cal.com books anything.
+    const services = await useServices(page, 'calsilent');
+    await toBooking(page, 'freed@example.com');
+    await page.locator('#bookDays label').first().click();
+    await page.locator('#bookTimes label').first().click();
+    await page.fill('#name', 'Pat');
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toContainText('didn\'t confirm the booking');
+    expect((await services.state()).bookings).toHaveLength(0);
+
+    const context = await browser.newContext({
+      httpCredentials: { username: 'thomas', password: 'local-demo-password' },
+      extraHTTPHeaders: { 'x-test-env': services.mode },
+    });
+    const admin = await context.newPage();
+    const errors = watchForErrors(admin);
+    await admin.goto('/admin');
+    const lead = admin.locator('.admin-lead', { hasText: 'freed@example.com' });
+    await expect(lead).toContainText('Cal.com didn\'t confirm the call Pat asked for on');
+    await expect(lead.getByRole('button', { name: 'It\'s booked' })).toBeVisible();
+    // Thomas finds nothing on the calendar, and frees the lead from the list itself.
+    await lead.getByRole('button', { name: 'Not booked: let them pick again' }).click();
+    await expect(admin).toHaveURL(/\/admin#lead-/);
+    await expect(lead).toContainText('No call booked');
+    await expect(lead.locator('.admin-booking')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    await context.close();
+
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#doneTitle')).toHaveText('You\'re booked.');
+    const { bookings } = await services.state();
+    expect(bookings.map(b => b.attendee.email)).toEqual(['freed@example.com']);
   });
 
   test('if the calendar can\'t be reached, the booking step says so and links to Cal.com', async ({ page }) => {
@@ -1111,3 +1148,27 @@ test('the hero stats each read as a number and a short label, with the industrie
     expect(industries).toBe(Number(stat));
   }
 });
+
+// scripts/smoke-test.mjs is what checks the live site after each deploy, so
+// it's run here against the local server: it must pass on a working site and
+// catch a broken one.
+test.describe('live check', () => {
+  const failures = results => results.filter(r => !r.ok).map(r => `${r.name}: ${r.note}`);
+
+  test('passes on a working site, and only reads', async ({ baseURL, request }) => {
+    const mode = 'smokeok';
+    const results = await smokeTest(baseURL, { headers: { 'x-test-env': mode } });
+    expect(failures(results)).toEqual([]);
+    expect(results.find(r => r.name === 'calendar (Cal.com)').note).toMatch(/^\d+ open times/);
+    const state = await (await request.get(`/__test/state?mode=${mode}`)).json();
+    expect(state).toEqual({ emails: [], alerts: [], bookings: [], botChecks: [] });
+  });
+
+  test('passes with nothing connected, and fails when the calendar is down', async ({ baseURL }) => {
+    expect(failures(await smokeTest(baseURL, { headers: { 'x-test-env': 'bare' } }))).toEqual([]);
+    expect(failures(await smokeTest(baseURL, { headers: { 'x-test-env': 'smokedown+caldown' } }))).toEqual(['calendar (Cal.com): answered 502, expected 200']);
+    // The local server has no /version.txt, so no commit can match.
+    expect(failures(await smokeTest(baseURL, { sha: 'not-this-commit', headers: { 'x-test-env': 'smokesha' } }))).toEqual(['deployed commit: answered 404, expected 200']);
+  });
+});
+
