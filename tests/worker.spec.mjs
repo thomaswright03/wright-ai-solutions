@@ -554,6 +554,54 @@ test.describe('booking', () => {
     expect(fakes.bookings).toHaveLength(1);
   });
 
+  test('when Cal.com books the call but the reply is lost, a retry never books a second call', async () => {
+    // Without a Cal.com key the Worker can't look the booking up, so the lead
+    // stays held and the visitor is told to check for the invite.
+    const fakes = new FakeServices({ calLost: true });
+    const { saved } = await saveLead(fakes);
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    const lost = await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }));
+    expect(lost.status).toBe(502);
+    expect(await lost.json()).toEqual({ error: 'unconfirmed' });
+    expect(fakes.alerts.at(-1).title).toBe('Booking unconfirmed');
+    const retry = await send(fakes, post('/api/book', { lead: saved.lead, start: times[1], name: 'Pat' }));
+    expect(retry.status).toBe(409);
+    expect(await retry.json()).toEqual({ error: 'unconfirmed' });
+    expect(fakes.bookings).toHaveLength(1);
+    expect(await rows(fakes, 'SELECT booked_at FROM leads')).toEqual([{ booked_at: 'pending' }]);
+  });
+
+  test('with a Cal.com key, a lost reply is checked against Cal.com and the booking it made is kept', async () => {
+    const fakes = fakesWith({ CAL_API_KEY: 'cal_test_key' }, { calLost: true });
+    const { saved } = await saveLead(fakes);
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    const res = await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, start: times[0] });
+    expect(await rows(fakes, 'SELECT booked_at, booking_uid FROM leads')).toEqual([{ booked_at: times[0], booking_uid: 'booking_1' }]);
+    const again = await send(fakes, post('/api/book', { lead: saved.lead, start: times[1], name: 'Pat' }));
+    expect(await again.json()).toEqual({ error: 'already_booked' });
+    expect(fakes.bookings).toHaveLength(1);
+  });
+
+  test('with a Cal.com key, a server error with no booking behind it frees the lead to try again', async () => {
+    const fakes = fakesWith({ CAL_API_KEY: 'cal_test_key' });
+    const { saved } = await saveLead(fakes);
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    const handle = fakes.handle.bind(fakes);
+    let failNext = true;
+    fakes.handle = async (url, init) => {
+      if (failNext && url.pathname === '/v2/bookings' && init.method === 'POST') {
+        failNext = false;
+        return new Response('{"status":"error"}', { status: 500 });
+      }
+      return handle(url, init);
+    };
+    expect(await (await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }))).json()).toEqual({ error: 'booking_failed' });
+    expect((await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }))).status).toBe(200);
+    expect(fakes.bookings).toHaveLength(1);
+  });
+
   test('a lead deleted in the meantime can\'t book', async () => {
     const fakes = new FakeServices();
     const { saved } = await saveLead(fakes);

@@ -9,7 +9,11 @@
 // 25 outlines of the daily Workers AI allowance. Options:
 //   --dry-run   check the cases and print the requests without calling the AI
 //   --min=0.9   the pass rate below which it exits with an error (default 0.9)
-import { readFileSync } from 'node:fs';
+//   --out=FILE  also write the result as Markdown, e.g. docs/EVAL-RESULTS.md,
+//               so it can be committed next to the prompt it measured
+// In GitHub Actions the same Markdown goes to the run's summary page
+// (.github/workflows/eval-outlines.yml).
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { KINDS, adFor } from '../outlines.js';
 import { MIN_PROBLEM, MODEL, cleanProblem, outlineRequest, rejectionReason, validateOutline } from '../worker/outline.js';
 
@@ -17,6 +21,7 @@ const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const minArg = args.find(a => a.startsWith('--min='));
 const minRate = minArg ? Number(minArg.slice(6)) : 0.9;
+const outArg = args.find(a => a.startsWith('--out='));
 
 export function loadCases(file = new URL('./outline-eval.json', import.meta.url)) {
   const { cases } = JSON.parse(readFileSync(file, 'utf8'));
@@ -75,6 +80,7 @@ async function main() {
   let passed = 0;
   let kinds = 0;
   let kindTotal = 0;
+  const rows = [];
   for (const c of cases) {
     let result;
     try {
@@ -88,10 +94,26 @@ async function main() {
       if (result.kindMatch) kinds += 1;
     }
     const kindNote = result.kindMatch === false ? ` (kind should be ${c.kind})` : '';
+    rows.push(`| ${result.pass ? 'Pass' : '**Fail**'} | ${c.id} | ${c.expect} | ${result.outcome}${kindNote} |`);
     console.log(`${result.pass ? 'PASS' : 'FAIL'}  ${c.id.padEnd(22)} expected ${c.expect.padEnd(8)} got ${result.outcome}${kindNote}${result.title ? `  "${result.title}"` : ''}`);
   }
   const rate = passed / cases.length;
-  console.log(`\n${passed}/${cases.length} passed (${Math.round(rate * 100)}%). Kind right on ${kinds}/${kindTotal}.`);
+  const verdict = `${passed}/${cases.length} passed (${Math.round(rate * 100)}%). Kind right on ${kinds}/${kindTotal}.`;
+  console.log(`\n${verdict}`);
+  const markdown = [
+    '# AI outline eval result',
+    '',
+    `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC against \`${MODEL}\`, with the prompt in \`worker/outline.js\` and the cases in \`scripts/outline-eval.json\`.`,
+    '',
+    `**${verdict}** The bar is ${Math.round(minRate * 100)}%.`,
+    '',
+    '| Result | Case | Expected | Got |',
+    '|---|---|---|---|',
+    ...rows,
+    '',
+  ].join('\n');
+  if (outArg) writeFileSync(outArg.slice(6), markdown);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   if (rate < minRate) {
     console.error(`Below the ${Math.round(minRate * 100)}% bar.`);
     process.exit(1);

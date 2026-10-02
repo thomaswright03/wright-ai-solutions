@@ -34,8 +34,11 @@ The tests need Node 22.13 or later too, for the local database.
 
 ```bash
 CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node scripts/eval-outlines.mjs   # token needs "Workers AI: Read"
+node scripts/eval-outlines.mjs --out=docs/EVAL-RESULTS.md                            # also writes the result, to commit with the prompt
 node scripts/eval-outlines.mjs --dry-run                                             # checks the cases without calling the AI
 ```
+
+`.github/workflows/eval-outlines.yml` runs the same eval on GitHub whenever the prompt, checks or cases change on `main`, and on demand from the Actions tab, once the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` repository secrets are set. The result is on the run's summary page.
 
 In production, `/admin` shows how every outline of the last 30 days was written: by the AI, or from a template and why (daily limit, timeout, a reply that broke a rule, or text that wasn't a business problem).
 

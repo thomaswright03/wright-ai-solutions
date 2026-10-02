@@ -6,7 +6,7 @@
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
 // outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=11';
+import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=12';
 
 const $ = id => document.getElementById(id);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -333,6 +333,8 @@ if (adPage) {
   $('problemLabel').textContent = adPage.label;
   $('problem').value = adPage.prefill;
 }
+// The step this history entry showed before a reload, read before it's reset.
+const stepBeforeReload = history.state && history.state.step;
 history.replaceState({ step: 'describe' }, '');
 
 // Step 2: the outline. The server answers with the AI's outline or, if the AI
@@ -348,7 +350,7 @@ async function fetchOutline(problem, turnstile) {
   }
 }
 
-function showOutline(outline, fromAI) {
+function showOutline(outline, fromAI, { show = true } = {}) {
   state.outlineTitle = outline.title;
   $('outlineTitle').textContent = outline.title;
   $('outlineProblem').textContent = state.problem;
@@ -384,7 +386,7 @@ function showOutline(outline, fromAI) {
   $('outlineLoading').hidden = true;
   $('outline').hidden = false;
   $('save').hidden = false;
-  render('outline');
+  if (show) render('outline');
 }
 
 async function buildOutline(turnstile) {
@@ -427,14 +429,19 @@ async function buildOutline(turnstile) {
 }
 
 // After a reload: the outline this tab already had, with the save form ready.
-async function restoreOutline(kept) {
+// The history entries from before the reload are still there, so this entry
+// keeps its own step: reloading on the outline shows the outline again, and
+// reloading on the question shows the question, with Forward still going to
+// the outline. No entry is added, so each Back press still does something.
+async function restoreOutline(kept, step) {
   state.problem = kept.problem;
   state.kind = kept.outline.kind;
   state.token = typeof kept.token === 'string' ? kept.token : null;
   $('problem').value = kept.problem;
   await configReady;
-  history.pushState({ step: 'outline' }, '');
-  showOutline(kept.outline, kept.fromAI === true);
+  const onOutline = step === 'outline';
+  if (onOutline) history.replaceState({ step: 'outline' }, '');
+  showOutline(kept.outline, kept.fromAI === true, { show: onOutline });
 }
 
 $('editProblem').addEventListener('click', () => go('describe'));
@@ -665,6 +672,13 @@ $('bookForm').addEventListener('submit', async e => {
     }
     return;
   }
+  if (error === 'unconfirmed') {
+    // The calendar may have booked it without saying so: trying again here
+    // could book twice, so the visitor checks their inbox first.
+    showError($('bookError'), null, `The calendar didn't confirm the booking. If an invite from Cal.com doesn't reach ${state.email} in a few minutes, pick a time on Cal.com instead.`);
+    bookingFallback();
+    return;
+  }
   const expired = error === 'expired' || error === 'gone';
   showError($('bookError'), null, expired
     ? 'This page has been open a while, so the call can\'t be booked from here. Reply to your outline email instead.'
@@ -712,4 +726,4 @@ function finish(booked, note = '') {
 // starts a new one.
 const navigation = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
 const kept = ['reload', 'back_forward'].includes(navigation.type) ? keptOutline() : null;
-if (kept) restoreOutline(kept);
+if (kept) restoreOutline(kept, stepBeforeReload);

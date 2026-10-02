@@ -530,6 +530,23 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#bookAfterAll')).toBeHidden();
   });
 
+  test('when the calendar doesn\'t confirm a booking, the page says to check for the invite instead of booking again', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const services = await useServices(page, 'callost');
+    await toBooking(page, 'lost@example.com');
+    await page.locator('#bookDays label').first().click();
+    await page.locator('#bookTimes label').first().click();
+    await page.fill('#name', 'Pat');
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toContainText('didn\'t confirm the booking');
+    await expect(page.locator('#bookError')).toContainText('lost@example.com');
+    await expect(page.locator('.book-fallback a')).toBeVisible();
+    // Trying again doesn't book a second call.
+    await page.locator('#bookButton').click();
+    await expect(page.locator('#bookError')).toContainText('didn\'t confirm the booking');
+    expect((await services.state()).bookings).toHaveLength(1);
+  });
+
   test('if the calendar can\'t be reached, the booking step says so and links to Cal.com', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await useServices(page, 'caldown');
@@ -694,6 +711,43 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#outlineTitle')).toContainText('pipeline');
     await page.goForward();
     await expect(page.locator('#bookTitle')).toBeFocused();
+  });
+
+  test('a reload on the outline keeps it, and Back still takes one press per step', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    await page.goto('/privacy');
+    await page.goto('/start');
+    await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('#outline')).toBeVisible();
+
+    await page.goBack();
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#problem')).toHaveValue('We re-enter every Shopify order into QuickBooks by hand.');
+    await page.goBack();
+    await expect(page).toHaveURL(/\/privacy$/);
+  });
+
+  test('a reload on the question keeps the answer there, with Forward still going to the outline', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    await page.goto('/start');
+    await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    const title = await page.locator('#outlineTitle').textContent();
+    await page.goBack();
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#stepOutline')).toBeHidden();
+    await expect(page.locator('#problem')).toHaveValue('We re-enter every Shopify order into QuickBooks by hand.');
+    await page.goForward();
+    await expect(page.locator('#outlineTitle')).toHaveText(title);
   });
 
   test('a reload keeps the outline and the save form without writing it again, until it is saved', async ({ page }) => {
@@ -1040,4 +1094,20 @@ test.describe('project cards', () => {
     expect(Number(dollars.replace(/,/g, '')), result).toBe(contracts * 70);
     await expect(page.locator('.hero-stats strong').first()).toHaveText(`$${dollars}`);
   });
+});
+
+test('the hero stats each read as a number and a short label, with the industries listed under them', async ({ page }) => {
+  for (const width of [375, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    const lines = await page.locator('.hero-stats span').evaluateAll(spans => spans.map(s => {
+      const lineHeight = parseFloat(getComputedStyle(s).lineHeight);
+      return Math.round(s.getBoundingClientRect().height / lineHeight);
+    }));
+    // Two to a row on phones, so a label may take a third line there.
+    for (const n of lines) expect(n, `stat label lines at ${width}px`).toBeLessThanOrEqual(width < 560 ? 3 : 2);
+    const industries = await page.locator('.hero-industries li').count();
+    const stat = await page.locator('.hero-stats div', { hasText: 'industries' }).locator('strong').textContent();
+    expect(industries).toBe(Number(stat));
+  }
 });

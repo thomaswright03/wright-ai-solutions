@@ -94,11 +94,15 @@ export async function openTimes(env, cal, from, to) {
 }
 
 // Books the call. Cal.com then emails both people the calendar invite.
-// Returns { uid, start }, { taken: true } when the time is no longer free, or
-// null for any other failure.
+// Returns { uid, start }; { taken: true } when the time is no longer free;
+// { uncertain: true } when there's no clear answer (a timeout, a dropped
+// connection, a server error mid-request or an unreadable reply), since the
+// call may have been booked anyway; or null when Cal.com clearly turned it
+// down, including a 503, which means it took nothing in.
 export async function bookCall(env, cal, { start, name, email, timeZone, notes, metadata }) {
+  let response;
   try {
-    const response = await withTimeout(fetch(`${CAL_API}/bookings`, {
+    response = await withTimeout(fetch(`${CAL_API}/bookings`, {
       method: 'POST',
       headers: calHeaders(env, '2026-02-25'),
       body: JSON.stringify({
@@ -110,17 +114,39 @@ export async function bookCall(env, cal, { start, name, email, timeZone, notes, 
         metadata,
       }),
     }), 15000);
-    const result = await response.json().catch(() => null);
-    if (response.ok && result?.data) {
-      const booking = Array.isArray(result.data) ? result.data[0] : result.data;
-      return { uid: String(booking?.uid || ''), start: booking?.start || start };
-    }
-    const message = JSON.stringify(result?.error || result || '');
-    if ([400, 409].includes(response.status) && /not available|already has (a )?booking|no available|unavailable|slot|booking limit/i.test(message)) {
-      return { taken: true };
-    }
-    return null;
   } catch {
-    return null;
+    return { uncertain: true };
+  }
+  if (response.status >= 500 && response.status !== 503) return { uncertain: true };
+  const result = await response.json().catch(() => null);
+  if (response.ok) {
+    const booking = result && result.data && (Array.isArray(result.data) ? result.data[0] : result.data);
+    return booking ? { uid: String(booking.uid || ''), start: booking.start || start } : { uncertain: true };
+  }
+  const message = JSON.stringify(result?.error || result || '');
+  if ([400, 409].includes(response.status) && /not available|already has (a )?booking|no available|unavailable|slot|booking limit/i.test(message)) {
+    return { taken: true };
+  }
+  return null;
+}
+
+// After an unclear reply: the call Cal.com booked for this person at this
+// time, if it did. Listing bookings needs the optional CAL_API_KEY. Returns
+// { uid, start } when found, null when Cal.com confirms there's none, and
+// undefined when it can't tell (no key, or no clear answer).
+export async function findBooking(env, { email, start }) {
+  if (!env.CAL_API_KEY) return undefined;
+  const query = new URLSearchParams({ attendeeEmail: email, status: 'upcoming,unconfirmed', take: '100' });
+  try {
+    const response = await withTimeout(fetch(`${CAL_API}/bookings?${query}`, { headers: calHeaders(env, '2024-08-13') }), 8000);
+    if (!response.ok) return undefined;
+    const list = (await response.json())?.data;
+    if (!Array.isArray(list)) return undefined;
+    const wanted = Date.parse(start);
+    const match = list.find(b => Date.parse(b?.start) === wanted && !/cancel|reject/i.test(String(b?.status || ''))
+      && (b.attendees || []).some(a => String(a?.email || '').toLowerCase() === email.toLowerCase()));
+    return match ? { uid: String(match.uid || ''), start: match.start } : null;
+  } catch {
+    return undefined;
   }
 }

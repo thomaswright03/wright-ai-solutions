@@ -235,6 +235,9 @@ button.btn-ghost{background:none;}
 .hero-stats div{display:flex; flex-direction:column; gap:var(--space-1);}
 .hero-stats strong{font-family:'Space Grotesk', sans-serif; font-size:var(--fs-3xl);}
 .hero-stats span{font-size:var(--fs-sm); color:var(--text-dimmer); max-width:24ch;}
+/* The industries behind the "9" stat, as quiet tags under the numbers. */
+.hero-industries{display:flex; flex-wrap:wrap; gap:var(--space-2); list-style:none; margin-top:var(--space-5); padding:0;}
+.hero-industries li{font-size:var(--fs-xs); color:var(--text-dim); background:var(--tag-bg); border:1px solid var(--tag-border); padding:var(--space-1) var(--space-3); border-radius:999px;}
 
 /* section generic */
 section{position:relative; z-index:1; padding:var(--space-9) 0;}
@@ -513,6 +516,8 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 #stepDone .outline-list{margin-bottom:var(--space-6);}
 
 @media (max-width: 560px){
+  /* Two stats per row on phones, so the numbers stay a quick scan. */
+  .hero-stats{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-5) var(--space-4);}
   .save-row{flex-direction:column;}
   .outline{padding:var(--space-5);}
 }
