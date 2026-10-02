@@ -27,13 +27,15 @@ const REMINDERS_PER_RUN = 50;
 
 // Where the visitor came from, as the page reports it: the ad (?for=) and the
 // ad platform (?utm_source=). Only known values are kept, so the counts can't
-// fill up with junk.
+// fill up with junk. It's also run again on what an outline's token carries,
+// which is already cleaned, so its own answers ('direct', 'other') pass through
+// unchanged.
 const PLATFORMS = ['google', 'bing', 'meta', 'facebook', 'instagram', 'linkedin', 'tiktok', 'x', 'reddit', 'youtube', 'nextdoor', 'yelp', 'email', 'qr'];
 
 export function cameFrom(body) {
   const ad = adFor(body?.ad) ? body.ad : 'none';
   const raw = typeof body?.src === 'string' ? body.src.trim().toLowerCase() : '';
-  const src = !raw ? 'direct' : PLATFORMS.includes(raw) ? raw : 'other';
+  const src = !raw || raw === 'direct' ? 'direct' : PLATFORMS.includes(raw) || raw === 'other' ? raw : 'other';
   return { ad, src };
 }
 
@@ -316,6 +318,7 @@ export async function runSchedule(env, now = Date.now()) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM leads WHERE created_at < ?').bind(iso(now - RETENTION_DAYS * DAY)),
     env.DB.prepare('DELETE FROM counts WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
+    env.DB.prepare('DELETE FROM outline_outcomes WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM ai_daily WHERE day < ?').bind(iso(now - 2 * DAY).slice(0, 10)),
     env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
   ]);
