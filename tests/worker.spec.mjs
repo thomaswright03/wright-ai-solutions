@@ -840,6 +840,36 @@ test.describe('leads list', () => {
     expect(csv).toContain('"\'=HYPERLINK(""http://evil.example"",""click"") we miss calls"');
   });
 
+  test('every change on the leads list is recorded, with when, but never the lead\'s details', async () => {
+    const fakes = new FakeServices();
+    const admin = basic('local-demo-password');
+    const form = (path, fields) => new Request(`${ORIGIN}${path}`, { method: 'POST', headers: { ...admin, Origin: ORIGIN }, body: new URLSearchParams(fields) });
+    await saveLead(fakes, { email: 'first@example.com', text: `${problem} first` });
+    await saveLead(fakes, { email: 'second@example.com', text: `${problem} second` });
+    await saveLead(fakes, { email: 'third@example.com', text: `${problem} third` });
+    const ids = Object.fromEntries((await rows(fakes, 'SELECT id, email FROM leads')).map(r => [r.email.split('@')[0], r.id]));
+    await fakes.env.DB.prepare("UPDATE leads SET booked_at = 'pending', booking_start = ? WHERE id = ?").bind(new Date(Date.now() + 86400000).toISOString(), ids.second).run();
+
+    expect((await send(fakes, form('/admin/booking', { id: ids.second, booked: 'yes' }))).status).toBe(303);
+    expect((await send(fakes, get('/admin/leads.csv', admin))).status).toBe(200);
+    expect((await send(fakes, form('/admin/delete', { id: ids.first }))).status).toBe(303);
+    const link = new URL(fakes.emails.find(e => e.to[0] === 'third@example.com').text.match(/Delete my details: (\S+)/)[1]);
+    await send(fakes, new Request(`${ORIGIN}/forget`, { method: 'POST', body: new URLSearchParams({ t: link.searchParams.get('t') }) }));
+
+    const log = await rows(fakes, 'SELECT at, action, lead FROM admin_log ORDER BY id');
+    expect(log.map(r => [r.action, r.lead])).toEqual([
+      ['marked booked', ids.second],
+      ['downloaded the list', null],
+      ['deleted', ids.first],
+      ['deleted by the visitor', ids.third],
+    ]);
+    expect(log.every(r => Math.abs(Date.parse(r.at) - Date.now()) < 60000)).toBe(true);
+    expect(JSON.stringify(await rows(fakes, 'SELECT * FROM admin_log'))).not.toMatch(/example\.com|lunch/);
+    const page = await (await send(fakes, get('/admin', admin))).text();
+    expect(page).toContain('Changes');
+    expect(page).toContain('deleted by the visitor');
+  });
+
   test('slows down password guessing', async () => {
     const fakes = fakesWith({ ADMIN_LIMIT: { async limit() { return { success: false }; } } });
     expect((await send(fakes, get('/admin', basic('local-demo-password')))).status).toBe(429);
@@ -1318,5 +1348,37 @@ test.describe('eval history in the repository', () => {
 
   test('reads back quoted fields', () => {
     expect(parseCsv('a,b\n"x, ""y""",2\n')).toEqual([{ a: 'x, "y"', b: '2' }]);
+  });
+});
+
+test.describe('unexpected errors', () => {
+  test('an unexpected error answers 500 with a reference, and logs it with the same reference', async () => {
+    const fakes = new FakeServices();
+    fakes.env.DB = { prepare() { throw new Error('database unreachable'); }, batch() { throw new Error('database unreachable'); } };
+    const logged = [];
+    const realError = console.error;
+    console.error = line => logged.push(line);
+    let res;
+    try {
+      res = await send(fakes, get('/admin', { ...basic('local-demo-password'), 'CF-Ray': '8c1f2e3d4a5b6c7d-DEN' }));
+    } finally {
+      console.error = realError;
+    }
+    expect(res.status).toBe(500);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ error: 'server_error', ref: '8c1f2e3d4a5b6c7d' });
+    expect(logged).toHaveLength(1);
+    const entry = JSON.parse(logged[0]);
+    expect(entry).toMatchObject({ level: 'error', ref: '8c1f2e3d4a5b6c7d', method: 'GET', path: '/admin', error: 'database unreachable' });
+    expect(logged[0]).not.toContain('local-demo-password');
+
+    // Without a Ray ID, the Worker makes up a short reference.
+    console.error = () => {};
+    try {
+      res = await send(fakes, get('/admin', basic('local-demo-password')));
+    } finally {
+      console.error = realError;
+    }
+    expect((await res.json()).ref).toMatch(/^[0-9a-f]{12}$/);
   });
 });
