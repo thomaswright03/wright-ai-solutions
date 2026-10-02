@@ -280,6 +280,17 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 .card h3{font-size:var(--fs-xl); margin-bottom:var(--space-3);}
 .card p{color:var(--text-dim); font-size:var(--fs-sm);}
 
+/* our services: products people can sign up for */
+.products-grid{grid-template-columns:repeat(3, 1fr);}
+.product-card{display:flex; flex-direction:column; align-items:flex-start;}
+.product-card .work-tag{margin-bottom:var(--space-4);}
+.product-card p{margin-bottom:var(--space-4);}
+.product-card .product-by{
+  margin-top:auto; font-size:var(--fs-xs); font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--accent-3);
+}
+.product-signup{width:100%; justify-content:center; text-align:center;}
+
 /* work */
 .work-list{display:flex; flex-direction:column; gap:var(--space-10);}
 .work-group{display:flex; flex-direction:column;}
@@ -566,12 +577,16 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
   .talk.is-listening::before{background:HighlightText;}
 }
 
-/* Just above the phone menu, longer translations (Tagalog) need the nav a little tighter. */
+/* Just above the phone menu, longer translations (Tagalog, Russian) need the
+   header a little tighter: closer links, and the language menu as just its globe. */
 @media (max-width: 1000px){
-  .nav{gap:var(--space-4);}
+  .nav{gap:var(--space-3);}
+  .header-inner{gap:var(--space-3);}
+  .lang-code{display:none;}
+  .lang-toggle{padding:0;}
 }
-@media (max-width: 860px){
-  .services-grid{grid-template-columns:1fr;}
+@media (max-width: 900px){
+  .services-grid, .products-grid{grid-template-columns:1fr;}
   .work-item, .work-item-reverse{grid-template-columns:1fr;}
   .work-item-reverse .work-media, .work-item-reverse .work-body{order:initial;}
   .nav{display:none;}

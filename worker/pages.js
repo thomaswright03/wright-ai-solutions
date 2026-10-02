@@ -5,7 +5,7 @@ import { escapeHtml as esc } from './http.js';
 import { STRINGS } from './strings.js';
 
 // Matches the ?v= the static pages use, so the stylesheet isn't served stale.
-export const ASSET_VERSION = 14;
+export const ASSET_VERSION = 15;
 
 // The /forget pages are in the language of the visitor's emails (lang); /admin is English.
 export function page({ title, body, wide = false, extraCss = '', lang = 'en' }) {

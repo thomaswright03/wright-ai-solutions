@@ -8,8 +8,8 @@
 // outlines.js, so there's always an outline. On a translated page
 // (/es/start and so on) every word comes from the strings the page carries
 // (scripts/i18n.mjs writes them in), and the outline is written in its language.
-import { OUTLINES as ENGLISH_OUTLINES, adFor, localize, pickKind as kindOf } from './outlines.js?v=14';
-import { languageFor, translate } from './languages.js?v=14';
+import { OUTLINES as ENGLISH_OUTLINES, adFor, localize, pickKind as kindOf } from './outlines.js?v=15';
+import { languageFor, translate } from './languages.js?v=15';
 
 const $ = id => document.getElementById(id);
 const LANG = languageFor(document.documentElement.dataset.lang);

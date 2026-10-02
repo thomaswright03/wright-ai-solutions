@@ -424,5 +424,19 @@
   "Thomas also got one copy by email when you saved your outline. Ask at <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a> to have that deleted too.": "Thomas también recibió una copia por correo cuando guardaste tu esquema. Pide en <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a> que también se elimine esa copia.",
   "Delete your details?": "¿Eliminar tus datos?",
   "This removes your email address, what you wrote and your outline from Thomas's list, and cancels the reminder email if you asked for one. If you booked a call, cancel it with the link in your calendar invite.": "Esto elimina tu dirección de correo electrónico, lo que escribiste y tu esquema de la lista de Thomas, y cancela el correo de recordatorio si pediste uno. Si reservaste una llamada, cancélala con el enlace de tu invitación de calendario.",
-  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. Todos los derechos reservados."
+  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. Todos los derechos reservados.",
+  "Sign up": "Regístrate",
+  "Our Services": "Nuestros servicios",
+  "Products you can sign up for today.": "Productos en los que puedes registrarte hoy.",
+  "Waste &amp; recycling": "Residuos y reciclaje",
+  "AI Waste Bot": "AI Waste Bot",
+  "An AI agent for waste and recycling businesses that texts new leads back on its own and steps aside the moment a person on your team takes over.": "Un agente de IA para empresas de residuos y reciclaje que responde por mensaje de texto a los nuevos prospectos por sí solo y se hace a un lado en cuanto una persona de tu equipo toma el control.",
+  "Presented by Wright AI Solutions": "Presentado por Wright AI Solutions",
+  "Sign up for AI Waste Bot": "Regístrate en AI Waste Bot",
+  "Real estate leads": "Prospectos inmobiliarios",
+  "Leads for real estate investors, built from obituaries matched against county property records, with checked mailing addresses and mail-ready postcards.": "Prospectos para inversionistas inmobiliarios, creados a partir de obituarios cotejados con los registros de propiedad del condado, con direcciones postales verificadas y postales listas para enviar.",
+  "Sign up at dataleadsell.com<span class=\"visually-hidden\"> (opens in a new tab)</span>": "Regístrate en dataleadsell.com<span class=\"visually-hidden\"> (se abre en una pestaña nueva)</span>",
+  "Parking · Beta": "Estacionamiento · Beta",
+  "A daily parking marketplace in beta. Property owners list open spots, and drivers find and book them nearby on a live map.": "Un mercado de estacionamiento por día, en beta. Los propietarios publican sus espacios libres y los conductores los encuentran y reservan cerca en un mapa en vivo.",
+  "Sign up for ParkLess<span class=\"visually-hidden\"> (opens in a new tab)</span>": "Regístrate en ParkLess<span class=\"visually-hidden\"> (se abre en una pestaña nueva)</span>"
 }

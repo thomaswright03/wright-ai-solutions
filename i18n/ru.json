@@ -424,5 +424,19 @@
   "Thomas also got one copy by email when you saved your outline. Ask at <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a> to have that deleted too.": "Кроме того, при сохранении плана одна копия была отправлена Thomas по почте. Чтобы удалить и её, напишите на <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>.",
   "Delete your details?": "Удалить ваши данные?",
   "This removes your email address, what you wrote and your outline from Thomas's list, and cancels the reminder email if you asked for one. If you booked a call, cancel it with the link in your calendar invite.": "Ваш адрес электронной почты, то, что вы написали, и ваш план будут удалены из списка Thomas, а письмо-напоминание, если вы его просили, будет отменено. Если вы записались на звонок, отмените его по ссылке в приглашении в календарь.",
-  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. Все права защищены."
+  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. Все права защищены.",
+  "Sign up": "Зарегистрироваться",
+  "Our Services": "Наши сервисы",
+  "Products you can sign up for today.": "Продукты, на которые можно зарегистрироваться уже сегодня.",
+  "Waste &amp; recycling": "Вывоз отходов и переработка",
+  "AI Waste Bot": "AI Waste Bot",
+  "An AI agent for waste and recycling businesses that texts new leads back on its own and steps aside the moment a person on your team takes over.": "ИИ-агент для компаний по вывозу отходов и переработке: сам отвечает новым лидам по SMS и отходит в сторону, как только к разговору подключается человек из вашей команды.",
+  "Presented by Wright AI Solutions": "Представлено Wright AI Solutions",
+  "Sign up for AI Waste Bot": "Зарегистрироваться в AI Waste Bot",
+  "Real estate leads": "Лиды в недвижимости",
+  "Leads for real estate investors, built from obituaries matched against county property records, with checked mailing addresses and mail-ready postcards.": "Лиды для инвесторов в недвижимость, собранные из некрологов, сопоставленных с реестрами собственности округов, с проверенными почтовыми адресами и готовыми к отправке открытками.",
+  "Sign up at dataleadsell.com<span class=\"visually-hidden\"> (opens in a new tab)</span>": "Зарегистрироваться на dataleadsell.com<span class=\"visually-hidden\"> (открывается в новой вкладке)</span>",
+  "Parking · Beta": "Парковка · Бета",
+  "A daily parking marketplace in beta. Property owners list open spots, and drivers find and book them nearby on a live map.": "Маркетплейс посуточной парковки в стадии беты. Владельцы недвижимости размещают свободные места, а водители находят и бронируют их поблизости на живой карте.",
+  "Sign up for ParkLess<span class=\"visually-hidden\"> (opens in a new tab)</span>": "Зарегистрироваться в ParkLess<span class=\"visually-hidden\"> (открывается в новой вкладке)</span>"
 }

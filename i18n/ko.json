@@ -424,5 +424,19 @@
   "Thomas also got one copy by email when you saved your outline. Ask at <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a> to have that deleted too.": "개요를 저장하셨을 때 Thomas도 이메일로 사본 한 부를 받았어요. 그것도 삭제하려면 <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>으로 요청해 주세요.",
   "Delete your details?": "정보를 삭제할까요?",
   "This removes your email address, what you wrote and your outline from Thomas's list, and cancels the reminder email if you asked for one. If you booked a call, cancel it with the link in your calendar invite.": "Thomas의 목록에서 이메일 주소, 작성하신 내용, 개요가 삭제되고, 리마인더 이메일을 요청하셨다면 그것도 취소돼요. 통화를 예약하셨다면 캘린더 초대에 있는 링크로 취소해 주세요.",
-  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. All rights reserved."
+  "© {year} Wright AI Solutions LLC. All rights reserved.": "© {year} Wright AI Solutions LLC. All rights reserved.",
+  "Sign up": "가입하기",
+  "Our Services": "우리의 서비스",
+  "Products you can sign up for today.": "지금 바로 가입할 수 있는 제품입니다.",
+  "Waste &amp; recycling": "폐기물 및 재활용",
+  "AI Waste Bot": "AI Waste Bot",
+  "An AI agent for waste and recycling businesses that texts new leads back on its own and steps aside the moment a person on your team takes over.": "폐기물·재활용 업체를 위한 AI 에이전트로, 새 리드에게 스스로 문자로 답장하고 팀원이 대화를 넘겨받는 순간 물러납니다.",
+  "Presented by Wright AI Solutions": "Wright AI Solutions 제공",
+  "Sign up for AI Waste Bot": "AI Waste Bot 가입하기",
+  "Real estate leads": "부동산 리드",
+  "Leads for real estate investors, built from obituaries matched against county property records, with checked mailing addresses and mail-ready postcards.": "부동산 투자자를 위한 리드로, 부고를 카운티 부동산 기록과 대조해 만들며, 확인된 우편 주소와 바로 발송할 수 있는 엽서를 함께 제공합니다.",
+  "Sign up at dataleadsell.com<span class=\"visually-hidden\"> (opens in a new tab)</span>": "dataleadsell.com에서 가입하기<span class=\"visually-hidden\"> (새 탭에서 열림)</span>",
+  "Parking · Beta": "주차 · 베타",
+  "A daily parking marketplace in beta. Property owners list open spots, and drivers find and book them nearby on a live map.": "베타 단계의 일일 주차 마켓플레이스입니다. 건물주는 빈 주차 공간을 등록하고, 운전자는 실시간 지도에서 근처 공간을 찾아 예약합니다.",
+  "Sign up for ParkLess<span class=\"visually-hidden\"> (opens in a new tab)</span>": "ParkLess 가입하기<span class=\"visually-hidden\"> (새 탭에서 열림)</span>"
 }
