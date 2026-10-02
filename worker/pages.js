@@ -3,7 +3,7 @@
 import { escapeHtml as esc } from './http.js';
 
 // Matches the ?v= the static pages use, so the stylesheet isn't served stale.
-export const ASSET_VERSION = 13;
+export const ASSET_VERSION = 14;
 
 export function page({ title, body, wide = false, extraCss = '' }) {
   return `<!DOCTYPE html>

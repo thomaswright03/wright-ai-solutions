@@ -25,7 +25,7 @@ The first five rows follow `features()` in `worker/config.js`. The last two are 
 | Phone alerts | `NTFY_TOPIC` (part 5) | No alerts. The lead email still arrives |
 | Daily counts per ad | `DB` (part 1) | Nothing is counted |
 
-The AI outline needs nothing: Workers AI is already bound as `AI` in `wrangler.jsonc`, and when it can't answer, the outline comes from the matching template in `outlines.js`. About 90 outlines a day fit Workers AI's free daily allowance (the estimate in `worker/outline.js`). Past that, on the Workers Free plan, visitors get the template outline. Once the database is connected, the AI writes at most 300 outlines a day (`AI_DAILY_LIMIT`, below), which caps what a flood of requests could cost on the Paid plan.
+The AI outline needs nothing: Workers AI is already bound as `AI` in `wrangler.jsonc`, and when it can't answer, the outline comes from the matching template in `outlines.js`. About 90 outlines a day fit Workers AI's free daily allowance (the estimate in `worker/outline.js`). Past that, on the Workers Free plan, visitors get the template outline. Once the database is connected, the AI writes at most 300 outlines a day (`AI_DAILY_LIMIT`, below), which caps what a flood of requests could cost on the Paid plan. The site also checks its own AI once a week, and whenever the prompt changes, by sending it 28 sample problems (`worker/eval.js`); that uses about 25 outlines' worth (the injection attempts its guard stops never reach the AI), only on a day with fewer than 40 outlines so far, and the result is public at `/api/eval`.
 
 ## 1. Leads database (Cloudflare D1, about 2 minutes)
 
@@ -68,11 +68,11 @@ This shows your real open times on the page and books the call. Cal.com sends bo
 2. Set your working hours under **Availability**.
 3. **Event Types** → **New**: title `Intro call`, length **30 minutes**. Pick how you'll meet (Cal Video works with no setup). Leave "Requires confirmation" **off**. Save.
 4. Copy the event's link. It goes in `wrangler.jsonc` as `CAL_LINK`, and looks like `https://cal.com/yourname/intro-call`. Anything but a plain `cal.com` or `app.cal.com` event link leaves booking off.
-5. Optional: add a Cal.com API key as a secret named `CAL_API_KEY`. Public events work without one, but a key gets a higher rate limit, and it lets the site check Cal.com when a booking reply gets lost, so the visitor sees "You're booked" instead of being asked to look for the invite.
+5. Optional: add a Cal.com API key as a secret named `CAL_API_KEY`. Public events work without one, but a key gets a higher rate limit, and it lets the site check Cal.com when a booking reply gets lost, so the visitor sees "You're booked" instead of being asked to look for the invite. Without a key, that time stays held so it can't be booked twice, you get a phone alert, and the lead on your leads list shows the time asked for with two buttons: **It's booked** (once you see it on your calendar) or **Not booked: let them pick again** (frees it, so the visitor can book from the page).
 
 ## 5. Optional: instant phone alerts (ntfy, about 3 minutes)
 
-You'll already get the lead email and Cal.com's booking email on your phone. This adds a separate, instant push alert for each new lead and booking. It says what kind of project it is, which ad and platform it came from and, for a call, when it is. It never includes anyone's name, email address or words. Tapping it opens the leads list.
+You'll already get the lead email and Cal.com's booking email on your phone. This adds a separate, instant push alert for each new lead and booking, for a booking Cal.com didn't confirm, and for the weekly AI eval falling below 90%. It says what kind of project it is, which ad and platform it came from and, for a call, when it is. It never includes anyone's name, email address or words. Tapping it opens the leads list.
 
 1. Install the **ntfy** app (App Store or Google Play).
 2. Tap **+** and subscribe to a topic with a long, random name nobody could guess, like `wright-leads-` followed by 20 random letters. Anyone who knows the name can read or send these alerts, so treat it like a password.

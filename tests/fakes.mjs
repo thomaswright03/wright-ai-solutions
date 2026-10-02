@@ -77,9 +77,10 @@ const DAY = 24 * 60 * 60 * 1000;
 const OPEN_UTC = [[15, 0], [15, 30], [16, 30], [17, 0], [19, 0], [20, 0], [21, 30], [22, 0]];
 
 export class FakeServices {
-  // options: { turnstile, calDown, calLost, emailDown, bare }. calLost: Cal.com
-  // books the first call but the reply never arrives, the way a dropped
-  // connection or a timeout looks.
+  // options: { turnstile, calDown, calLost, calSilent, emailDown, bare }.
+  // calLost: Cal.com books the first call but the reply never arrives, the way
+  // a dropped connection or a timeout looks. calSilent: the first booking
+  // request is lost the same way, but before Cal.com booked anything.
   constructor(options = {}) {
     this.options = options;
     this.emails = [];
@@ -148,6 +149,10 @@ export class FakeServices {
         return reply(200, { status: 'success', data });
       }
       if (url.pathname === '/v2/bookings' && init.method === 'POST') {
+        if (this.options.calSilent && !this.silentOne) {
+          this.silentOne = true;
+          throw new TypeError('Network connection lost.');
+        }
         const request = JSON.parse(body);
         const start = Date.parse(request.start);
         if (!this.openTimes(start, start + 1).length) {

@@ -11,7 +11,7 @@
 // AI here, so outlines come from the templates.
 //
 // A request header "x-test-env" picks a separate set of stand-ins, for tests:
-// "bare" (nothing connected), or any of "turnstile", "caldown", "callost", "emaildown",
+// "bare" (nothing connected), or any of "turnstile", "caldown", "callost", "calsilent", "emaildown",
 // "nobook" (no Cal.com link) and "noreminder" (no postal address) joined with
 // "+". Any other word just names a fresh set, so tests don't share saved leads
 // or booked times. Without the header, everything is connected ("demo").
@@ -115,6 +115,7 @@ function fakesFor(mode) {
       turnstile: flags.has('turnstile'),
       calDown: flags.has('caldown'),
       calLost: flags.has('callost'),
+      calSilent: flags.has('calsilent'),
       emailDown: flags.has('emaildown'),
     });
     if (flags.has('nobook')) delete fakes.env.CAL_LINK;
