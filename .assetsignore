@@ -18,3 +18,5 @@ playwright-report
 .gitleaksignore
 SECURITY.md
 worker
+eslint.config.js
+tsconfig.json

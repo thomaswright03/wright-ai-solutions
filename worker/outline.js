@@ -187,7 +187,7 @@ const INJECTION = [
 ];
 // Names the guard, so changing it starts a new eval run (worker/eval.js).
 export const GUARD = INJECTION.map(String);
-export const looksLikeInjection = text => typeof text === 'string' && INJECTION.some(re => re.test(text));
+export const looksLikeInjection = input => typeof input === 'string' && INJECTION.some(re => re.test(input));
 
 // The kind to show for the model's outline: the model's own, unless the
 // visitor's words clearly point elsewhere. "general" takes the kind their

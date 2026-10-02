@@ -216,7 +216,7 @@ async function csv(env) {
     const row = { ...lead, title, call: status, call_at: at };
     lines.push(columns.map(c => csvCell(row[c])).join(','));
   }
-  return new Response(lines.join('\r\n') + '\r\n', {
+  return new Response(`${lines.join('\r\n')}\r\n`, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="leads-${new Date().toISOString().slice(0, 10)}.csv"`,

@@ -95,7 +95,7 @@ test.describe('outline', () => {
   });
 
   test('accepts a reply that arrives as a JSON string, even wrapped in a code fence', async () => {
-    const fakes = fakesWith({ AI: fakeAI('```json\n' + JSON.stringify(GOOD) + '\n```') }, { bare: true });
+    const fakes = fakesWith({ AI: fakeAI(`\`\`\`json\n${JSON.stringify(GOOD)}\n\`\`\``) }, { bare: true });
     expect((await (await send(fakes, post('/api/outline', { problem }))).json()).source).toBe('ai');
   });
 
@@ -1100,8 +1100,8 @@ test.describe('AI outline eval on the site', () => {
         ai.inputs.push(input);
         if (failOn.includes(ai.inputs.length)) throw new Error('quota');
         const c = CASES.find(k => input.messages[1].content.includes(cleanProblem(k.problem)));
-        const usable = (c.expect === 'usable') !== wrong.includes(c.id);
-        return { response: usable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
+        const answerable = (c.expect === 'usable') !== wrong.includes(c.id);
+        return { response: answerable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
       },
     };
     return ai;
@@ -1269,7 +1269,7 @@ test.describe('outside services', () => {
   const cal = { username: 'demo', slug: 'intro-call' };
   const message = { from: 'site@example.com', to: ['pat@example.com'], subject: 'Your outline', text: 'Hello' };
   const call = start => ({ start, name: 'Pat', email: 'pat@example.com', timeZone: 'America/New_York', notes: '', metadata: {} });
-  const count = (fakes, request) => fakes.requests.filter(r => r === request).length;
+  const count = (fakes, sent) => fakes.requests.filter(r => r === sent).length;
 
   test('a quick failure at Resend is tried again, and the email still goes once', async () => {
     const fakes = new FakeServices({ emailFlaky: 2 });
@@ -1367,13 +1367,13 @@ test.describe('eval history in the repository', () => {
       history: [run('2026-10-16T03:17:00.000Z', 36), run('2026-10-09T03:17:00.000Z', 38)],
       latest: { finishedAt: '2026-10-16T03:17:00.000Z', results: [{ id: 'spam-seo', pass: false }, { id: 'abuse', pass: false }, { id: 'gibberish', pass: true }] },
     };
-    const rows = siteRows(report);
-    expect(rows.map(r => [r.finished_at, r.passed, r.failed])).toEqual([['2026-10-09T03:17:00.000Z', 38, ''], ['2026-10-16T03:17:00.000Z', 36, 'spam-seo abuse']]);
-    const added = addRows([], rows);
+    const recorded = siteRows(report);
+    expect(recorded.map(r => [r.finished_at, r.passed, r.failed])).toEqual([['2026-10-09T03:17:00.000Z', 38, ''], ['2026-10-16T03:17:00.000Z', 36, 'spam-seo abuse']]);
+    const added = addRows([], recorded);
     expect(added.map(a => a.dropped)).toEqual([false, true]);
     // Already recorded: nothing is added the next day.
     const existing = parseCsv('finished_at,source,passed,total\n2026-10-09T03:17:00.000Z,site,38,38\n2026-10-16T03:17:00.000Z,site,36,38\n');
-    expect(addRows(existing, rows)).toEqual([]);
+    expect(addRows(existing, recorded)).toEqual([]);
     // A GitHub run is compared only with earlier GitHub runs.
     const github = { finished_at: '2026-10-17T10:00:00.000Z', source: 'github', passed: 37, total: 38 };
     expect(addRows(existing, [github])).toEqual([{ row: github, dropped: false, before: undefined }]);

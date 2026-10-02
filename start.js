@@ -230,7 +230,7 @@ $('describeForm').addEventListener('submit', async e => {
   }
   showError($('problemError'), $('problem'), '');
   busy(button, true, 'One moment…');
-  let turnstile = null;
+  let turnstile;
   try {
     await configReady;
     turnstile = await botCheckToken();
@@ -372,7 +372,7 @@ function showOutline(outline, fromAI, { show = true } = {}) {
   link.rel = 'noopener';
   link.className = 'work-link';
   link.innerHTML = 'See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>';
-  $('outlineShipped').replaceChildren(template.shipped + ' ', link);
+  $('outlineShipped').replaceChildren(`${template.shipped} `, link);
 
   // Saving needs the server's say-so (the token); without it, offer email and phone.
   const canSave = Boolean(state.config.save && state.token);
@@ -472,7 +472,7 @@ $('saveForm').addEventListener('submit', async e => {
   }
   showError($('emailError'), $('email'), '');
   busy(button, true, 'Sending…');
-  let result = null;
+  let result;
   try {
     result = await postJson('/api/save', { token: state.token, email, followUp: $('followUp').checked, timeZone: visitorTimeZone });
   } catch (err) {
@@ -542,7 +542,7 @@ function timesUnavailable(message) {
   $('bookForm').hidden = true;
   const box = $('timesUnavailable');
   box.hidden = false;
-  box.replaceChildren(message + ' ');
+  box.replaceChildren(`${message} `);
   if (state.config.bookLink) box.append(calLink('Pick a time on Cal.com'), ' or reply to your outline email.');
   else box.append('Reply to your outline email and we\'ll find a time.');
 }
@@ -642,7 +642,7 @@ $('bookForm').addEventListener('submit', async e => {
   }
   showError($('bookError'), $('name'), '');
   busy(button, true, 'Booking…');
-  let result = null;
+  let result;
   try {
     result = await postJson('/api/book', { lead: state.lead, start: state.slot.toISOString(), name, timeZone: visitorTimeZone }, 25000);
   } catch (err) {

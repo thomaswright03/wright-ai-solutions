@@ -33,6 +33,7 @@ export const htmlResponse = (body, status = 200, extra = {}) =>
   new Response(body, { status, headers: { ...HTML_HEADERS, ...extra } });
 
 // Plain text only: no control characters, single spaces.
+// eslint-disable-next-line no-control-regex -- removing control characters is the point
 export const clean = value => String(value).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 export const escapeHtml = value => String(value).replace(/[&<>"']/g, c =>

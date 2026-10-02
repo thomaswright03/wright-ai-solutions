@@ -33,7 +33,7 @@ ${footer}
 </body></html>`;
 }
 
-const SIGNATURE_HTML = para('Thomas Wright<br>Wright AI Solutions LLC<br><a href="https://wright-ai-solutions.com" style="color:' + ACCENT + ';">wright-ai-solutions.com</a> · (801) 580-8630', 'margin-top:24px;');
+const SIGNATURE_HTML = para(`Thomas Wright<br>Wright AI Solutions LLC<br><a href="https://wright-ai-solutions.com" style="color:${ACCENT};">wright-ai-solutions.com</a> · (801) 580-8630`, 'margin-top:24px;');
 const SIGNATURE_TEXT = 'Thomas Wright\nWright AI Solutions LLC\nwright-ai-solutions.com · (801) 580-8630';
 
 function outlineHtml(outline) {

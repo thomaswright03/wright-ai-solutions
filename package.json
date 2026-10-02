@@ -6,10 +6,18 @@
   "scripts": {
     "serve": "node --disable-warning=ExperimentalWarning tests/serve.mjs",
     "test": "playwright test",
-    "validate": "html-validate index.html 404.html privacy.html start.html"
+    "validate": "html-validate index.html 404.html privacy.html start.html",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -p ."
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "4.20260702.1",
+    "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
-    "html-validate": "11.16.0"
+    "@types/node": "22.20.5",
+    "eslint": "10.11.0",
+    "globals": "17.13.0",
+    "html-validate": "11.16.0",
+    "typescript": "5.9.3"
   }
 }
