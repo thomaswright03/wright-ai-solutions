@@ -18,6 +18,10 @@
 //               so it can be committed next to the prompt it measured
 //   --json=FILE also write it as one row for eval-history.csv
 //               (scripts/record-eval.mjs)
+//   --model=ID  ask another Workers AI model instead of the site's, to see
+//               whether a cheaper one is good enough (docs/COST.md). The
+//               prompt and checks are the site's own; the row is recorded
+//               with that model's name, so it never reads as the site's score
 // In GitHub Actions the same Markdown goes to the run's summary page
 // (.github/workflows/eval-outlines.yml).
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -31,6 +35,9 @@ const minArg = args.find(a => a.startsWith('--min='));
 const minRate = minArg ? Number(minArg.slice(6)) : EVAL_BAR;
 const outArg = args.find(a => a.startsWith('--out='));
 const jsonArg = args.find(a => a.startsWith('--json='));
+const modelArg = args.find(a => a.startsWith('--model='));
+const modelId = modelArg ? modelArg.slice(8) : MODEL;
+if (!/^@cf\/[\w.-]+\/[\w.-]+$/.test(modelId)) throw new Error(`--model must be a Workers AI model ID like ${MODEL}`);
 
 // Throws, listing every problem, unless each case is one the site would accept
 // with a known expectation, kind and ad.
@@ -55,7 +62,7 @@ export { judge, requestFor, runCase };
 
 async function runModel(request) {
   const { CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_API_TOKEN: token } = process.env;
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${MODEL}`, {
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${modelId}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -77,7 +84,7 @@ async function main() {
     console.error('Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Workers AI: Read), or use --dry-run.');
     process.exit(2);
   }
-  console.log(`Model ${MODEL}, ${cases.length} cases. Each is scored as the site runs it (injection guard first) and by the model alone.\n`);
+  console.log(`Model ${modelId}, ${cases.length} cases. Each is scored as the site runs it (injection guard first) and by the model alone.\n`);
   const site = [];
   const alone = [];
   const rows = [];
@@ -116,7 +123,7 @@ async function main() {
   const markdown = [
     '# AI outline eval result',
     '',
-    `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC against \`${MODEL}\`, with the prompt and the injection guard in \`worker/outline.js\` and the cases in \`worker/eval-cases.js\`. "Site" is what a visitor gets: text the guard stops never reaches the model. "Model alone" asks the model every case, to test the prompt on its own.`,
+    `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC against \`${modelId}\`, with the prompt and the injection guard in \`worker/outline.js\` and the cases in \`worker/eval-cases.js\`. "Site" is what a visitor gets: text the guard stops never reaches the model. "Model alone" asks the model every case, to test the prompt on its own.`,
     '',
     `**${verdict}** The bar is ${pct(minRate)} for both.`,
     '',
@@ -131,7 +138,7 @@ async function main() {
     writeFileSync(jsonArg.slice(7), JSON.stringify({
       finished_at: new Date().toISOString(),
       ref: `${process.env.GITHUB_REF_NAME || 'local'}${process.env.GITHUB_SHA ? `@${process.env.GITHUB_SHA.slice(0, 7)}` : ''}`,
-      model: MODEL,
+      model: modelId,
       version: await evalVersion(),
       passed: ours.passed,
       total: cases.length,
