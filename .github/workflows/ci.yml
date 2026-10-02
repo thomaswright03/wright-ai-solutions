@@ -25,6 +25,7 @@ jobs:
             --fallback-extensions html
             --remap '^https://wright-ai-solutions\.com/(.*)$ file://${{ github.workspace }}/$1'
             index.html 404.html privacy.html start.html README.md SECURITY.md docs/*.md
+            es/*.html fr/*.html pt/*.html zh/*.html tl/*.html vi/*.html ar/*.html ko/*.html ru/*.html ht/*.html
           fail: true
         # --root-dir resolves root-relative links ("/", "/#work", "/privacy") against
         # the repo root, and --fallback-extensions maps "/privacy" to privacy.html,
@@ -125,6 +126,11 @@ jobs:
             exit 1
           fi
 
+      - name: Translated pages are complete and generated from the current English
+        # scripts/i18n.mjs writes /es/, /fr/... from the English pages and i18n/<code>.json.
+        # Fails if a translation is missing or a generated page is out of date.
+        run: node scripts/i18n.mjs --check
+
       - name: Shared footer text stays in sync across pages
         run: |
           extract() { sed -n '/<footer/,/<\/footer>/p' "$1"; }
@@ -141,7 +147,8 @@ jobs:
           # back to them ("/#work"). Normalise that, then the headers must match.
           # start.html is left out on purpose: as an ad landing page its header has
           # only the logo and theme toggle, so visitors stay on the signup.
-          extract() { sed -n '/<header/,/<\/header>/p' "$1" | sed 's#href="\##href="/\##g'; }
+          # The language menu links to this page in each language, so it's left out too.
+          extract() { sed -n '/<header/,/<\/header>/p' "$1" | sed '/<!-- i18n:switcher -->/,/<!-- \/i18n:switcher -->/d' | sed 's#href="\##href="/\##g'; }
           for f in 404.html privacy.html; do
             diff <(extract index.html) <(extract "$f") || {
               echo "::error file=$f::header has drifted from index.html"
@@ -153,12 +160,12 @@ jobs:
         run: |
           # start.js imports outlines.js with the same ?v=, and the pages the
           # Worker writes (worker/pages.js) link the stylesheets with ASSET_VERSION.
-          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html start.html start.js | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
+          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' *.html */*.html start.js | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
           if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
             echo "::error::Pages reference different ?v= versions: $(echo $versions)"
             exit 1
           fi
-          if grep -nE '(href|src)="/[^"]+\.(css|js)"' index.html 404.html privacy.html start.html || grep -nE "from '\./[^'?]+\.js'" start.js; then
+          if grep -nE '(href|src)="/[^"]+\.(css|js)"' *.html */*.html || grep -nE "from '\./[^'?]+\.js'" start.js; then
             echo "::error::Every local CSS/JS reference needs the shared ?v=$versions"
             exit 1
           fi

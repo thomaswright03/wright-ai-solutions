@@ -59,10 +59,26 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 
 **Rollback:** in the Cloudflare dashboard, Workers & Pages → `wright-ai-solutions` → Deployments, pick the last good version and roll back to it. The leads database isn't rolled back with it.
 
+## Languages
+
+The site is in English, Spanish, French, Brazilian Portuguese, Simplified Chinese, Tagalog, Vietnamese, Arabic (right to left), Korean, Russian and Haitian Creole. English is the source: `index.html`, `privacy.html`, `start.html` and `404.html` are written by hand, and `scripts/i18n.mjs` generates each other language's copy in its own folder (`/es/`, `/es/privacy`, `/es/start`, and `/es/404.html` for unknown `/es/` paths), from the English page and the translations in `i18n/<code>.json`. Each translation maps an English text (a paragraph with its links and markup, a heading, an alt text, a message from `start.js`, an outline template, an email line) to its translation. The language list is `languages.js`.
+
+```bash
+npm run i18n                                  # rebuild every translated page and worker/strings.js
+node scripts/i18n.mjs --missing --lang=es     # English that has no Spanish yet, as JSON
+node scripts/i18n.mjs --check                 # what CI runs: everything translated and up to date
+```
+
+**Changing English text:** edit the English page (or `start.js`, `outlines.js`, `worker/emails.js`), run `npm run i18n`, add the new texts that `--missing` lists to each `i18n/<code>.json`, and run it again. Until then CI fails, and the translated pages show those texts in English. Commit the generated folders, `worker/strings.js` and `sitemap.xml` with the change. Don't edit the generated pages by hand. The generator also keeps each English page's language menu (`<!-- i18n:switcher -->`), its hreflang links (`<!-- i18n:alternates -->`) and the translated pages' footer note (`<!-- i18n:note -->`) up to date.
+
+Every page has a language menu in the header (a plain `<details>` list, so it works without JavaScript) linking to the same page in each language, and `hreflang` links for search engines. The page scripts take their words from a JSON block the generator puts in each translated page; dates and times on `/start` use the page's language. On a translated `/start` the AI is asked to write the outline in that language (and a reply in another language gets the template instead), the templates are translated, the visitor's emails, delete page and Cal.com invite are in it, and Thomas's copy stays in English with the language noted. Chinese, Arabic and Korean use the visitor's system fonts; Russian and Vietnamese load extra subsets of Inter only on pages that need them.
+
 ## Project structure
 
 - `index.html`: the home page (one page, anchor-linked sections)
 - `start.html`, `start.js`: `/start`, the ad landing page. One question, a project outline on the page (written by AI, or from a template), then saving it by email and booking a 30-minute call. `?for=<key>` opens it on the problem a given ad named
+- `languages.js`: the site's languages, shared by the pages, the Worker and the generator
+- `i18n/<code>.json`, `scripts/i18n.mjs`, and the generated `es/`, `fr/`, `pt/`, `zh/`, `tl/`, `vi/`, `ar/`, `ko/`, `ru/`, `ht/` folders and `worker/strings.js`: the translations (see Languages)
 - `outlines.js`: the words behind `/start` (the ad-matched openings and the fixed outline templates), shared by the page and the Worker
 - `worker/`: the server code for `/start`, the "delete my details" link (`/forget`) and Thomas's private leads list (`/admin`). `index.js` lists the routes, and `config.js` says which parts are switched on
 - `admin.css`: styles for the leads list
@@ -82,7 +98,7 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 - `SECURITY.md`: how to report a problem, what the site and the Worker do to stay safe, and the procedure for rotating a leaked credential
 - `scripts/`: `write-version.sh` (run by Cloudflare's build), the AI outline eval (`eval-outlines.mjs`; the cases are in `worker/eval-cases.js`) and the live check (`smoke-test.mjs`)
 - `docs/SITE-BRIEF.md`: who the site is for, what each section does, and how success is judged
-- `fonts/`: self-hosted Inter and Space Grotesk (latin subset), each with its SIL Open Font License text (`LICENSE-Inter.txt`, `LICENSE-SpaceGrotesk.txt`), which the licence requires to ship alongside the font files
+- `fonts/`: self-hosted Inter and Space Grotesk (latin, plus Cyrillic and Vietnamese subsets that load only where needed), each with its SIL Open Font License text (`LICENSE-Inter.txt`, `LICENSE-SpaceGrotesk.txt`), which the licence requires to ship alongside the font files
 
 ## Known limitations
 
@@ -92,4 +108,5 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 - **The Data→Lead→Sell card no longer embeds its real product-walkthrough video.** The video showed real obituary-derived leads (a real deceased person's name and property details), which isn't something this repo has any recorded basis to publish. The card now shows a screenshot of dataleadsell.com's own public homepage instead, whose "How a match works" example is explicitly labeled by the product itself as invented for illustration — no real personal data.
 - **No dependency-audit step.** `package.json` holds dev tooling only (Playwright, html-validate, pinned in `package-lock.json`), none of which ships to visitors. There are no third-party runtime dependencies: the Worker imports nothing from npm, fonts are self-hosted (`fonts/`) and no external embeds remain. The one outside script is Cloudflare's Turnstile bot check, which `/start` loads from `challenges.cloudflare.com` once it's switched on.
 - **ParkLess shows an illustration, not a screenshot.** The card's map is a drawn SVG; swap in a real screenshot of park-less.vercel.app (WebP + JPEG, width/height set, lazy-loaded, in the same browser frame) when one is taken.
-- **English only.**
+- **The translations are by AI, not checked by native speakers.** Every page says so in its footer and links to the English, and the translated privacy notice says the English one applies if they differ. A native speaker's read of each language, the privacy notice first, would catch anything awkward or wrong.
+- **Root 404 is English.** An unknown address inside a language folder (`/es/nada`) gets that language's 404 page; one outside them (`/nada`) gets the English one.

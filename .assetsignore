@@ -18,3 +18,4 @@ playwright-report
 .gitleaksignore
 SECURITY.md
 worker
+i18n

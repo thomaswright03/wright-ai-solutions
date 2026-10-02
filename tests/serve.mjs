@@ -1,7 +1,8 @@
 // Minimal static server for the browser tests and the local preview. It mimics
 // how Cloudflare Workers serves this repo (see wrangler.jsonc): the paths in
 // run_worker_first run worker/index.js, "/privacy" serves privacy.html, unknown
-// paths get 404.html with a 404 status, files listed in .assetsignore are not
+// paths get the nearest 404.html (so /es/missing gets /es/404.html) with a 404
+// status, files listed in .assetsignore are not
 // served, and the rules in _headers are applied (so a Content-Security-Policy
 // violation shows up as a console error in tests).
 //
@@ -68,7 +69,8 @@ const headerRules = [];
 for (const line of readFileSync(join(root, '_headers'), 'utf8').split('\n')) {
   if (!line.trim() || line.trim().startsWith('#')) continue;
   if (!/^\s/.test(line)) {
-    const pattern = new RegExp('^' + line.trim().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    // "*" matches anything; ":name" matches one path segment, as on Cloudflare.
+    const pattern = new RegExp('^' + line.trim().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/:\w+/g, '[^/]+') + '$');
     headerRules.push({ pattern, detach: [], headers: [] });
   } else if (line.trim().startsWith('!')) {
     headerRules.at(-1).detach.push(line.trim().slice(1).trim().toLowerCase());
@@ -195,6 +197,16 @@ async function runTestPage(req, res, url) {
   return send(404, 'text/plain', 'Not found');
 }
 
+// Like Cloudflare's "404-page" handling: the 404.html closest to the path.
+function notFoundPage(pathname) {
+  const parts = pathname.split('/').slice(1, -1);
+  for (let i = parts.length; i > 0; i--) {
+    const candidate = resolve(`/${parts.slice(0, i).join('/')}/404.html`);
+    if (candidate) return candidate;
+  }
+  return join(root, '404.html');
+}
+
 createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const { pathname } = url;
@@ -213,7 +225,7 @@ createServer((req, res) => {
   }
   const file = resolve(pathname);
   const status = file ? 200 : 404;
-  const target = file || join(root, '404.html');
+  const target = file || notFoundPage(pathname);
   for (const [k, v] of headersFor(pathname)) res.setHeader(k, v);
   res.writeHead(status, { 'Content-Type': types[extname(target)] || 'application/octet-stream' });
   res.end(readFileSync(target));

@@ -5,15 +5,26 @@
 // (GET /api/slots, POST /api/book). Each part switches on only once its account
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
-// outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=13';
+// outlines.js, so there's always an outline. On a translated page
+// (/es/start and so on) every word comes from the strings the page carries
+// (scripts/i18n.mjs writes them in), and the outline is written in its language.
+import { OUTLINES as ENGLISH_OUTLINES, adFor, localize, pickKind as kindOf } from './outlines.js?v=14';
+import { languageFor, translate } from './languages.js?v=14';
 
 const $ = id => document.getElementById(id);
+const LANG = languageFor(document.documentElement.dataset.lang);
+const STRINGS = (() => {
+  try { return JSON.parse($('siteStrings')?.textContent || '{}'); } catch (e) { return {}; }
+})();
+const t = (text, vars) => translate(STRINGS, text, vars);
+const OUTLINES = localize(ENGLISH_OUTLINES, STRINGS);
+// This language's home page, for "See the work" links.
+const HOME = LANG.code === 'en' ? '/' : `/${LANG.code}/`;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const scrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
 const params = new URLSearchParams(window.location.search);
 const adKey = params.get('for');
-const adPage = adFor(adKey);
+const adPage = localize(adFor(adKey), STRINGS);
 // Where the visitor came from, for the per-ad counts: the ad and its platform.
 const from = { ad: adPage ? adKey : null, src: params.get('utm_source') };
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
@@ -33,7 +44,7 @@ const KEPT_FOR_MS = 3 * 60 * 60 * 1000;
 
 function keepOutline(outline, fromAI) {
   try {
-    sessionStorage.setItem(KEPT_KEY, JSON.stringify({ at: Date.now(), problem: state.problem, kind: state.kind, token: state.token, outline, fromAI }));
+    sessionStorage.setItem(KEPT_KEY, JSON.stringify({ at: Date.now(), lang: LANG.code, problem: state.problem, kind: state.kind, token: state.token, outline, fromAI }));
   } catch (e) { /* storage off: a reload starts over, as before */ }
 }
 
@@ -45,7 +56,8 @@ function keptOutline() {
   try {
     const kept = JSON.parse(sessionStorage.getItem(KEPT_KEY) || 'null');
     const fresh = kept && typeof kept.at === 'number' && Date.now() - kept.at < KEPT_FOR_MS;
-    if (fresh && typeof kept.problem === 'string' && kept.outline && Object.hasOwn(OUTLINES, kept.outline.kind)) return kept;
+    // An outline from another language's page isn't brought back here.
+    if (fresh && (kept.lang || 'en') === LANG.code && typeof kept.problem === 'string' && kept.outline && Object.hasOwn(OUTLINES, kept.outline.kind)) return kept;
   } catch (e) { /* unreadable: start over */ }
   forgetOutline();
   return null;
@@ -107,7 +119,7 @@ postJson('/api/event', from, 8000).catch(() => {});
 // Cloudflare Turnstile, the bot check, once it's switched on. It runs out of
 // sight and only draws a box to tick when it isn't sure.
 const botCheck = { widget: null, token: null, failed: false, interactive: false, waiting: [] };
-const TICK_THE_BOX = 'Tick the box above so I know you\'re not a bot.';
+const TICK_THE_BOX = t('Tick the box above so I know you\'re not a bot.');
 
 function botCheckDone(token) {
   botCheck.token = token;
@@ -149,7 +161,7 @@ async function botCheckToken() {
   if (!state.config.turnstile) return null;
   if (!botCheck.token && !botCheck.failed) {
     const slow = setTimeout(() => {
-      $('outlineBusy').textContent = botCheck.interactive ? TICK_THE_BOX : 'Checking you\'re not a bot…';
+      $('outlineBusy').textContent = botCheck.interactive ? TICK_THE_BOX : t('Checking you\'re not a bot…');
     }, 400);
     await new Promise(resolve => {
       botCheck.waiting.push(resolve);
@@ -224,12 +236,12 @@ $('describeForm').addEventListener('submit', async e => {
   if (button.disabled) return;
   const problem = $('problem').value.trim();
   if (problem.length < 10) {
-    showError($('problemError'), $('problem'), 'Add a sentence about the problem so the outline has something to work with.');
+    showError($('problemError'), $('problem'), t('Add a sentence about the problem so the outline has something to work with.'));
     $('problem').focus();
     return;
   }
   showError($('problemError'), $('problem'), '');
-  busy(button, true, 'One moment…');
+  busy(button, true, t('One moment…'));
   let turnstile = null;
   try {
     await configReady;
@@ -255,11 +267,11 @@ if (Recognition && micAllowed) {
   let heard = '';
 
   const VOICE_ERRORS = {
-    'not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
-    'service-not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
-    'no-speech': 'I didn\'t hear anything. Try again a little closer to your microphone.',
-    'audio-capture': 'No microphone was found. You can type instead.',
-    'network': 'Talking needs an internet connection. You can type instead.',
+    'not-allowed': t('The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.'),
+    'service-not-allowed': t('The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.'),
+    'no-speech': t('I didn\'t hear anything. Try again a little closer to your microphone.'),
+    'audio-capture': t('No microphone was found. You can type instead.'),
+    'network': t('Talking needs an internet connection. You can type instead.'),
   };
 
   const say = (text, isError = false) => {
@@ -269,12 +281,12 @@ if (Recognition && micAllowed) {
   };
   const setListening = on => {
     button.classList.toggle('is-listening', on);
-    $('talkLabel').textContent = on ? 'Stop' : 'Talk instead';
+    $('talkLabel').textContent = on ? t('Stop') : t('Talk instead');
   };
 
   button.hidden = false;
   $('problemInput').classList.add('has-voice');
-  $('problemHint').textContent = 'Plain words are fine, typed or spoken. If you talk, your browser turns it into text and may use its maker\'s speech service to do it (Google, in Chrome).';
+  $('problemHint').textContent = t('Plain words are fine, typed or spoken. If you talk, your browser turns it into text and may use its maker\'s speech service to do it (Google, in Chrome).');
 
   stopTalking = () => { if (recognition) recognition.stop(); };
 
@@ -285,13 +297,15 @@ if (Recognition && micAllowed) {
     before = adPage && current === adPage.prefill ? '' : current;
     heard = '';
     recognition = new Recognition();
-    recognition.lang = navigator.language || 'en-US';
+    // The page's language, or the browser's own variant of it (en-GB, es-MX).
+    const browserLang = navigator.language || '';
+    recognition.lang = browserLang.toLowerCase().startsWith(LANG.tag.slice(0, 2).toLowerCase()) ? browserLang : LANG.tag;
     recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onstart = () => {
       setListening(true);
-      say('Listening… Explain it like you would to a friend, then tap Stop.');
+      say(t('Listening… Explain it like you would to a friend, then tap Stop.'));
     };
     recognition.onresult = e => {
       heard = Array.from(e.results, r => r[0].transcript.trim()).filter(Boolean).join(' ');
@@ -299,13 +313,13 @@ if (Recognition && micAllowed) {
       showError($('problemError'), $('problem'), '');
     };
     recognition.onerror = e => {
-      if (e.error !== 'aborted') say(VOICE_ERRORS[e.error] || 'Talking isn\'t working in this browser right now. You can type instead.', true);
+      if (e.error !== 'aborted') say(VOICE_ERRORS[e.error] || t('Talking isn\'t working in this browser right now. You can type instead.'), true);
     };
     recognition.onend = () => {
       recognition = null;
       setListening(false);
       if (heard) {
-        say('Got it. Fix anything I misheard, then build your outline.');
+        say(t('Got it. Fix anything I misheard, then build your outline.'));
         const box = $('problem');
         box.focus();
         box.setSelectionRange(box.value.length, box.value.length);
@@ -318,7 +332,7 @@ if (Recognition && micAllowed) {
       recognition.start();
     } catch (err) {
       recognition = null;
-      say('Talking isn\'t working in this browser right now. You can type instead.', true);
+      say(t('Talking isn\'t working in this browser right now. You can type instead.'), true);
     }
   });
 }
@@ -342,7 +356,7 @@ history.replaceState({ step: 'describe' }, '');
 // If the server can't be reached at all, the page shows its own template.
 async function fetchOutline(problem, turnstile) {
   try {
-    const { ok, data } = await postJson('/api/outline', { problem, ad: from.ad, src: from.src, turnstile }, 30000);
+    const { ok, data } = await postJson('/api/outline', { problem, ad: from.ad, src: from.src, lang: LANG.code, turnstile }, 30000);
     if (!ok || !data.outline || !Object.hasOwn(OUTLINES, data.outline.kind)) return null;
     return data;
   } catch (e) {
@@ -360,26 +374,26 @@ function showOutline(outline, fromAI, { show = true } = {}) {
   fillList($('outlineQuestions'), outline.questions);
   $('outlineMilestone').textContent = outline.milestone;
   $('outlineDraft').textContent = fromAI
-    ? 'Written by AI from what you wrote, as a starting point. I read every outline, and we\'d sharpen it together on a call.'
-    : 'A first draft from what you wrote. We\'d sharpen it together on a call.';
+    ? t('Written by AI from what you wrote, as a starting point. I read every outline, and we\'d sharpen it together on a call.')
+    : t('A first draft from what you wrote. We\'d sharpen it together on a call.');
 
   // Past work always comes from the fixed text, never from the AI.
   const template = OUTLINES[outline.kind] || OUTLINES.general;
   $('outlineShippedHeading').textContent = template.shippedHeading;
   const link = document.createElement('a');
-  link.href = '/#work';
+  link.href = `${HOME}#work`;
   link.target = '_blank';
   link.rel = 'noopener';
   link.className = 'work-link';
-  link.innerHTML = 'See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>';
+  link.innerHTML = t('See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>');
   $('outlineShipped').replaceChildren(template.shipped + ' ', link);
 
   // Saving needs the server's say-so (the token); without it, offer email and phone.
   const canSave = Boolean(state.config.save && state.token);
   $('saveLive').hidden = !canSave;
   $('saveOff').hidden = canSave;
-  $('saveTitle').textContent = canSave ? 'Save your outline, then pick a time to talk' : 'Want to talk it through?';
-  $('jumpToSave').firstChild.textContent = canSave ? 'Save it and pick a time to talk ' : 'How to talk it through ';
+  $('saveTitle').textContent = canSave ? t('Save your outline, then pick a time to talk') : t('Want to talk it through?');
+  $('jumpToSave').firstChild.textContent = `${canSave ? t('Save it and pick a time to talk') : t('How to talk it through')} `;
   $('followUpField').hidden = !state.config.followUp;
   showError($('emailError'), $('email'), '');
 
@@ -398,14 +412,14 @@ async function buildOutline(turnstile) {
   $('outline').hidden = true;
   $('save').hidden = true;
   $('outlineLoading').hidden = false;
-  $('loadingText').textContent = 'Reading what you wrote…';
+  $('loadingText').textContent = t('Reading what you wrote…');
   history.pushState({ step: 'outline' }, '');
   render('outline', { focus: false });
   $('outlineLoading').focus({ preventScroll: true });
   $('stepOutline').scrollIntoView({ behavior: scrollBehavior, block: 'start' });
 
   // Progress messages while the AI writes; the last one stays until it's done.
-  const messages = ['Reading what you wrote…', 'Thinking about how I\'d build it…', 'Writing your outline…', 'Almost there…'];
+  const messages = [t('Reading what you wrote…'), t('Thinking about how I\'d build it…'), t('Writing your outline…'), t('Almost there…')];
   const pause = prefersReducedMotion ? 1500 : 1800;
   outlineTimers = messages.slice(1).map((text, i) => setTimeout(() => { $('loadingText').textContent = text; }, (i + 1) * pause));
 
@@ -453,11 +467,11 @@ $('jumpToSave').addEventListener('click', () => {
 
 // Saving: the outline is emailed to the visitor, and Thomas gets a copy.
 const SAVE_ERRORS = {
-  bad_email: 'That email doesn\'t look right. Check it and try again.',
-  expired: 'This outline has been open a while. Choose "Change what I wrote" above and build it again to save it.',
-  too_many_sends: 'It\'s already been sent a few times. Check your inbox and spam folder.',
-  inbox_limit: 'That address has already been sent a few outlines today. Try again tomorrow, or email t@thomasewright.com.',
-  rate_limited: 'Too many tries. Wait a minute, then try again.',
+  bad_email: t('That email doesn\'t look right. Check it and try again.'),
+  expired: t('This outline has been open a while. Choose "Change what I wrote" above and build it again to save it.'),
+  too_many_sends: t('It\'s already been sent a few times. Check your inbox and spam folder.'),
+  inbox_limit: t('That address has already been sent a few outlines today. Try again tomorrow, or email t@thomasewright.com.'),
+  rate_limited: t('Too many tries. Wait a minute, then try again.'),
 };
 
 $('saveForm').addEventListener('submit', async e => {
@@ -471,7 +485,7 @@ $('saveForm').addEventListener('submit', async e => {
     return;
   }
   showError($('emailError'), $('email'), '');
-  busy(button, true, 'Sending…');
+  busy(button, true, t('Sending…'));
   let result = null;
   try {
     result = await postJson('/api/save', { token: state.token, email, followUp: $('followUp').checked, timeZone: visitorTimeZone });
@@ -482,7 +496,7 @@ $('saveForm').addEventListener('submit', async e => {
   }
   if (!result || !result.ok || !result.data.ok) {
     const code = result && (result.status === 429 && !result.data.error ? 'rate_limited' : result.data.error);
-    showError($('emailError'), $('email'), (code && Object.hasOwn(SAVE_ERRORS, code) && SAVE_ERRORS[code]) || 'Your outline couldn\'t be sent just now. Try again, or email t@thomasewright.com.');
+    showError($('emailError'), $('email'), (code && Object.hasOwn(SAVE_ERRORS, code) && SAVE_ERRORS[code]) || t('Your outline couldn\'t be sent just now. Try again, or email t@thomasewright.com.'));
     $('email').focus();
     return;
   }
@@ -491,21 +505,23 @@ $('saveForm').addEventListener('submit', async e => {
   state.emailed = result.data.emailed !== false;
   state.lead = typeof result.data.lead === 'string' ? result.data.lead : null;
   const note = state.emailed
-    ? `Sent to ${email}. If it isn't in your inbox in a few minutes, check your spam folder.`
-    : `Saved. The email didn't go through, but Thomas has your details and will reply to ${email}.`;
+    ? t('Sent to {email}. If it isn\'t in your inbox in a few minutes, check your spam folder.', { email })
+    : t('Saved. The email didn\'t go through, but Thomas has your details and will reply to {email}.', { email });
   if (state.config.book && state.lead) goToBooking(note);
   else finish(false, note);
 });
 
 // Step 3: booking, from Thomas's real open times.
 const dayKey = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+// Dates and times in the page's language (the browser's own on the English page).
+const LOCALE = LANG.code === 'en' ? undefined : LANG.tag;
+const dayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', month: 'short', day: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat(LOCALE, { hour: 'numeric', minute: '2-digit' });
 
 // The zone's name on that date, so a slot after a clock change gets the right label.
 function zoneName(date) {
   try {
-    const part = new Intl.DateTimeFormat(undefined, { timeZoneName: 'long' })
+    const part = new Intl.DateTimeFormat(LOCALE, { timeZoneName: 'long' })
       .formatToParts(date).find(p => p.type === 'timeZoneName');
     return part ? part.value : '';
   } catch (e) { return ''; }
@@ -532,7 +548,7 @@ function calLink(text) {
   link.textContent = text;
   const note = document.createElement('span');
   note.className = 'visually-hidden';
-  note.textContent = ' (opens in a new tab)';
+  note.textContent = ` ${t('(opens in a new tab)')}`;
   link.append(note);
   return link;
 }
@@ -543,8 +559,8 @@ function timesUnavailable(message) {
   const box = $('timesUnavailable');
   box.hidden = false;
   box.replaceChildren(message + ' ');
-  if (state.config.bookLink) box.append(calLink('Pick a time on Cal.com'), ' or reply to your outline email.');
-  else box.append('Reply to your outline email and we\'ll find a time.');
+  if (state.config.bookLink) box.append(calLink(t('Pick a time on Cal.com')), ` ${t('or reply to your outline email.')}`);
+  else box.append(t('Reply to your outline email and we\'ll find a time.'));
 }
 
 // Open times, grouped into the visitor's own days.
@@ -558,7 +574,7 @@ async function loadTimes() {
     if (response.ok) times = (await response.json()).times;
   } catch (e) { /* handled below */ }
   if (!Array.isArray(times)) {
-    timesUnavailable('Open times couldn\'t be loaded just now.');
+    timesUnavailable(t('Open times couldn\'t be loaded just now.'));
     return;
   }
   const days = new Map();
@@ -571,7 +587,7 @@ async function loadTimes() {
   }
   state.days = [...days.values()].slice(0, 10);
   if (!state.days.length) {
-    timesUnavailable('There are no open times in the next three weeks.');
+    timesUnavailable(t('There are no open times in the next three weeks.'));
     return;
   }
   $('bookDays').replaceChildren(...state.days.map((slots, i) => chip('day', String(i), dayFormat.format(slots[0]))));
@@ -587,7 +603,7 @@ function renderTimes(dayIndex) {
   $('bookTimes').replaceChildren(...slots.map((slot, i) => chip('time', String(i), timeFormat.format(slot))));
   state.slots = slots;
   const zone = zoneName(slots[0]);
-  $('timesLegend').textContent = zone ? `Time (${zone})` : 'Time';
+  $('timesLegend').textContent = zone ? t('Time ({zone})', { zone }) : t('Time');
   $('timesGroup').hidden = false;
   state.slot = null;
   updateBookButton();
@@ -595,8 +611,8 @@ function renderTimes(dayIndex) {
 
 function updateBookButton() {
   $('bookButton').textContent = state.slot
-    ? `Book ${dayFormat.format(state.slot)} at ${timeFormat.format(state.slot)}`
-    : 'Book the call';
+    ? t('Book {day} at {time}', { day: dayFormat.format(state.slot), time: timeFormat.format(state.slot) })
+    : t('Book the call');
 }
 
 $('bookDays').addEventListener('change', e => {
@@ -622,7 +638,7 @@ function bookingFallback() {
   if (!state.config.bookLink || $('bookForm').querySelector('.book-fallback')) return;
   const p = document.createElement('p');
   p.className = 'start-hint book-fallback';
-  p.append(calLink('Pick a time on Cal.com instead'));
+  p.append(calLink(t('Pick a time on Cal.com instead')));
   $('bookError').after(p);
 }
 
@@ -631,17 +647,17 @@ $('bookForm').addEventListener('submit', async e => {
   const button = $('bookButton');
   if (button.disabled) return;
   if (!state.slot) {
-    showError($('bookError'), null, $('timesGroup').hidden ? 'Pick a day first.' : 'Pick a time that works.');
+    showError($('bookError'), null, $('timesGroup').hidden ? t('Pick a day first.') : t('Pick a time that works.'));
     return;
   }
   const name = $('name').value.trim();
   if (!name) {
-    showError($('bookError'), $('name'), 'Add your name so Thomas knows who\'s on the call.');
+    showError($('bookError'), $('name'), t('Add your name so Thomas knows who\'s on the call.'));
     $('name').focus();
     return;
   }
   showError($('bookError'), $('name'), '');
-  busy(button, true, 'Booking…');
+  busy(button, true, t('Booking…'));
   let result = null;
   try {
     result = await postJson('/api/book', { lead: state.lead, start: state.slot.toISOString(), name, timeZone: visitorTimeZone }, 25000);
@@ -667,7 +683,7 @@ $('bookForm').addEventListener('submit', async e => {
     $('bookTitle').focus({ preventScroll: true });
     await loadTimes();
     if (!$('bookForm').hidden) {
-      showError($('bookError'), null, 'Someone just took that time. Pick another.');
+      showError($('bookError'), null, t('Someone just took that time. Pick another.'));
       $('bookDays').querySelector('input').focus();
     }
     return;
@@ -675,14 +691,14 @@ $('bookForm').addEventListener('submit', async e => {
   if (error === 'unconfirmed') {
     // The calendar may have booked it without saying so: trying again here
     // could book twice, so the visitor checks their inbox first.
-    showError($('bookError'), null, `The calendar didn't confirm the booking. If an invite from Cal.com doesn't reach ${state.email} in a few minutes, pick a time on Cal.com instead.`);
+    showError($('bookError'), null, t('The calendar didn\'t confirm the booking. If an invite from Cal.com doesn\'t reach {email} in a few minutes, pick a time on Cal.com instead.', { email: state.email }));
     bookingFallback();
     return;
   }
   const expired = error === 'expired' || error === 'gone';
   showError($('bookError'), null, expired
-    ? 'This page has been open a while, so the call can\'t be booked from here. Reply to your outline email instead.'
-    : 'The call couldn\'t be booked just now. Try again in a moment.');
+    ? t('This page has been open a while, so the call can\'t be booked from here. Reply to your outline email instead.')
+    : t('The call couldn\'t be booked just now. Try again in a moment.'));
   bookingFallback();
 });
 
@@ -696,26 +712,27 @@ function finish(booked, note = '') {
   state.done = true;
   $('bookAfterAll').hidden = booked || !(state.config.book && state.lead);
   if (booked) {
-    $('doneTitle').textContent = 'You\'re booked.';
+    $('doneTitle').textContent = t('You\'re booked.');
     if (state.booked) {
       const zone = zoneName(state.booked);
-      $('doneText').textContent = `${dayFormat.format(state.booked)} at ${timeFormat.format(state.booked)}${zone ? `, ${zone}` : ''}.`;
+      const when = { day: dayFormat.format(state.booked), time: timeFormat.format(state.booked), zone };
+      $('doneText').textContent = zone ? t('{day} at {time}, {zone}.', when) : t('{day} at {time}.', when);
     } else {
-      $('doneText').textContent = 'Your call is already on the calendar.';
+      $('doneText').textContent = t('Your call is already on the calendar.');
     }
     fillList($('doneNext'), [
-      `Cal.com is sending the calendar invite to ${state.email}, with links to reschedule or cancel.`,
+      t('Cal.com is sending the calendar invite to {email}, with links to reschedule or cancel.', { email: state.email }),
       state.emailed
-        ? 'Your outline is in a separate email. Reply to it to add anything you forgot.'
-        : 'Thomas has your outline and will go through it with you on the call.',
+        ? t('Your outline is in a separate email. Reply to it to add anything you forgot.')
+        : t('Thomas has your outline and will go through it with you on the call.'),
     ]);
   } else {
-    $('doneTitle').textContent = state.emailed ? 'Your outline is on its way.' : 'Your outline is saved.';
+    $('doneTitle').textContent = state.emailed ? t('Your outline is on its way.') : t('Your outline is saved.');
     $('doneText').textContent = note;
     fillList($('doneNext'), [
       state.config.bookLink
-        ? 'When you\'re ready to talk, reply to the email or use the link in it to pick a time.'
-        : 'When you\'re ready to talk, reply to the email and we\'ll find a time.',
+        ? t('When you\'re ready to talk, reply to the email or use the link in it to pick a time.')
+        : t('When you\'re ready to talk, reply to the email and we\'ll find a time.'),
     ]);
   }
   go('done');

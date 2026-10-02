@@ -464,7 +464,7 @@ test.describe('signup flow on /start', () => {
     expect(calls.map(c => c.call)).toEqual(['GET /api/config', 'POST /api/event', 'POST /api/outline', 'POST /api/save', 'GET /api/slots', 'POST /api/book']);
     const sent = Object.fromEntries(calls.map(c => [c.call, c.body]));
     expect(sent['POST /api/event']).toEqual({ ad: 'spreadsheets', src: 'google' });
-    expect(sent['POST /api/outline']).toEqual({ problem, ad: 'spreadsheets', src: 'google', turnstile: null });
+    expect(sent['POST /api/outline']).toEqual({ problem, ad: 'spreadsheets', src: 'google', lang: 'en', turnstile: null });
     expect(sent['POST /api/save']).toEqual({ token: expect.any(String), email: 'jane@example.com', followUp: false, timeZone: expect.any(String) });
     expect(sent['POST /api/book']).toEqual({ lead: expect.any(String), start: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), name: 'Jane Doe', timeZone: expect.any(String) });
 
@@ -1064,7 +1064,7 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#outlineSteps li')).toHaveCount(4);
     await expect(page.locator('#outlineMilestone')).toHaveText(AI_OUTLINE.milestone);
     await expect(page.locator('#outlineShipped')).toContainText('AI Lead Response Agent');
-    expect(posted).toEqual({ problem: 'We run a dental office and miss calls at lunch.', ad: 'leads', src: null, turnstile: null });
+    expect(posted).toEqual({ problem: 'We run a dental office and miss calls at lunch.', ad: 'leads', src: null, lang: 'en', turnstile: null });
   });
 
   test('if the AI fails, is rate limited or sends junk, the template outline is shown', async ({ page }) => {

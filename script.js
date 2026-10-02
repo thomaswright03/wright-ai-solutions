@@ -1,3 +1,11 @@
+// On a translated page, the words this script shows come from the strings the
+// page carries (scripts/i18n.mjs writes them in); English is the fallback.
+const siteStrings = (() => {
+  try { return JSON.parse(document.getElementById('siteStrings')?.textContent || '{}'); } catch (e) { return {}; }
+})();
+const t = (text, vars = {}) => (Object.hasOwn(siteStrings, text) ? siteStrings[text] : text)
+  .replace(/\{(\w+)\}/g, (all, name) => (Object.hasOwn(vars, name) ? vars[name] : all));
+
 const copyrightYear = document.getElementById('copyright-year');
 if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
 
@@ -43,17 +51,32 @@ if (navToggle && navMobile) {
   }, { passive: true });
 }
 
+// Language menu: a <details> that opens and works without this script; this
+// closes it on Escape or a click anywhere else, like the mobile menu.
+const langMenu = document.querySelector('.lang-menu');
+if (langMenu) {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && langMenu.open) {
+      langMenu.open = false;
+      langMenu.querySelector('summary').focus();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (langMenu.open && !langMenu.contains(e.target)) langMenu.open = false;
+  });
+}
+
 const contactHint = document.getElementById('contactHint');
 if (contactHint) {
   document.querySelectorAll('[data-copy]').forEach(el => {
     el.addEventListener('click', () => {
       const value = el.dataset.copy;
       const showManual = () => {
-        contactHint.textContent = `Copy this: ${value}`;
+        contactHint.textContent = t('Copy this: {value}', { value });
       };
       if (!navigator.clipboard) { showManual(); return; }
       navigator.clipboard.writeText(value).then(() => {
-        contactHint.textContent = `Copied "${value}" to your clipboard, in case that didn't open a mail or phone app.`;
+        contactHint.textContent = t('Copied "{value}" to your clipboard, in case that didn\'t open a mail or phone app.', { value });
       }).catch(showManual);
     });
   });
@@ -64,7 +87,7 @@ if (contactHint) {
 const themeToggle = document.getElementById('themeToggle');
 if (themeToggle) {
   const themeOrder = ['system', 'light', 'dark'];
-  const themeLabels = { system: 'match system', light: 'light', dark: 'dark' };
+  const themeLabels = { system: t('match system'), light: t('light'), dark: t('dark') };
 
   const readTheme = () => {
     const current = document.documentElement.dataset.theme;
@@ -74,8 +97,8 @@ if (themeToggle) {
   const showTheme = (choice) => {
     const next = themeOrder[(themeOrder.indexOf(choice) + 1) % themeOrder.length];
     themeToggle.dataset.choice = choice;
-    themeToggle.setAttribute('aria-label', `Color theme: ${themeLabels[choice]}. Switch to ${themeLabels[next]}`);
-    themeToggle.title = `Color theme: ${themeLabels[choice]}`;
+    themeToggle.setAttribute('aria-label', t('Color theme: {choice}. Switch to {next}', { choice: themeLabels[choice], next: themeLabels[next] }));
+    themeToggle.title = t('Color theme: {choice}', { choice: themeLabels[choice] });
   };
 
   themeToggle.addEventListener('click', () => {

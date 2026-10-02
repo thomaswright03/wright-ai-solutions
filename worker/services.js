@@ -93,13 +93,16 @@ export async function openTimes(env, cal, from, to) {
   }
 }
 
+// Cal.com's invite and emails come in the attendee's language where it has one.
+const CAL_LANGUAGES = { es: 'es', fr: 'fr', pt: 'pt-BR', zh: 'zh-CN', vi: 'vi', ar: 'ar', ko: 'ko', ru: 'ru' };
+
 // Books the call. Cal.com then emails both people the calendar invite.
 // Returns { uid, start }; { taken: true } when the time is no longer free;
 // { uncertain: true } when there's no clear answer (a timeout, a dropped
 // connection, a server error mid-request or an unreadable reply), since the
 // call may have been booked anyway; or null when Cal.com clearly turned it
 // down, including a 503, which means it took nothing in.
-export async function bookCall(env, cal, { start, name, email, timeZone, notes, metadata }) {
+export async function bookCall(env, cal, { start, name, email, timeZone, notes, metadata, lang = 'en' }) {
   let response;
   try {
     response = await withTimeout(fetch(`${CAL_API}/bookings`, {
@@ -107,7 +110,7 @@ export async function bookCall(env, cal, { start, name, email, timeZone, notes, 
       headers: calHeaders(env, '2026-02-25'),
       body: JSON.stringify({
         start,
-        attendee: { name, email, timeZone, language: 'en' },
+        attendee: { name, email, timeZone, language: CAL_LANGUAGES[lang] || 'en' },
         eventTypeSlug: cal.slug,
         username: cal.username,
         bookingFieldsResponses: { notes },
