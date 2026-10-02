@@ -2,12 +2,14 @@
 
 `/start` works from the first deploy: it writes an outline with Cloudflare Workers AI (or a fixed template), and for anything not connected yet it offers email and phone instead. Each part below switches on by itself once its account is connected, so they can be done in any order and nothing breaks in between. Run the ads in `docs/ADS.md` only once parts 1 to 4 are done.
 
+**Order:** Cloudflare only accepts variables and secrets once the Worker in this repo is deployed. Before that, the dashboard says they can't be added to a Worker that only has static assets. So the settings that aren't secret go in `wrangler.jsonc` first, then the change deploys, then the secrets are added. Until a part's secret is in, `/start` behaves as the table below describes.
+
 Each account below has a free plan that's enough to start.
 
 **Two kinds of values:**
 
 - **Settings that aren't secret** go in `wrangler.jsonc`: the database ID, the bot-check *site* key, the Cal.com link and the postal address. Send them to whoever edits the repo, or add them yourself ([where each one goes](#where-the-settings-go)).
-- **Secrets** never go in the repo, a chat or a URL: API keys, the bot-check *secret* key, the admin password and the ntfy topic. Add each one yourself in Cloudflare: dashboard → **Workers & Pages** → **wright-ai-solutions** → **Settings** → **Variables and Secrets** → **Add** → type **Secret** → enter the name exactly as written below → paste the value → **Deploy**.
+- **Secrets** never go in the repo, a chat or a URL: API keys, the bot-check *secret* key, the admin password and the ntfy topic. Once the Worker is deployed, add each one yourself in Cloudflare: dashboard → **Workers & Pages** → **wright-ai-solutions** → **Settings** → **Variables and Secrets** → **Add** → type **Secret** → enter the name exactly as written below → paste the value → **Deploy**.
 
 ## What switches on when
 
@@ -32,7 +34,7 @@ This holds your private leads list and the counts per ad.
 1. Cloudflare dashboard → **Storage & databases** → **D1 SQL database** → **Create database**.
 2. Name it exactly `wright-ai-solutions-leads` and create it.
 3. Copy the **Database ID** (a long code of letters and numbers). It goes in `wrangler.jsonc` as the `DB` binding. The Worker creates its tables on first use, so there's no other setup.
-4. Add a secret named `ADMIN_PASSWORD`: a passphrase of at least 16 characters (four random words works). Open your leads list at `wright-ai-solutions.com/admin`; the browser asks for the password, and any username works.
+4. Once the Worker is deployed, add a secret named `ADMIN_PASSWORD`: a passphrase of at least 16 characters (four random words works). Open your leads list at `wright-ai-solutions.com/admin`; the browser asks for the password, and any username works.
 
 ## 2. Bot check (Cloudflare Turnstile, about 3 minutes)
 
