@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Start a project — Wright AI Solutions LLC</title>
+<meta name="description" content="Describe the problem in a sentence, get a project outline back on the page, and book a 30-minute call with Thomas Wright.">
+<link rel="canonical" href="https://wright-ai-solutions.com/start">
+<meta name="theme-color" content="#08080c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f7fb" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<script src="/theme-init.js?v=10"></script>
+<link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/space-grotesk-var.woff2" as="font" type="font/woff2" crossorigin>
+<noscript><link rel="stylesheet" href="/noscript.css?v=10"></noscript>
+<link rel="stylesheet" href="/fonts/fonts.css?v=10">
+<link rel="stylesheet" href="/styles.css?v=10">
+</head>
+<body id="top">
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="noise"></div>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<!-- A landing page keeps visitors on the one task: logo and theme choice only, no section nav. -->
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="/" class="logo">
+      <span class="logo-mark" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13.5 2 4.5 13.5h6.2L9.5 22l9-11.5h-6.2z"/></svg></span> Wright AI Solutions
+    </a>
+    <div class="header-actions">
+      <button type="button" class="theme-toggle" id="themeToggle" data-choice="system" aria-label="Color theme: match system. Change theme" title="Color theme: match system">
+        <svg class="icon-system" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        <svg class="icon-light" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-dark" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="start" id="main">
+  <div class="wrap start-inner">
+
+    <noscript><p class="start-noscript">This page needs JavaScript. You can email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a> instead.</p></noscript>
+
+    <ol class="start-progress" aria-label="Steps">
+      <li class="is-current" data-step="describe" aria-current="step">Describe</li>
+      <li data-step="outline">Your outline</li>
+      <li data-step="book">Book a call</li>
+    </ol>
+
+    <!-- Step 1: the ad-matched headline and the one question. start.js swaps the copy for ?for=<ad>. -->
+    <section class="start-step" id="stepDescribe" aria-labelledby="startTitle">
+      <p class="eyebrow" id="startEyebrow">Start a project</p>
+      <h1 id="startTitle" tabindex="-1">Tell me what's <span class="grad-text">slowing your business down.</span></h1>
+      <p class="start-sub" id="startSub">Answer one question and get a project outline back on this page. Then pick a time to talk it through if you like.</p>
+
+      <form class="start-form" id="describeForm" novalidate>
+        <label class="start-label" for="problem" id="problemLabel">In a sentence or two, what's the problem?</label>
+        <!-- autocomplete="off" stops the browser restoring an old value over the ad's example on reload. -->
+        <div class="start-input" id="problemInput">
+          <textarea id="problem" name="problem" rows="4" maxlength="1200" autocomplete="off" aria-required="true" aria-describedby="problemHint problemError" placeholder="e.g. Leads come in after hours and nobody replies until the morning."></textarea>
+          <!-- Shown by start.js only where the browser can turn speech into text. -->
+          <button type="button" class="talk" id="talkButton" hidden>
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+            <span id="talkLabel">Talk instead</span>
+          </button>
+        </div>
+        <p class="start-talk-status" id="talkStatus" aria-live="polite" hidden></p>
+        <p class="start-hint" id="problemHint">Plain words are fine. No need to know what the fix is.</p>
+        <p class="start-error" id="problemError" aria-live="polite"></p>
+
+        <!-- Cloudflare's bot check draws a box here only if it needs the visitor to tick it. -->
+        <div class="start-botcheck" id="botCheck"></div>
+        <button type="submit" class="btn btn-primary btn-lg start-cta" id="outlineButton">Build my outline <span aria-hidden="true">→</span></button>
+        <p class="start-busy" id="outlineBusy" role="status"></p>
+        <p class="start-reassure">Free, no obligation. No email needed to see your outline.</p>
+        <p class="start-fineprint">An AI model run by Cloudflare writes your outline from what you type. Nothing is kept unless you choose to save it. <a href="/privacy#start">Privacy notice</a></p>
+      </form>
+
+      <p class="start-who">I'm Thomas Wright. I scope and build every project myself. <a class="work-link" href="/#work" target="_blank" rel="noopener">See what I've built <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></a></p>
+    </section>
+
+    <!-- Step 2: the outline, then where to send it. -->
+    <section class="start-step" id="stepOutline" aria-labelledby="outlineTitle" hidden>
+      <div class="start-loading" id="outlineLoading" role="status" aria-live="polite" tabindex="-1">
+        <span class="start-spinner" aria-hidden="true"></span>
+        <span id="loadingText">Reading what you wrote…</span>
+      </div>
+
+      <article class="outline" id="outline" hidden>
+        <header class="outline-head">
+          <p class="eyebrow">Your project outline</p>
+          <h2 id="outlineTitle" tabindex="-1">Project outline</h2>
+          <p class="outline-draft" id="outlineDraft">A first draft from what you wrote. We'd sharpen it together on a call.</p>
+          <button type="button" class="start-textlink outline-jump" id="jumpToSave">Save it and pick a time to talk <span aria-hidden="true">↓</span></button>
+        </header>
+
+        <div class="outline-section">
+          <h3>The problem</h3>
+          <blockquote class="outline-quote" id="outlineProblem"></blockquote>
+        </div>
+        <div class="outline-section">
+          <h3>What I'd build</h3>
+          <p id="outlineBuild"></p>
+        </div>
+        <div class="outline-section">
+          <h3>How it would work</h3>
+          <ol class="outline-steps" id="outlineSteps"></ol>
+        </div>
+        <div class="outline-section">
+          <h3>What I'd need from you</h3>
+          <ul class="outline-list" id="outlineNeeds"></ul>
+        </div>
+        <div class="outline-section">
+          <h3>A first milestone we could aim for</h3>
+          <p id="outlineMilestone"></p>
+        </div>
+        <div class="outline-section">
+          <h3 id="outlineShippedHeading">Something similar I've built</h3>
+          <p id="outlineShipped"></p>
+        </div>
+        <div class="outline-section">
+          <h3>What I'd ask you on a call</h3>
+          <ul class="outline-list" id="outlineQuestions"></ul>
+        </div>
+
+        <button type="button" class="start-textlink" id="editProblem">Change what I wrote</button>
+      </article>
+
+      <div class="save" id="save" hidden>
+        <h2 id="saveTitle" tabindex="-1">Save your outline, then pick a time to talk</h2>
+        <!-- Shown when saving is switched on and the outline came from this site's server. -->
+        <div id="saveLive">
+          <p class="start-sub">I'll email you a copy so it's there when you need it.</p>
+          <form class="save-form" id="saveForm" novalidate>
+            <label class="start-label" for="email">Your email</label>
+            <div class="save-row">
+              <input type="email" id="email" name="email" autocomplete="email" inputmode="email" aria-required="true" aria-describedby="emailError" placeholder="you@business.com">
+              <button type="submit" class="btn btn-primary" id="saveButton">Email it to me</button>
+            </div>
+            <label class="start-check" id="followUpField" hidden>
+              <input type="checkbox" id="followUp" name="followUp">
+              <span>Send me one reminder tomorrow if I haven't picked a time</span>
+            </label>
+            <p class="start-error" id="emailError" aria-live="polite"></p>
+          </form>
+          <p class="start-reassure">Used only to send your outline and reply to you. Never a newsletter, and every email has a link to delete your details.</p>
+        </div>
+        <!-- Otherwise: the outline is on the page, and here's how to talk it through. -->
+        <div id="saveOff" hidden>
+          <p class="start-sub">Saving by email isn't available right now. To talk it through, email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> or call <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a>, and mention your outline's title.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: book a 30-minute call on the page. -->
+    <section class="start-step" id="stepBook" aria-labelledby="bookTitle" hidden>
+      <h2 id="bookTitle" tabindex="-1">Want to talk it through? Pick a time.</h2>
+      <p class="start-sent" id="sentNote" role="status"></p>
+      <p class="start-sub">A 30-minute call with Thomas, the person who'd build it. Times are shown in your time zone.</p>
+
+      <div class="start-loading" id="timesLoading" role="status">
+        <span class="start-spinner" aria-hidden="true"></span>
+        <span>Finding open times…</span>
+      </div>
+      <p class="start-sub" id="timesUnavailable" hidden></p>
+
+      <form class="book-form" id="bookForm" novalidate hidden>
+        <fieldset class="chip-group">
+          <legend>Day</legend>
+          <div class="chips" id="bookDays"></div>
+        </fieldset>
+        <fieldset class="chip-group" id="timesGroup" hidden>
+          <legend id="timesLegend">Time</legend>
+          <div class="chips" id="bookTimes"></div>
+        </fieldset>
+        <label class="start-label book-name" for="name">Your name</label>
+        <input type="text" id="name" name="name" autocomplete="name" maxlength="100" aria-required="true" aria-describedby="bookError">
+        <p class="start-error" id="bookError" aria-live="polite"></p>
+        <button type="submit" class="btn btn-primary btn-lg start-cta" id="bookButton">Book the call</button>
+        <p class="start-reassure">Cal.com sends you the calendar invite. Reschedule or cancel from it anytime.</p>
+      </form>
+      <div class="start-textlinks">
+        <button type="button" class="start-textlink" id="backToOutline">See my outline again</button>
+        <button type="button" class="start-textlink" id="skipBooking">Not now, the outline is enough</button>
+      </div>
+    </section>
+
+    <section class="start-step" id="stepDone" aria-labelledby="doneTitle" hidden>
+      <h2 id="doneTitle" tabindex="-1">You're booked.</h2>
+      <p class="start-sub" id="doneText"></p>
+      <ul class="outline-list" id="doneNext"></ul>
+      <div class="start-textlinks">
+        <button type="button" class="start-textlink" id="bookAfterAll" hidden>Pick a time after all</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© <span id="copyright-year">2026</span> Wright AI Solutions LLC. All rights reserved.</span>
+    <div class="footer-contact">
+      <a href="/privacy">Privacy</a>
+      <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>
+      <a href="tel:+18015808630">(801)&nbsp;580&#8209;8630</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/script.js?v=10"></script>
+<script type="module" src="/start.js?v=10"></script>
+</body>
+</html>

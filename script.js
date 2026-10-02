@@ -4,41 +4,44 @@ if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
 const navToggle = document.getElementById('navToggle');
 const navMobile = document.getElementById('navMobile');
 
-function closeMobileNav() {
-  navMobile.classList.remove('open');
-  navToggle.setAttribute('aria-expanded', 'false');
-}
-
-function openMobileNav() {
-  navMobile.classList.add('open');
-  navToggle.setAttribute('aria-expanded', 'true');
-}
-
-navToggle.addEventListener('click', () => {
-  const isOpen = navMobile.classList.contains('open');
-  if (isOpen) closeMobileNav(); else openMobileNav();
-});
-
-navMobile.querySelectorAll('a').forEach(link => {
-  link.addEventListener('click', closeMobileNav);
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && navMobile.classList.contains('open')) {
-    closeMobileNav();
-    navToggle.focus();
+// The /start landing page has no section nav, so it has no menu to wire up.
+if (navToggle && navMobile) {
+  function closeMobileNav() {
+    navMobile.classList.remove('open');
+    navToggle.setAttribute('aria-expanded', 'false');
   }
-});
 
-document.addEventListener('click', (e) => {
-  if (!navMobile.classList.contains('open')) return;
-  if (navMobile.contains(e.target) || navToggle.contains(e.target)) return;
-  closeMobileNav();
-});
+  function openMobileNav() {
+    navMobile.classList.add('open');
+    navToggle.setAttribute('aria-expanded', 'true');
+  }
 
-window.addEventListener('scroll', () => {
-  if (navMobile.classList.contains('open')) closeMobileNav();
-}, { passive: true });
+  navToggle.addEventListener('click', () => {
+    const isOpen = navMobile.classList.contains('open');
+    if (isOpen) closeMobileNav(); else openMobileNav();
+  });
+
+  navMobile.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', closeMobileNav);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navMobile.classList.contains('open')) {
+      closeMobileNav();
+      navToggle.focus();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!navMobile.classList.contains('open')) return;
+    if (navMobile.contains(e.target) || navToggle.contains(e.target)) return;
+    closeMobileNav();
+  });
+
+  window.addEventListener('scroll', () => {
+    if (navMobile.classList.contains('open')) closeMobileNav();
+  }, { passive: true });
+}
 
 const contactHint = document.getElementById('contactHint');
 if (contactHint) {

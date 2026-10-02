@@ -11,12 +11,12 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<script src="/theme-init.js?v=8"></script>
+<script src="/theme-init.js?v=10"></script>
 <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/space-grotesk-var.woff2" as="font" type="font/woff2" crossorigin>
-<noscript><link rel="stylesheet" href="/noscript.css?v=8"></noscript>
-<link rel="stylesheet" href="/fonts/fonts.css?v=8">
-<link rel="stylesheet" href="/styles.css?v=8">
+<noscript><link rel="stylesheet" href="/noscript.css?v=10"></noscript>
+<link rel="stylesheet" href="/fonts/fonts.css?v=10">
+<link rel="stylesheet" href="/styles.css?v=10">
 </head>
 <body id="top">
 
@@ -34,7 +34,7 @@
       <a href="/#work">Work</a>
       <a href="/#services">Services</a>
       <a href="/#about">About</a>
-      <a href="/#contact" class="nav-cta">Start a Project</a>
+      <a href="/start" class="nav-cta">Start a Project</a>
     </nav>
     <div class="header-actions">
       <button type="button" class="theme-toggle" id="themeToggle" data-choice="system" aria-label="Color theme: match system. Change theme" title="Color theme: match system">
@@ -51,7 +51,7 @@
     <a href="/#work">Work</a>
     <a href="/#services">Services</a>
     <a href="/#about">About</a>
-    <a href="/#contact">Start a Project</a>
+    <a href="/start">Start a Project</a>
   </nav>
 </header>
 
@@ -59,27 +59,56 @@
   <div class="wrap legal-inner">
     <p class="eyebrow">Privacy</p>
     <h1>Privacy notice</h1>
-    <p class="legal-updated">Last updated 24 September 2026</p>
+    <p class="legal-updated">Last updated 30 September 2026</p>
 
     <p>This notice covers wright-ai-solutions.com, run by Wright AI Solutions LLC (Thomas Wright), and what happens when you email or call us from it. Questions or requests go to <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>.</p>
 
     <h2>What this site collects</h2>
-    <p>Nothing, directly. The site has no forms, accounts, analytics or advertising trackers, and its own code sets no cookies. The only thing it saves in your browser is your light or dark theme choice, if you pick one. The site sends a security policy that only lets scripts load from this site itself, so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.</p>
+    <p>Apart from the Start a project page, described in the next section, nothing directly. The rest of the site has no forms, accounts, analytics or advertising trackers, and the site's own code sets no cookies anywhere. The only thing it saves in your browser is your light or dark theme choice, if you pick one. The site sends a security policy that only lets scripts load from this site itself (plus Cloudflare's bot check, on the Start a project page), so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.</p>
+
+    <h2 id="start">The Start a project page</h2>
+    <p>On wright-ai-solutions.com/start you describe a problem in a sentence or two and get a project outline back. Here's what happens to what you give it at each step. You only give us your email address or name if you choose to save your outline or book a call.</p>
+
+    <h3>Writing your outline</h3>
+    <p>What you type is sent to this site's server, which asks an AI model to write the outline. The model is Meta's Llama, run by Cloudflare on its own network (Cloudflare Workers AI). Cloudflare says it doesn't use what we send it to train AI models. If the AI can't answer, a fixed template is used instead. Nothing is stored at this step: the outline comes back to your browser, and it's gone when you close the page unless you save it.</p>
+    <p>"Talk instead" uses your browser's own speech-to-text. To do that, your browser may send the audio to its maker's speech service (Google's, in Chrome). This site never receives the audio, only the text in the box when you choose to build your outline.</p>
+    <p>To keep bots from using the AI, the page may run Cloudflare's bot check, Turnstile, before writing an outline. It looks at technical details such as your IP address and browser, and asks you to tick a box only when it isn't sure you're a person. Cloudflare uses those details to tell people from bots, as its Turnstile privacy addendum explains. The site's server also limits how many requests one IP address can make in a minute, through Cloudflare, and doesn't keep the address.</p>
+
+    <h3>If you save your outline</h3>
+    <p>When you enter your email address and choose "Email it to me", we keep your email address, what you wrote, your outline, which of our ads and which ad platform brought you to the page (if any), your time zone, and whether you asked for a reminder. They go in our leads list, a database hosted by Cloudflare that only Thomas can open. Resend, an email delivery service, sends the outline to you and a copy to our inbox. So the page can't be used to flood someone's inbox, we also keep a coded form of each address an outline is sent to (not the address itself) for two days, only to count how many outlines it has had.</p>
+    <p>We use your email address only to send your outline, to reply to you and, if you ask for it, to send one reminder. You won't get a newsletter, and we don't sell or share your details for advertising.</p>
+
+    <h3>If you book a call</h3>
+    <p>When you pick a time, your name, email address, the time, your time zone, your outline's title and which of our ads brought you (if any) go to Cal.com, our scheduling service, which books the call and sends you the calendar invite with links to reschedule or cancel. We add your name and the time to your entry in the leads list. Cal.com keeps its own record of the booking, as its privacy policy explains.</p>
+
+    <h3>The reminder email</h3>
+    <p>Only if you tick "Send me one reminder tomorrow", and only if you haven't booked a call on this page by then, we send one email in the morning, your time (usually the next day), with your outline's title and a way to pick a time. There's never a second one.</p>
+
+    <h3>Phone alerts</h3>
+    <p>When someone saves an outline or books a call, Thomas gets a phone notification through ntfy.sh. It says only what kind of project it is, which ad and ad platform it came from and, for a call, when it is. It never includes your name, email address or what you wrote.</p>
+
+    <h3>Counting visits to this page</h3>
+    <p>To see which ads work, the site keeps daily totals of how many times the page was opened and how many outlines were written, saved and booked, for each ad and ad platform. They're only numbers, with no cookies, IP addresses or anything else that could tell one visitor from another. We delete daily totals after about 13 months.</p>
+
+    <h3>How long we keep it, and deleting it</h3>
+    <p>Each entry in the leads list is deleted automatically a year after the outline was saved. Every email we send you from this page has a link to delete your details; it removes your entry from the leads list at once and cancels the reminder. The copy sent to our inbox is kept like any other inquiry (see below), and we'll delete it sooner if you ask. If we download the leads list as a spreadsheet, we delete that copy once we're done with it. If you booked a call, cancel it with the link in your invite; Cal.com's own record then follows its policy.</p>
+    <p>The services we use for this page are Cloudflare (hosting, the AI model, the bot check and the leads list), Resend (email), Cal.com (booking calls) and ntfy.sh (phone alerts, with no personal details). Each has its own privacy policy, and they may handle data in the United States and other countries.</p>
 
     <h2>What our host logs</h2>
     <p>The site is hosted on Cloudflare Workers. Like any web host, Cloudflare processes the technical details needed to deliver pages and block abuse, such as your IP address, browser type, the page you asked for and when. Cloudflare may also set a short-lived security cookie (such as __cf_bm) to tell people from bots; it isn't used for tracking or advertising. We don't use any of this data to identify or profile visitors. Cloudflare's own privacy policy, at cloudflare.com/privacypolicy, covers how it handles that data.</p>
-    <p>Cloudflare also offers a visitor-counting feature, Web Analytics, that can add its own script (from static.cloudflareinsights.com) to our pages as they're delivered. That script isn't part of this site's code, and the site's security policy blocks it, so in a normal browser it doesn't run and nothing is sent to Cloudflare's analytics. We don't collect or look at visitor statistics. If that ever changes, we'll update this notice first.</p>
+    <p>Cloudflare also offers a visitor-counting feature, Web Analytics, that can add its own script (from static.cloudflareinsights.com) to our pages as they're delivered. That script isn't part of this site's code, and the site's security policy blocks it, so in a normal browser it doesn't run and nothing is sent to Cloudflare's analytics. Apart from the daily totals for the Start a project page described above, we don't collect or look at visitor statistics. If that ever changes, we'll update this notice first.</p>
 
     <h2>If you email or call us</h2>
     <p>We receive what you send: usually your name, email address or phone number, and your message. We use it only to reply to you and, if we end up working together, to run that project. We don't sell it or share it for advertising.</p>
-    <p>Inquiries arrive in our email inbox or on our business phone, and that's the only place we keep them. If an inquiry doesn't turn into a project, we delete it within two years of our last contact; we check for old inquiries every three months. If it does, we keep project records for as long as the contract and tax record-keeping rules require.</p>
+    <p>Inquiries arrive in our email inbox or on our business phone, and that's where we keep them (outlines saved on the Start a project page also go in the leads list described above). If an inquiry doesn't turn into a project, we delete it within two years of our last contact; we check for old inquiries every three months. If it does, we keep project records for as long as the contract and tax record-keeping rules require.</p>
 
     <h2>People and businesses in our work examples</h2>
     <p>The Work section describes projects we've built. The AI Lead Response Agent example doesn't name the client or show any of its results. If you're shown in, or can be identified from, anything on this site and want it changed or removed, email us and we'll take it off the site.</p>
     <p>The site's source code is public on GitHub, so earlier versions of a page stay in that code's history after we change the site. If you ask, we'll also remove the material from that history. We can't recall copies that other people have already downloaded or archived.</p>
 
     <h2>Your choices</h2>
-    <p>You can ask what information we hold about you, ask us to correct it, or ask us to delete it, by emailing <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>. We aim to reply within 30 days, and we'll tell you what we did. We keep a short record of each request (the date, what was asked and when it was done) so we can show it was handled, but not the information we deleted.</p>
+    <p>You can ask what information we hold about you, ask us to correct it, or ask us to delete it, by emailing <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>. If you saved an outline, the link in any email we sent you deletes your entry in the leads list straight away. We aim to reply within 30 days, and we'll tell you what we did. We keep a short record of each request (the date, what was asked and when it was done) so we can show it was handled, but not the information we deleted.</p>
+    <p>The site doesn't track visitors across other websites, doesn't let anyone else do so through it, and doesn't sell personal information. So it treats every visitor the same whether or not their browser sends a Do Not Track or Global Privacy Control signal.</p>
 
     <h2>Other sites</h2>
     <p>The Work section links to other sites we've built. Those sites have their own privacy practices, and this notice doesn't cover them.</p>
@@ -103,6 +132,6 @@
   </div>
 </footer>
 
-<script src="/script.js?v=8"></script>
+<script src="/script.js?v=10"></script>
 </body>
 </html>

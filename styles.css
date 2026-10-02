@@ -25,6 +25,7 @@
   --glow-2-opacity:0.2;
   --shadow:0 30px 60px -20px rgba(0,0,0,0.6);
   --btn-glow:rgba(124,92,255,0.35);
+  --field-border:#6a6a82;
   --tag-bg:rgba(255,92,173,0.1);
   --tag-border:rgba(255,92,173,0.25);
   --map-land:#13201a;
@@ -82,6 +83,7 @@
     --glow-2-opacity:0.1;
     --shadow:0 30px 60px -24px rgba(20,20,40,0.2);
     --btn-glow:rgba(91,63,217,0.25);
+    --field-border:#8a8b9e;
     --tag-bg:rgba(184,35,106,0.07);
     --tag-border:rgba(184,35,106,0.3);
     --map-land:#e4eee7;
@@ -108,6 +110,7 @@
   --glow-2-opacity:0.1;
   --shadow:0 30px 60px -24px rgba(20,20,40,0.2);
   --btn-glow:rgba(91,63,217,0.25);
+  --field-border:#8a8b9e;
   --tag-bg:rgba(184,35,106,0.07);
   --tag-border:rgba(184,35,106,0.3);
   --map-land:#e4eee7;
@@ -222,6 +225,10 @@ img{max-width:100%; display:block;}
 .btn-ghost{border:1px solid var(--border); color:var(--text);}
 .btn-ghost:hover{border-color:var(--accent-3); transform:translateY(-2px);}
 .btn-lg{padding:var(--space-4) var(--space-6); font-size:var(--fs-base);}
+/* <button class="btn"> (the /start forms, the "delete my details" and leads pages) looks like the links. */
+button.btn{font-family:inherit; line-height:inherit; cursor:pointer;}
+button.btn-primary{border:1px solid transparent;}
+button.btn-ghost{background:none;}
 .hero-stats{display:flex; gap:var(--space-7); flex-wrap:wrap;}
 .hero-stats div{display:flex; flex-direction:column; gap:var(--space-1);}
 .hero-stats strong{font-family:'Space Grotesk', sans-serif; font-size:var(--fs-3xl);}
@@ -369,11 +376,155 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 
 .legal{position:relative; z-index:1; padding:var(--space-8) 0 var(--space-9);}
 .legal-inner{max-width:720px;}
+.forget-form{margin:var(--space-5) 0;}
 .legal h1{font-size:var(--fs-page); margin-bottom:var(--space-2);}
 .legal h2{font-size:var(--fs-xl); margin:var(--space-6) 0 var(--space-2); max-width:none;}
+.legal h3{font-size:var(--fs-lg); margin:var(--space-5) 0 var(--space-2); max-width:none;}
+/* Keeps a linked section (/privacy#start) clear of the sticky header. */
+html:has(main.legal){scroll-padding-top:var(--space-9);}
 .legal p{color:var(--text-dim); font-size:var(--fs-md); margin-bottom:var(--space-3);}
 .legal .legal-updated{font-size:var(--fs-xs); color:var(--text-dimmer); margin-bottom:var(--space-5);}
 .legal a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+
+/* start: the signup flow on /start (start.html, start.js) */
+.start{position:relative; z-index:1; padding:var(--space-6) 0 var(--space-9);}
+/* Keeps anything scrolled to or focused clear of the sticky header. */
+html:has(main.start){scroll-padding-top:var(--space-9);}
+.start [hidden]{display:none !important;}
+.start-inner{max-width:720px;}
+.start section{padding:0;}
+.start-noscript{font-size:var(--fs-md); color:var(--text); margin-bottom:var(--space-5);}
+.start-noscript a{color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+
+.start-progress{list-style:none; display:flex; gap:var(--space-2); margin-bottom:var(--space-5);}
+.start-progress li{
+  flex:1; min-width:0;
+  display:flex; flex-direction:column; gap:var(--space-2);
+  font-size:var(--fs-xs); font-weight:600; letter-spacing:0.04em; color:var(--text-dimmer);
+}
+.start-progress li::before{content:''; display:block; height:4px; border-radius:4px; background:var(--border);}
+.start-progress li.is-done::before, .start-progress li.is-current::before{background:var(--grad);}
+.start-progress li.is-current{color:var(--text);}
+
+.start h1{font-size:var(--fs-page); margin-bottom:var(--space-4); text-wrap:balance;}
+.start h1:focus, .start h2:focus{outline:none;}
+.start h2{font-size:var(--fs-3xl); margin-bottom:var(--space-3); max-width:none;}
+.start-sub{font-size:var(--fs-lg); color:var(--text-dim); margin-bottom:var(--space-6);}
+.start-step + .start-step{margin-top:var(--space-6);}
+
+.start-label{display:block; font-weight:600; font-size:var(--fs-base); margin-bottom:var(--space-2);}
+.start textarea, .start input[type="email"], .start input[type="text"]{
+  width:100%; font:inherit; font-size:var(--fs-base); color:var(--text);
+  background:var(--surface); border:1px solid var(--field-border); border-radius:12px;
+  padding:var(--space-4);
+}
+.start ::placeholder{color:var(--text-dimmer); opacity:1;}
+.start textarea{resize:vertical; min-height:96px; line-height:1.5;}
+.start textarea:focus-visible, .start input[type="email"]:focus-visible, .start input[type="text"]:focus-visible{outline:2px solid var(--accent-1); outline-offset:2px; border-color:var(--accent-1);}
+.start [aria-invalid="true"]{border-color:var(--accent-2);}
+.start-hint{font-size:var(--fs-sm); color:var(--text-dimmer); margin-top:var(--space-2);}
+.start-input{display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-3);}
+.talk{
+  display:inline-flex; align-items:center; gap:var(--space-2); min-height:44px; padding:0 var(--space-4);
+  border:1px solid var(--field-border); border-radius:999px; background:var(--surface-2); color:var(--text);
+  font:inherit; font-size:var(--fs-sm); font-weight:600; cursor:pointer;
+}
+.talk svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round;}
+.talk:hover{border-color:var(--accent-1);}
+.talk:focus-visible{outline:2px solid var(--accent-1); outline-offset:2px;}
+.talk.is-listening{background:var(--grad); color:var(--on-accent); border-color:transparent;}
+.talk.is-listening svg{display:none;}
+.talk.is-listening::before{content:''; width:10px; height:10px; border-radius:50%; background:var(--on-accent); animation:talk-pulse 1s ease-in-out infinite;}
+@keyframes talk-pulse{50%{opacity:0.25;}}
+.start-talk-status{font-size:var(--fs-sm); font-weight:600; color:var(--accent-3); margin-top:var(--space-2);}
+.start-talk-status.is-error{color:var(--accent-2);}
+.start-error{font-size:var(--fs-sm); color:var(--accent-2); font-weight:600; min-height:1.5em; margin-top:var(--space-1);}
+.start-optional{font-weight:400; color:var(--text-dimmer); margin-left:var(--space-1);}
+.start-cta{margin-top:var(--space-5);}
+.start-reassure{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-3);}
+.start-reassure::before{content:'✓' / ''; color:var(--accent-3); font-weight:700; margin-right:var(--space-2);}
+.start-fineprint{font-size:var(--fs-xs); color:var(--text-dimmer); margin-top:var(--space-2);}
+.start-fineprint a, .start-sub a, #timesUnavailable a, .book-fallback a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+.start-botcheck:not(:empty){margin-top:var(--space-4);}
+.start-busy{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-2);}
+.start-busy:empty{display:none;}
+.start button:disabled{opacity:0.7; cursor:progress;}
+.start-check{display:flex; align-items:center; gap:var(--space-3); min-height:44px; margin-top:var(--space-3); font-size:var(--fs-sm); color:var(--text-dim); cursor:pointer;}
+.start-check input{width:20px; height:20px; flex-shrink:0; accent-color:var(--accent-1); cursor:pointer;}
+.book-name{margin-top:var(--space-5);}
+.start-who{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-6); padding-top:var(--space-5); border-top:1px solid var(--border);}
+.start-who .work-link{margin-top:0;}
+.start-textlinks{display:flex; flex-wrap:wrap; align-items:center; column-gap:var(--space-5);}
+.start-textlink{
+  display:inline-flex; align-items:center; min-height:44px; margin-top:var(--space-4);
+  background:none; border:none; cursor:pointer; font:inherit; font-size:var(--fs-sm); font-weight:600;
+  color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;
+}
+
+.chip-group{border:none; margin-top:var(--space-4); min-inline-size:0;}
+.chip-group legend{font-weight:600; font-size:var(--fs-sm); margin-bottom:var(--space-3);}
+.chips{display:flex; flex-wrap:wrap; gap:var(--space-2);}
+.chip{position:relative; cursor:pointer;}
+.chip input{position:absolute; opacity:0; inset:0; margin:0; cursor:pointer;}
+.chip span{
+  display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-4);
+  border:1px solid var(--field-border); border-radius:999px; background:var(--surface);
+  font-size:var(--fs-sm); font-weight:500; color:var(--text);
+  transition:border-color .15s, background .15s;
+}
+.chip:hover span{border-color:var(--accent-1);}
+.chip input:focus-visible + span{outline:2px solid var(--accent-1); outline-offset:2px;}
+.chip input:checked + span{background:var(--grad); color:var(--on-accent); border-color:transparent; font-weight:600;}
+
+.start-loading{display:flex; align-items:center; gap:var(--space-3); font-size:var(--fs-base); color:var(--text-dim); padding:var(--space-6) 0;}
+.start-spinner{width:20px; height:20px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent-1); animation:start-spin .8s linear infinite;}
+@keyframes start-spin{to{transform:rotate(360deg);}}
+
+.outline{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:var(--space-6); box-shadow:var(--shadow);
+}
+.outline-head{margin-bottom:var(--space-5); padding-bottom:var(--space-5); border-bottom:1px solid var(--border);}
+.outline-draft{font-size:var(--fs-sm); color:var(--text-dimmer);}
+.outline-section + .outline-section{margin-top:var(--space-5);}
+.outline h3{font-size:var(--fs-xs); font-family:'Inter', system-ui, sans-serif; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent-3); margin-bottom:var(--space-2);}
+.outline p, .outline li{font-size:var(--fs-md); color:var(--text-dim);}
+.outline-quote{font-size:var(--fs-base); color:var(--text); border-left:3px solid var(--accent-1); padding-left:var(--space-4); white-space:pre-line; overflow-wrap:anywhere;}
+.outline-steps{padding-left:var(--space-5); display:flex; flex-direction:column; gap:var(--space-2);}
+.outline-list{list-style:none; display:flex; flex-direction:column; gap:var(--space-2);}
+.outline-list li{position:relative; padding-left:var(--space-5); font-size:var(--fs-md); color:var(--text-dim);}
+.outline-list li::before{content:''; position:absolute; left:0; top:0.6em; width:8px; height:8px; border-radius:50%; background:var(--grad);}
+.outline .work-link{display:flex; width:fit-content; margin-top:var(--space-1);}
+.outline-jump{margin-top:var(--space-2);}
+.start-loading:focus{outline:none;}
+
+.save{margin-top:var(--space-7);}
+.save-row{display:flex; gap:var(--space-3);}
+.save-row input{flex:1; min-width:0;}
+.save-row .btn{flex-shrink:0; cursor:pointer; font:inherit; font-weight:600;}
+.start button.btn-primary{border:1px solid transparent; cursor:pointer; font-family:inherit;}
+
+.start-sent{font-size:var(--fs-sm); font-weight:600; color:var(--accent-3); margin-bottom:var(--space-3);}
+.start-sent::before{content:'✓' / ''; margin-right:var(--space-2);}
+#stepDone .outline-list{margin-bottom:var(--space-6);}
+
+@media (max-width: 560px){
+  .save-row{flex-direction:column;}
+  .outline{padding:var(--space-5);}
+}
+@media (prefers-reduced-motion: reduce){
+  .start-spinner{animation:none; border-top-color:var(--border);}
+  .talk.is-listening::before{animation:none;}
+}
+/* Windows High Contrast drops gradients: keep the chosen chip, the step bar and the buttons visible. */
+@media (forced-colors: active){
+  .chip input:checked + span{forced-color-adjust:none; background:Highlight; color:HighlightText; border-color:Highlight;}
+  .start-progress li::before{border:1px solid CanvasText;}
+  .start-progress li.is-current::before, .start-progress li.is-done::before{forced-color-adjust:none; background:Highlight;}
+  .start button.btn-primary{border-color:ButtonText;}
+  .talk.is-listening{forced-color-adjust:none; background:Highlight; color:HighlightText;}
+  .talk.is-listening::before{background:HighlightText;}
+}
 
 @media (max-width: 860px){
   .services-grid{grid-template-columns:1fr;}

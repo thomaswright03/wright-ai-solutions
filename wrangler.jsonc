@@ -4,6 +4,42 @@
 {
   "name": "wright-ai-solutions",
   "compatibility_date": "2026-09-21",
+  // Server code for /start (outline, saving, booking), the "delete my details"
+  // link and the private leads list. Everything else is served straight from
+  // the static files below without running it. See worker/index.js.
+  "main": "worker/index.js",
+  // Workers AI, which writes the /start outlines.
+  "ai": { "binding": "AI" },
+  // The leads list, per-ad counts and the daily AI cap (docs/SIGNUP-SETUP.md, part 1).
+  // The Worker creates its tables on first use.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "wright-ai-solutions-leads", "database_id": "58a6eab1-c102-469f-a7e0-d26e60cc3573" }
+  ],
+  // Per visitor (IP) per minute, per Cloudflare location.
+  "ratelimits": [
+    // Outlines: each one uses some of the daily free AI allowance.
+    { "name": "OUTLINE_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    // Saving, booking and the delete link: each can send an email or book a call.
+    { "name": "SAVE_LIMIT", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
+    // Open times and page-view counting.
+    { "name": "API_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } },
+    // The leads list, which slows down anyone guessing the password.
+    { "name": "ADMIN_LIMIT", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } }
+  ],
+  // Hourly: sends the next-day reminder emails that are due and deletes leads
+  // older than a year.
+  "triggers": { "crons": ["17 * * * *"] },
+  // Settings that aren't secrets. Secrets (RESEND_API_KEY, TURNSTILE_SECRET,
+  // ADMIN_PASSWORD, NTFY_TOPIC, optionally CAL_API_KEY) are set in the
+  // Cloudflare dashboard, never here. Optional overrides, with their defaults in
+  // worker/config.js: EMAIL_FROM, REPLY_TO, LEADS_TO, OWNER_TZ, SITE_URL,
+  // AI_DAILY_LIMIT.
+  "vars": {
+    // Turnstile site key (public; part 2). The bot check turns on once TURNSTILE_SECRET is set too.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFLuDSC_z2QFnB6f",
+    // The 30-minute intro call on Cal.com (part 4). Booking turns on once saving is on (parts 1 and 3).
+    "CAL_LINK": "https://cal.com/wright-ai-solutions/intro-call"
+  },
   // Writes version.txt (the commit being deployed) for the post-deploy check.
   "build": {
     "command": "sh scripts/write-version.sh"
@@ -13,6 +49,8 @@
     // Serve 404.html (with a 404 status) for any unmatched path.
     "not_found_handling": "404-page",
     // /privacy serves privacy.html; /privacy.html redirects to /privacy.
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    // Only these paths run worker/index.js; every other path is a static file.
+    "run_worker_first": ["/api/*", "/admin", "/admin/*", "/forget"]
   }
 }

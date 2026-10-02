@@ -4,3 +4,6 @@
 .nav{display:flex !important;}
 .nav-toggle{display:none !important;}
 .theme-toggle{display:none !important;}
+/* /start: the signup steps need JS, so show only the email and phone fallback
+   (and never let the form submit what's typed to the server). */
+.start-form, .start-progress{display:none !important;}
