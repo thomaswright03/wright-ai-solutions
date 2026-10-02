@@ -20,3 +20,4 @@ SECURITY.md
 worker
 eslint.config.js
 tsconfig.json
+knip.json

@@ -97,6 +97,8 @@ jobs:
         run: npm run lint
       - name: Type check (strict)
         run: npm run typecheck
+      - name: No unused files, exports or dependencies
+        run: npm run deadcode
 
   html-validate:
     runs-on: ubuntu-latest

@@ -21,7 +21,7 @@ const { usable, ...outlineFields } = GOOD;
 export const GOOD_OUTLINE = outlineFields;
 export const problem = 'We miss calls at lunch and those people book somewhere else.';
 
-export function request(path, { method = 'POST', body, headers = {} } = {}) {
+function request(path, { method = 'POST', body, headers = {} } = {}) {
   return new Request(`${ORIGIN}${path}`, {
     method,
     headers: { Origin: ORIGIN, 'Content-Type': 'application/json', 'CF-Connecting-IP': IP, ...headers },
