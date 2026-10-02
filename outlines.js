@@ -220,19 +220,27 @@ export const OUTLINES = {
 // Whole-word patterns that point to each kind of work, for visitors who
 // didn't come from a matched ad (and to overrule the ad when the text is clear).
 export const SIGNALS = {
-  leads: [/\bleads?\b/, /\binquir/, /\benquir/, /\bprospects?\b/, /\bfollow[- ]?ups?\b/, /\bmiss(ed|ing)?( the| our)? (calls?|them)\b/, /\bvoicemails?\b/, /\bcall(ing)? back\b/, /\bcrm\b/, /\bgohighlevel\b/, /\bhubspot\b/, /\bquote requests?\b/, /\bappointment requests?\b/, /\bbook(ing)? (a |an )?(call|appointment|consult)/],
-  data: [/\bspreadsheets?\b/, /\bexcel\b/, /\bgoogle sheets?\b/, /\bcop(y|ying|ied)\b/, /\bpast(e|ing)\b/, /\bdata entry\b/, /\bentering data\b/, /\bre-?(enter|type)/, /\breports?\b/, /\bcsv\b/, /\bexports?\b/, /\bimport(s|ed|ing)?\b/, /\bsync/, /\brecords\b/, /\bby hand\b/, /\bmanually\b/, /\binvoices?\b/, /\bquickbooks\b/, /\bshopify\b/],
-  support: [/\bcustomer questions?\b/, /\bsame questions?\b/, /\bquestions\b/, /\bsupport\b/, /\bfaqs?\b/, /\binbox\b/, /\btickets?\b/, /\bcustomer service\b/, /\banswering\b/],
+  leads: [/\bleads?\b/, /\binquir/, /\benquir/, /\bprospects?\b/, /\bfollow[- ]?ups?\b/, /\bmiss(es|ed|ing)?\b[^.]{0,25}\b(calls?|them|messages?|texts?)\b/, /\bvoicemails?\b/, /\bcall(ing)? back\b/, /\bcrm\b/, /\bgohighlevel\b/, /\bhubspot\b/, /\bquote requests?\b/, /\bappointment requests?\b/, /\bbook(ing)? (a |an )?(call|appointment|consult)/,
+    // People going elsewhere because nobody answered, in any language a visitor is likely to write in.
+    /\b(nobody|no one|no-one) (answers|replies|responds|picks up|gets back)/, /\bunanswered\b/, /\b(somewhere|someone) else\b|\belsewhere\b|\bcompetitors?\b|\bwhoever (answers|replies)/, /\bafter hours\b/, /\bgo(es|ne)? cold\b/,
+    /\bnadie (contesta|responde)\b/],
+  data: [/\bspreadsheets?\b/, /\bexcel\b/, /\bgoogle sheets?\b/, /\bcop(y|ying|ied)\b/, /\bpast(e|ing)\b/, /\bdata\b/, /\bentering data\b/, /\bre-?(enter|type)/, /\breports?\b/, /\bcsv\b/, /\bexports?\b/, /\bimport(s|ed|ing)?\b/, /\bsync/, /\brecords\b/, /\bby hand\b/, /\bmanually\b/, /\binvoices?\b/, /\bquickbooks\b/, /\bshopify\b/, /\bclean(ed|ing)?( it| them)? up\b/, /\bmatch(es|ed|ing)?\b/],
+  support: [/\bcustomer questions?\b/, /\bsame questions?\b/, /\bquestions\b/, /\bsupport\b/, /\bfaqs?\b/, /\binbox\b/, /\btickets?\b/, /\bcustomer service\b/, /\banswering\b/, /\border status\b/, /\b(opening|business) hours\b/],
   app: [/\bapps?\b/, /\bplatform\b/, /\bmarketplace\b/, /\bportal\b/, /\bmvp\b/, /\blaunch\b/, /\bstartup\b/, /\bidea for\b/],
   website: [/\bweb ?sites?\b/, /\bweb ?pages?\b/, /\blanding pages?\b/, /\bhome ?page\b/, /\bour site\b/, /\bwordpress\b/, /\bsquarespace\b/, /\bwix\b/, /\bgodaddy\b/, /\bdomain\b/],
 };
 
+// How many of each kind's signal words the visitor's text has.
+export function kindScores(text) {
+  const lower = String(text).toLowerCase();
+  return Object.fromEntries(Object.entries(SIGNALS).map(([kind, patterns]) =>
+    [kind, patterns.filter(re => re.test(lower)).length]));
+}
+
 // Which kind of work the visitor's own words point to. The ad they came from
 // only breaks ties; clear words in their text win.
 export function pickKind(text, adKind = null) {
-  const lower = String(text).toLowerCase();
-  const scores = Object.fromEntries(Object.entries(SIGNALS).map(([kind, patterns]) =>
-    [kind, patterns.filter(re => re.test(lower)).length]));
+  const scores = kindScores(text);
   const fallback = KINDS.includes(adKind) ? adKind : 'general';
   if (Object.hasOwn(scores, fallback)) scores[fallback] += 0.5;
   const [best, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];

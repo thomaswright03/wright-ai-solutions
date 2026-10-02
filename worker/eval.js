@@ -10,7 +10,7 @@ import { settings } from './config.js';
 import { ensureSchema } from './db.js';
 import { CASES } from './eval-cases.js';
 import { json, overLimit, tooMany, withTimeout } from './http.js';
-import { AI_TIMEOUT_MS, MODEL, cleanProblem, outlineRequest, rejectionReason, validateOutline } from './outline.js';
+import { AI_TIMEOUT_MS, MODEL, cleanProblem, finishOutline, looksLikeInjection, outlineRequest, rejectionReason } from './outline.js';
 import { notify } from './services.js';
 
 export { CASES };
@@ -25,19 +25,31 @@ export const EVAL_BATCH = 12;
 // allowance of about 90 that visitors' outlines rely on.
 export const EVAL_ROOM = 40;
 
+const hintFor = c => (c.ad ? adFor(c.ad).kind : null);
+
 // The request for one case, exactly as /api/outline would send it.
-export const requestFor = c => outlineRequest(cleanProblem(c.problem), c.ad ? adFor(c.ad).kind : null);
+export const requestFor = c => outlineRequest(cleanProblem(c.problem), hintFor(c));
 
 // Whether the model's reply is right for the case: an outline that passes the
 // site's checks for a usable case, and a "usable": false for an unusable one.
-// Kind is reported but not required; a usable outline of another kind still
-// helps the visitor.
+// Kind (after the site settles it against the visitor's words) is reported but
+// not required; a usable outline of another kind still helps the visitor.
 export function judge(c, raw) {
-  const outline = validateOutline(raw);
+  const outline = finishOutline(raw, cleanProblem(c.problem), hintFor(c));
   const outcome = outline ? 'ai' : rejectionReason(raw);
   const pass = c.expect === 'usable' ? Boolean(outline) : outcome === 'unusable';
   const kindMatch = c.kind && outline ? outline.kind === c.kind : null;
   return { outcome, pass, kindMatch, title: outline ? outline.title : null };
+}
+
+// One case the way the site handles it: text the injection guard catches
+// never reaches the AI ('guarded', right only for an unusable case, so a guard
+// that catches a real problem fails the eval). Otherwise `ask(request)`
+// returns the model's reply. { guard: false } asks the model anyway, to test
+// the prompt on its own.
+export async function runCase(c, ask, { guard = true } = {}) {
+  if (guard && looksLikeInjection(c.problem)) return { outcome: 'guarded', pass: c.expect === 'unusable', kindMatch: null, title: null };
+  return judge(c, await ask(requestFor(c)));
 }
 
 export function summarize(results) {
@@ -84,17 +96,19 @@ export async function runEvalBatch(env, now = Date.now()) {
   }
   const results = JSON.parse(run.results);
   let asked = 0;
-  for (const c of CASES.slice(results.length, results.length + size)) {
+  const ask = async request => {
     asked += 1;
-    let raw;
+    const reply = await withTimeout(env.AI.run(MODEL, request), AI_TIMEOUT_MS);
+    return reply && reply.response;
+  };
+  for (const c of CASES.slice(results.length, results.length + size)) {
+    let result;
     try {
-      const reply = await withTimeout(env.AI.run(MODEL, requestFor(c)), AI_TIMEOUT_MS);
-      raw = reply && reply.response;
+      result = await runCase(c, ask);
     } catch {
       break;
     }
-    const { pass, outcome, kindMatch } = judge(c, raw);
-    results.push({ id: c.id, pass, outcome, kindMatch });
+    results.push({ id: c.id, pass: result.pass, outcome: result.outcome, kindMatch: result.kindMatch });
   }
 
   const finished = results.length >= CASES.length;

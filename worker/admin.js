@@ -71,6 +71,7 @@ const OUTCOMES = [
   ['error', 'Template: the AI timed out or was down'],
   ['rejected', 'Template: the AI\'s reply broke a rule'],
   ['unusable', 'Template: not a business problem'],
+  ['guarded', 'Template: text aimed at the AI, not a business problem'],
   ['off', 'Template: AI not connected'],
 ];
 

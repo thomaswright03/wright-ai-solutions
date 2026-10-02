@@ -2,8 +2,10 @@ name: AI outline eval
 
 # Runs scripts/eval-outlines.mjs against the live Workers AI model whenever the
 # prompt, the checks or the cases change on main, and on demand (Actions → AI
-# outline eval → Run workflow). The result is on the run's summary page. The
-# site also runs the same cases on itself every week; see /api/eval.
+# outline eval → Run workflow). Each case is scored as the site runs it (the
+# injection guard first) and by the model alone, and both must reach 90%. The
+# result is on the run's summary page. The site also runs the same cases on
+# itself every week; see /api/eval.
 #
 # Needs two repository secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_ACCOUNT_ID   the account the site's Worker runs in
@@ -65,7 +67,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - name: Ask the model every case
+      - name: Ask the model every case, with the guard and without
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
