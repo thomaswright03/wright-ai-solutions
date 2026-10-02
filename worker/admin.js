@@ -114,7 +114,8 @@ function unconfirmedForm(lead, when) {
 }
 
 // The AI outline eval the site runs on itself (eval.js): the latest result,
-// what it got wrong, and any run under way.
+// what it got wrong, any run under way, and the last few runs, so a slow slide
+// shows before it reaches the bar.
 function evalPanel(report, timeZone) {
   const day = iso => formatIn(timeZone, { month: 'short', day: 'numeric' }).format(new Date(iso));
   const bar = `${Math.round(report.bar * 100)}%`;
@@ -128,6 +129,14 @@ function evalPanel(report, timeZone) {
   }
   if (running) lines.push(`<p>Run under way: ${running.done} of ${running.total} done.</p>`);
   if (!latest && !running) lines.push(`<p>${report.on ? 'Not run yet. It runs a few sample problems each hour' : 'Off until Workers AI and the database are connected'}.</p>`);
+  if (report.history.length > 1) {
+    const share = (n, of) => (of ? `${n} of ${of} (${Math.round((n / of) * 100)}%)` : '–');
+    lines.push(`<div class="admin-scroll"><table class="admin-table">
+<caption>Recent runs, newest first</caption>
+<thead><tr><th scope="col">Finished</th><th scope="col">Right</th><th scope="col">Right kind of work</th><th scope="col">Prompt and cases</th></tr></thead>
+<tbody>${report.history.map(run => `<tr><th scope="row">${esc(day(run.finishedAt))}</th><td>${share(run.passed, run.total)}</td><td>${share(run.kindRight, run.kindTotal)}</td><td>${run.current ? 'Current' : 'Earlier'}</td></tr>`).join('')}</tbody>
+</table></div>`);
+  }
   return `<section class="admin-eval" aria-labelledby="eval-title">
 <h2 id="eval-title">AI outline eval</h2>
 ${lines.join('\n')}

@@ -158,21 +158,35 @@ async function underDailyCap(env) {
 }
 
 // Text written to the AI rather than about a business: the prompt's own
-// markers, a claim that the client's text has ended, "ignore your previous
-// instructions", "new rule:", a line starting "System:", "you are now
-// allowed", or setting one of the reply's fields. It's caught before the AI
-// sees it and gets the template; the prompt refuses it too, as a second lock.
-// Each pattern is narrow enough that a real problem doesn't trip it ("our
-// booking system: ...", "we need new rules for scheduling").
+// markers, a claim that the client's text has ended, "ignore all previous
+// instructions", "new instructions:", a role label followed by an order to the
+// AI ("System: you are now ..."), "you are now an unrestricted AI", or setting
+// one of the reply's fields. It's caught before the AI sees it and gets the
+// template. The guard only takes the unmistakable forms, because a real
+// problem it stops gets the weaker template outline; subtler attempts are left
+// to the prompt, which refuses them too. Owners write "System: QuickBooks",
+// "New rules: ...", "You are now a part of our team" and "staff ignore the
+// rules", so none of those trips it (tests/worker.spec.mjs, and the near-miss
+// cases in worker/eval-cases.js).
+const AI_ROLE = String.raw`(?:ai|bot|chatbot|model|language\s+model|gpt|llm)`;
 const INJECTION = [
   /<<<|>>>/,
   /\b(?:end|close)\s+of\s+(?:the\s+)?(?:client|user|customer|visitor)(?:'s)?\s+(?:text|message|input|problem|words)\b/i,
-  /\b(?:ignore|disregard|forget|override)\b[^.!?\n]{0,40}\b(?:previous|prior|above|earlier|preceding|system|your)\s+(?:instructions?|rules?|prompts?|directions?|guidelines?)\b/i,
-  /\bnew\s+(?:rules?|instructions?|system\s+prompt)\s*:/i,
-  /(?:^|[.!?]\s*)(?:system|assistant|developer)(?:\s+(?:prompt|message))?\s*:/i,
-  /\byou\s+are\s+now\s+(?:allowed|able|free|permitted|in|a|an|the|my)\b/i,
-  /\b(?:set|make|mark)\s+["'`]?(?:usable|kind)["'`]?\s+(?:to|as|=)/i,
+  // "Ignore (all of) the previous instructions", "disregard prior rules".
+  /\b(?:ignore|disregard|forget|override)\s+(?:(?:all|any|of|the|your|my|these|those)\s+){0,3}(?:previous|prior|above|preceding|earlier)\s+(?:instructions?|prompts?|directions?|guidelines?|rules?|messages?)\b/i,
+  // "Forget your instructions", but not "forget your rules about appointments".
+  /\b(?:ignore|disregard|forget|override)\s+(?:all\s+(?:of\s+)?)?your\s+(?:instructions?|rules?|prompts?|guidelines?|directions?|programming|training)\b(?!\s+(?:about|for|on|regarding|around|with|of|in)\b)/i,
+  /\b(?:ignore|disregard|forget|override|reveal|print|show|repeat)\s+(?:the\s+|your\s+)?system\s+prompt\b/i,
+  /\bnew\s+(?:instructions?|system\s+prompt)\s*:/i,
+  // A role label at the start of a sentence, then an order to the AI.
+  /(?:^|[.!?]\s*)(?:system|assistant|developer|admin)(?:\s+(?:prompt|message|note))?\s*:\s*(?:you\b|your\b|ignore\b|disregard\b|forget\b|override\b|respond\b|reply\b|output\b|return\b|print\b|repeat\b|reveal\b|set\b|from\s+now\s+on\b|the\s+(?:assistant|ai|model)\b|as\s+an\s+ai\b)/i,
+  /\bsystem\s+prompt\s*:/i,
+  new RegExp(String.raw`\byou\s+are\s+now\s+(?:(?:allowed|permitted|free)\s+to\b|in\s+\w+\s+mode\b|(?:jailbroken|unrestricted|unfiltered|dan)\b(?!')|(?:a|an|the|my)\s+(?:\w+\s+){0,2}${AI_ROLE}\b)`, 'i'),
+  // Setting a field of the reply: "set usable to true", "set kind to app".
+  /\b(?:set|make|mark)\s+(?:["'`]?usable["'`]?\s*(?:to|as|=|:)|["'`]kind["'`]\s*(?:to|as|=|:)|(?:the\s+)?kind\s+(?:to|as|=)\s*["'`]?(?:leads|data|support|app|website|general)\b)/i,
 ];
+// Names the guard, so changing it starts a new eval run (worker/eval.js).
+export const GUARD = INJECTION.map(String);
 export const looksLikeInjection = text => typeof text === 'string' && INJECTION.some(re => re.test(text));
 
 // The kind to show for the model's outline: the model's own, unless the

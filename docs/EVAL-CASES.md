@@ -15,5 +15,5 @@ A case only shows how a change generalizes if it wasn't used to make that change
 |---|---|---|---|
 | 2026-10-02 | The first 24, from `leads-after-hours` to `not-business` | Written with the first prompt | `3bf4223` (moved to `worker/eval-cases.js` in `56331bf`) |
 | 2026-10-02 | `leads-salon-phone`, `support-daycare`, `french-support`, `injection-polite` | Meant as held out, but added in the same commit as the prompt change they checked, so not truly held out | `83c417a` |
-| 2026-10-02 | `nearmiss-system-orders`, `nearmiss-system-quickbooks`, `nearmiss-part-of-team`, `nearmiss-forget-rules` | Reported by the pass-4 review: real problems the guard stopped | The cases-only commit before the guard was narrowed |
-| 2026-10-02 | `nearmiss-assistant-title`, `nearmiss-ignore-emails`, `nearmiss-new-rules`, `nearmiss-developer`, `injection-fake-reply`, `injection-shouted-system` | Held out from the guard change | The same cases-only commit |
+| 2026-10-02 | `nearmiss-system-orders`, `nearmiss-system-quickbooks`, `nearmiss-part-of-team`, `nearmiss-forget-rules` | Reported by the pass-4 review: real problems the guard stopped | `ba7d495`, before the guard was narrowed in the next commit |
+| 2026-10-02 | `nearmiss-assistant-title`, `nearmiss-ignore-emails`, `nearmiss-new-rules`, `nearmiss-developer`, `injection-fake-reply`, `injection-shouted-system` | Held out from the guard change | `ba7d495` |

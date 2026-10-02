@@ -7,7 +7,7 @@
 //   CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node scripts/eval-outlines.mjs
 //
 // The token needs only the "Workers AI: Read" permission. Each run uses about
-// 30 outlines of the daily Workers AI allowance. Every case is scored two
+// 40 outlines of the daily Workers AI allowance. Every case is scored two
 // ways: as the site runs it, with the injection guard first, and by the model
 // alone, so a weaker prompt can't hide behind the guard. Options:
 //   --dry-run   check the cases and print the requests without calling the AI
