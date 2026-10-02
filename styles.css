@@ -260,6 +260,17 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 .card h3{font-size:var(--fs-xl); margin-bottom:var(--space-3);}
 .card p{color:var(--text-dim); font-size:var(--fs-sm);}
 
+/* our services: products people can sign up for */
+.products-grid{grid-template-columns:repeat(3, 1fr);}
+.product-card{display:flex; flex-direction:column; align-items:flex-start;}
+.product-card .work-tag{margin-bottom:var(--space-4);}
+.product-card p{margin-bottom:var(--space-4);}
+.product-card .product-by{
+  margin-top:auto; font-size:var(--fs-xs); font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--accent-3);
+}
+.product-signup{width:100%; justify-content:center; text-align:center;}
+
 /* work */
 .work-list{display:flex; flex-direction:column; gap:var(--space-10);}
 .work-group{display:flex; flex-direction:column;}
@@ -536,7 +547,7 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 }
 
 @media (max-width: 860px){
-  .services-grid{grid-template-columns:1fr;}
+  .services-grid, .products-grid{grid-template-columns:1fr;}
   .work-item, .work-item-reverse{grid-template-columns:1fr;}
   .work-item-reverse .work-media, .work-item-reverse .work-body{order:initial;}
   .nav{display:none;}
