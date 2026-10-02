@@ -3,7 +3,7 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { count, dayIn, ensureSchema, formatIn } from './db.js';
+import { count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
 import { evalReport } from './eval.js';
 import { SERVICES, healthReport } from './health.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
@@ -11,12 +11,14 @@ import { page } from './pages.js';
 
 const LIST_LIMIT = 200;
 
+/** @param {string | undefined} text */
 async function sha256(text) {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
 }
 
 // Compares hashes byte by byte without stopping early, so response time
 // doesn't hint at how much of a guess was right.
+/** @param {Request} request @param {Env} env */
 async function signedIn(request, env) {
   const header = request.headers.get('Authorization') || '';
   if (!header.startsWith('Basic ')) return false;
@@ -36,18 +38,25 @@ async function signedIn(request, env) {
 // The Worker's pages send no referrer at all, which makes browsers label a
 // form's POST as coming from nowhere (Origin: null). The leads list sends it
 // within this site only, so its delete button's POST says where it came from.
+/** @param {string} body @param {number} [status] @param {Record<string, string>} [extra] */
 const adminPage = (body, status = 200, extra = {}) => htmlResponse(body, status, { 'Referrer-Policy': 'same-origin', ...extra });
 
 const notFound = () => adminPage(page({ title: 'Page not found', body: '<h1>Page not found</h1>' }), 404);
 
+/** @type {[CountStep, string][]} */
 const STEPS = [['view', 'Visits'], ['outline', 'Outlines'], ['save', 'Saved'], ['book', 'Booked']];
 
+/** @typedef {{ ad: string, src: string, view: number, outline: number, save: number, book: number }} CountLine */
+
+/** @param {{ ad: string, src: string, step: CountStep, n: number }[]} rows */
 function countsTable(rows) {
+  /** @type {Map<string, CountLine>} */
   const byAd = new Map();
   for (const { ad, src, step, n } of rows) {
     const key = `${ad}|${src}`;
     if (!byAd.has(key)) byAd.set(key, { ad, src, view: 0, outline: 0, save: 0, book: 0 });
-    if (byAd.get(key)[step] !== undefined) byAd.get(key)[step] += Number(n) || 0;
+    const line = /** @type {CountLine} */ (byAd.get(key));
+    if (line[step] !== undefined) line[step] += Number(n) || 0;
   }
   if (!byAd.size) return '<p>No visits counted yet.</p>';
   const lines = [...byAd.values()].sort((a, b) => b.view - a.view || b.save - a.save);
@@ -55,6 +64,7 @@ function countsTable(rows) {
     for (const [step] of STEPS) sum[step] += line[step];
     return sum;
   }, { ad: 'All', src: '', view: 0, outline: 0, save: 0, book: 0 });
+  /** @param {CountLine} line @param {string} [tag] */
   const row = (line, tag = 'td') => `<tr><${tag} scope="row">${esc(line.ad === 'none' ? 'No ad' : line.ad)}${line.src && line.src !== 'direct' ? ` <span class="admin-muted">(${esc(line.src)})</span>` : ''}</${tag}>${STEPS.map(([step]) => `<td>${line[step]}</td>`).join('')}</tr>`;
   return `<div class="admin-scroll"><table class="admin-table">
 <caption>Last 30 days, by ad</caption>
@@ -76,16 +86,18 @@ const OUTCOMES = [
   ['off', 'Template: AI not connected'],
 ];
 
+/** @param {{ outcome: string, n: number }[]} rows */
 function outcomesTable(rows) {
   const byOutcome = new Map(rows.map(({ outcome, n }) => [outcome, Number(n) || 0]));
   const total = [...byOutcome.values()].reduce((sum, n) => sum + n, 0);
   if (!total) return '<p>No outlines written yet.</p>';
+  /** @param {number} n */
   const share = n => `${Math.round((n / total) * 100)}%`;
   const lines = OUTCOMES.filter(([key]) => byOutcome.get(key));
   return `<div class="admin-scroll"><table class="admin-table">
 <caption>Last 30 days, how each outline was written</caption>
 <thead><tr><th scope="col">Outline</th><th scope="col">Count</th><th scope="col">Share</th></tr></thead>
-<tbody>${lines.map(([key, label]) => `<tr><th scope="row">${esc(label)}</th><td>${byOutcome.get(key)}</td><td>${share(byOutcome.get(key))}</td></tr>`).join('')}</tbody>
+<tbody>${lines.map(([key, label]) => `<tr><th scope="row">${esc(label)}</th><td>${byOutcome.get(key)}</td><td>${share(/** @type {number} */ (byOutcome.get(key)))}</td></tr>`).join('')}</tbody>
 <tfoot><tr><th scope="row">All</th><td>${total}</td><td>100%</td></tr></tfoot>
 </table></div>`;
 }
@@ -93,6 +105,10 @@ function outcomesTable(rows) {
 // Where a lead's call stands: 'booked', 'unconfirmed' (Cal.com never clearly
 // answered, so the lead is held until Thomas checks) or 'none'; and the time
 // booked or asked for.
+/**
+ * @param {Pick<LeadRow, 'booked_at' | 'booking_start'>} lead
+ * @returns {{ status: 'unconfirmed', at: string | null } | { status: 'booked', at: string } | { status: 'none', at: null }}
+ */
 export function callOf(lead) {
   if (lead.booked_at === 'pending') return { status: 'unconfirmed', at: lead.booking_start || null };
   return lead.booked_at ? { status: 'booked', at: lead.booked_at } : { status: 'none', at: null };
@@ -101,6 +117,7 @@ export function callOf(lead) {
 // For a call Cal.com didn't confirm: what was asked for, and two buttons to
 // say what the calendar shows. "Booked" keeps the time; "not booked" lets the
 // visitor pick a time again from the page.
+/** @param {LeadRow} lead @param {(iso: string) => string} when */
 function unconfirmedForm(lead, when) {
   const { at } = callOf(lead);
   const ask = at
@@ -117,7 +134,9 @@ function unconfirmedForm(lead, when) {
 // The AI outline eval the site runs on itself (eval.js): the latest result,
 // what it got wrong, any run under way, and the last few runs, so a slow slide
 // shows before it reaches the bar.
+/** @param {EvalReport} report @param {string} timeZone */
 function evalPanel(report, timeZone) {
+  /** @param {string} iso */
   const day = iso => formatIn(timeZone, { month: 'short', day: 'numeric' }).format(new Date(iso));
   const bar = `${Math.round(report.bar * 100)}%`;
   const lines = [];
@@ -131,6 +150,7 @@ function evalPanel(report, timeZone) {
   if (running) lines.push(`<p>Run under way: ${running.done} of ${running.total} done.</p>`);
   if (!latest && !running) lines.push(`<p>${report.on ? 'Not run yet. It runs a few sample problems each hour' : 'Off until Workers AI and the database are connected'}.</p>`);
   if (report.history.length > 1) {
+    /** @param {number} n @param {number} of */
     const share = (n, of) => (of ? `${n} of ${of} (${Math.round((n / of) * 100)}%)` : '–');
     lines.push(`<div class="admin-scroll"><table class="admin-table">
 <caption>Recent runs, newest first</caption>
@@ -146,7 +166,9 @@ ${lines.join('\n')}
 }
 
 // Today's check of each outside service (health.js).
+/** @param {HealthReport | null} report @param {string} timeZone */
 function healthPanel(report, timeZone) {
+  /** @param {string} iso */
   const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
   const rows = report ? Object.entries(report.services) : [];
   const body = !report
@@ -162,8 +184,11 @@ ${body}
 </section>`;
 }
 
+/** @param {LeadRow} lead @param {string} timeZone */
 function leadCard(lead, timeZone) {
+  /** @param {string} iso */
   const when = iso => formatIn(timeZone, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
+  /** @type {Outline | null} */
   let outline = null;
   try { outline = JSON.parse(lead.outline); } catch { /* shown without it */ }
   const call = callOf(lead);
@@ -197,13 +222,16 @@ function leadCard(lead, timeZone) {
 
 // A spreadsheet cell: quoted, and never starting with a character a
 // spreadsheet would run as a formula.
+/** @param {unknown} value */
 function csvCell(value) {
   let text = value === null || value === undefined ? '' : String(value);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/** @param {EnvWithDB} env */
 async function csv(env) {
+  /** @type {D1Result<LeadRow>} */
   const { results } = await env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 5000').all();
   // call: booked, unconfirmed (check Cal.com) or none; call_at: the time
   // booked, or asked for while unconfirmed.
@@ -213,6 +241,7 @@ async function csv(env) {
     let title = '';
     try { title = JSON.parse(lead.outline).title; } catch { /* left blank */ }
     const { status, at } = callOf(lead);
+    /** @type {Record<string, unknown>} */
     const row = { ...lead, title, call: status, call_at: at };
     lines.push(columns.map(c => csvCell(row[c])).join(','));
   }
@@ -231,8 +260,10 @@ async function csv(env) {
 // Thomas's answer for a call Cal.com didn't confirm. 'yes' records the call at
 // the time asked for (and counts it as booked); 'no' frees the lead, so the
 // visitor can pick a time again from the page. Only an unconfirmed lead changes.
+/** @param {EnvWithDB} env @param {string} timeZone @param {string} id @param {unknown} booked */
 async function settleBooking(env, timeZone, id, booked) {
   if (booked === 'yes') {
+    /** @type {CameFrom | null} */
     const lead = await env.DB.prepare(
       "UPDATE leads SET booked_at = booking_start WHERE id = ? AND booked_at = 'pending' AND booking_start IS NOT NULL RETURNING ad, src",
     ).bind(id).first();
@@ -242,8 +273,9 @@ async function settleBooking(env, timeZone, id, booked) {
   }
 }
 
+/** @param {Request} request @param {Env} env @param {URL} url */
 export async function adminRoute(request, env, url) {
-  if (!features(env).admin) return notFound();
+  if (!features(env).admin || !hasDatabase(env)) return notFound();
   if (await overLimit(env.ADMIN_LIMIT, request)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
   if (!(await signedIn(request, env))) {
     return adminPage(page({ title: 'Sign in', body: '<h1>Sign in to see your leads</h1><p>Use the ADMIN_PASSWORD you set in Cloudflare. Any username works.</p>' }), 401, {
@@ -262,13 +294,14 @@ export async function adminRoute(request, env, url) {
     if (!fromThisSite) return adminPage('Forbidden', 403);
     const form = await request.formData().catch(() => null);
     const id = form ? form.get('id') : null;
+    /** @param {string} location */
     const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,40}$/.test(id)) return back('/admin');
     if (url.pathname === '/admin/delete') {
       await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
       return back('/admin');
     }
-    await settleBooking(env, timeZone, id, form.get('booked'));
+    await settleBooking(env, timeZone, id, /** @type {FormData} */ (form).get('booked'));
     return back(`/admin#lead-${id}`);
   }
   if (request.method !== 'GET') return adminPage('Method not allowed', 405, { Allow: 'GET' });
@@ -277,9 +310,9 @@ export async function adminRoute(request, env, url) {
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
   const [counts, outcomes, leads, total, evaluation, health] = await Promise.all([
-    env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all(),
-    env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all(),
-    env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all(),
+    /** @type {Promise<D1Result<{ ad: string, src: string, step: CountStep, n: number }>>} */ (env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all()),
+    /** @type {Promise<D1Result<{ outcome: string, n: number }>>} */ (env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all()),
+    /** @type {Promise<D1Result<LeadRow>>} */ (env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all()),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
     evalReport(env),
     healthReport(env),

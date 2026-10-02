@@ -21,6 +21,7 @@ import { outlineRoute } from './outline.js';
 
 export { MODEL, KINDS, SYSTEM_PROMPT, validateOutline, templateOutline } from './outline.js';
 
+/** @type {Record<string, Route>} */
 const ROUTES = {
   '/api/outline': outlineRoute,
   '/api/config': configRoute,
@@ -32,7 +33,7 @@ const ROUTES = {
   '/api/health': healthRoute,
 };
 
-export default {
+export default /** @satisfies {ExportedHandler<Env>} */ ({
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const context = ctx || { waitUntil() {} };
@@ -54,4 +55,4 @@ export default {
     ctx.waitUntil(runSchedule(env, event.scheduledTime).finally(() => runEvalBatch(env, event.scheduledTime)));
     ctx.waitUntil(runHealthChecks(env, event.scheduledTime));
   },
-};
+});

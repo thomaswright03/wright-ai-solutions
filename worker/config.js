@@ -10,6 +10,7 @@ import { clean, timeZoneOrNull } from './http.js';
 
 export const SITE_URL = 'https://wright-ai-solutions.com';
 
+/** @param {Env} env */
 export const settings = env => ({
   siteUrl: env.SITE_URL || SITE_URL,
   from: env.EMAIL_FROM || 'Thomas Wright <thomas@wright-ai-solutions.com>',
@@ -24,6 +25,7 @@ export const settings = env => ({
 
 // A Cal.com event link such as https://cal.com/thomas/intro-call, split into
 // the username and event slug the API wants. Anything else means "off".
+/** @param {Env} env @returns {CalEvent | null} */
 export function calEvent(env) {
   if (typeof env.CAL_LINK !== 'string') return null;
   try {
@@ -39,6 +41,7 @@ export function calEvent(env) {
   }
 }
 
+/** @param {Env} env */
 export function features(env) {
   const cal = calEvent(env);
   const save = Boolean(env.DB && env.RESEND_API_KEY);

@@ -25,15 +25,18 @@ export const EVAL_BATCH = 12;
 // allowance of about 90 that visitors' outlines rely on.
 export const EVAL_ROOM = 40;
 
-const hintFor = c => (c.ad ? adFor(c.ad).kind : null);
+/** @param {EvalCase} c */
+const hintFor = c => (c.ad ? /** @type {AdPage} */ (adFor(c.ad)).kind : null);
 
 // The request for one case, exactly as /api/outline would send it.
+/** @param {EvalCase} c */
 export const requestFor = c => outlineRequest(cleanProblem(c.problem), hintFor(c));
 
 // Whether the model's reply is right for the case: an outline that passes the
 // site's checks for a usable case, and a "usable": false for an unusable one.
 // Kind (after the site settles it against the visitor's words) is reported but
 // not required; a usable outline of another kind still helps the visitor.
+/** @param {EvalCase} c @param {unknown} raw @returns {CaseOutcome} */
 export function judge(c, raw) {
   const outline = finishOutline(raw, cleanProblem(c.problem), hintFor(c));
   const outcome = outline ? 'ai' : rejectionReason(raw);
@@ -47,11 +50,17 @@ export function judge(c, raw) {
 // that catches a real problem fails the eval). Otherwise `ask(request)`
 // returns the model's reply. { guard: false } asks the model anyway, to test
 // the prompt on its own.
+/**
+ * @param {EvalCase} c @param {(request: ReturnType<typeof requestFor>) => Promise<unknown>} ask
+ * @param {{ guard?: boolean }} [options]
+ * @returns {Promise<CaseOutcome>}
+ */
 export async function runCase(c, ask, { guard = true } = {}) {
   if (guard && looksLikeInjection(c.problem)) return { outcome: 'guarded', pass: c.expect === 'unusable', kindMatch: null, title: null };
   return judge(c, await ask(requestFor(c)));
 }
 
+/** @param {{ pass: boolean, kindMatch?: boolean | null }[]} results @returns {EvalSummary} */
 export function summarize(results) {
   const passed = results.filter(r => r.pass).length;
   const kinds = results.filter(r => r.kindMatch !== null && r.kindMatch !== undefined);
@@ -75,14 +84,17 @@ export async function evalVersion() {
 // One hourly step: start a run if one is due, then ask the AI the next few
 // cases. A case the AI can't answer (down, slow or out of its allowance) is
 // left for the next hour rather than counted against the prompt.
+/** @param {Env} env @param {number} [now] */
 export async function runEvalBatch(env, now = Date.now()) {
   if (!env.AI || !env.DB) return;
   await ensureSchema(env.DB);
+  /** @param {number} ms */
   const iso = ms => new Date(ms).toISOString();
   const version = await evalVersion();
+  /** @type {EvalRunRow | null} */
   let run = await env.DB.prepare('SELECT id, version, finished_at, results FROM eval_runs ORDER BY id DESC LIMIT 1').first();
   const due = !run || run.version !== version || (run.finished_at && Date.parse(run.finished_at) <= now - EVERY);
-  if (!due && run.finished_at) return;
+  if (run && !due && run.finished_at) return;
 
   const today = iso(now).slice(0, 10);
   const used = Number(await env.DB.prepare('SELECT n FROM ai_daily WHERE day = ?').bind(today).first('n')) || 0;
@@ -94,11 +106,16 @@ export async function runEvalBatch(env, now = Date.now()) {
     run = await env.DB.prepare('INSERT INTO eval_runs (version, model, started_at) VALUES (?, ?, ?) RETURNING id, version, finished_at, results')
       .bind(version, MODEL, iso(now)).first();
   }
+  // Always there: the row read above, or the one just added.
+  if (!run) return;
+  /** @type {CaseResult[]} */
   const results = JSON.parse(run.results);
   let asked = 0;
+  /** @param {object} request */
   const ask = async request => {
     asked += 1;
-    const reply = await withTimeout(env.AI.run(MODEL, request), AI_TIMEOUT_MS);
+    // Checked at the top.
+    const reply = await withTimeout(/** @type {AiBinding} */ (env.AI).run(MODEL, request), AI_TIMEOUT_MS);
     return reply && reply.response;
   };
   for (const c of CASES.slice(results.length, results.length + size)) {
@@ -119,6 +136,7 @@ export async function runEvalBatch(env, now = Date.now()) {
   ]);
   if (!finished) return;
   const { passed, total, rate } = summarize(results);
+  /** @type {{ results: string } | null} */
   const before = await env.DB.prepare('SELECT results FROM eval_runs WHERE finished_at IS NOT NULL AND id < ? ORDER BY id DESC LIMIT 1').bind(run.id).first();
   const last = before ? summarize(JSON.parse(before.results)) : null;
   const click = `${settings(env).siteUrl}/admin#eval-title`;
@@ -143,17 +161,19 @@ export const EVAL_HISTORY = 6;
 
 // The latest finished run (with each case), the few before it, and any run
 // under way, for /api/eval and /admin.
+/** @param {Env} env @returns {Promise<EvalReport>} */
 export async function evalReport(env) {
   const version = await evalVersion();
+  /** @type {EvalReport} */
   const report = { model: MODEL, version, bar: EVAL_BAR, cases: CASES.length, on: Boolean(env.AI && env.DB), latest: null, running: null, history: [] };
   if (!env.DB) return report;
   await ensureSchema(env.DB);
   const [finished, newest] = await Promise.all([
-    env.DB.prepare('SELECT * FROM eval_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT ?').bind(EVAL_HISTORY).all(),
-    env.DB.prepare('SELECT * FROM eval_runs ORDER BY id DESC LIMIT 1').first(),
+    /** @type {Promise<D1Result<EvalRunRow & { finished_at: string }>>} */ (env.DB.prepare('SELECT * FROM eval_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT ?').bind(EVAL_HISTORY).all()),
+    /** @type {Promise<EvalRunRow | null>} */ (env.DB.prepare('SELECT * FROM eval_runs ORDER BY id DESC LIMIT 1').first()),
   ]);
   const expectOf = new Map(CASES.map(c => [c.id, c.expect]));
-  const runs = (finished.results || []).map(row => ({ row, results: JSON.parse(row.results) }));
+  const runs = (finished.results || []).map(row => ({ row, results: /** @type {CaseResult[]} */ (JSON.parse(row.results)) }));
   report.history = runs.map(({ row, results }) => ({
     version: row.version,
     model: row.model,
@@ -176,6 +196,7 @@ export async function evalReport(env) {
 }
 
 // GET /api/eval: the eval's latest result, public. Synthetic cases only.
+/** @param {Request} request @param {Env} env */
 export async function evalRoute(request, env) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
   if (await overLimit(env.API_LIMIT, request)) return tooMany();
