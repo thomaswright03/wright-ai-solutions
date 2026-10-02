@@ -49,4 +49,4 @@ If it scores 90% or more both ways, as the site runs it and by the model alone, 
 
 ## Dead code
 
-`npm run lint` (ESLint, no warnings allowed) fails on unused variables, imports and parameters, and `npm run deadcode` ([knip](https://knip.dev)) fails on unused files, exports and dependencies. Both run in CI (`.github/workflows/ci.yml`, the "lint" job).
+`npm run lint` (ESLint, no warnings allowed) fails on unused variables, imports and parameters, and `npm run deadcode` (knip) fails on unused files, exports and dependencies. Both run in CI (`.github/workflows/ci.yml`, the "lint" job).

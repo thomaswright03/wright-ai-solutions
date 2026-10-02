@@ -110,8 +110,8 @@ export const MUTATIONS = [
     risk: 15,
     why: 'the delete link no longer deletes',
     file: 'worker/leads.js',
-    find: "await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();",
-    replace: '',
+    find: "const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();",
+    replace: 'const deleted = { meta: { changes: 0 } };',
   },
   {
     risk: 16,

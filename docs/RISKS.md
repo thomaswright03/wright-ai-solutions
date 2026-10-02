@@ -1,6 +1,6 @@
 # Top 20 business risks, and what catches each
 
-The risks to the business that the site and `/start` could cause, most serious first, each with the check that would catch it. A check is a Playwright test (named as `file: test title`, in `tests/`), a CI step (in `.github/workflows/ci.yml`), a workflow, or a phone alert from the site itself. `tests/risks.spec.mjs` fails if a test named here is renamed or removed, so this list can't quietly go out of date.
+The risks to the business that the site and `/start` could cause, most serious first, each with the check that would catch it. A check is a Playwright test (named as `file: test title`, in `tests/`), a CI step (in `.github/workflows/ci.yml`), a workflow, or a phone alert from the site itself. `tests/risks.spec.mjs` fails if a test named here is renamed or removed, so this list can't quietly go out of date. `scripts/mutation-check.mjs` breaks the code behind each risk in turn (`tests/mutations.mjs`) and fails unless that risk's own tests catch it, so each test listed is shown to fail when its risk happens, not just to run.
 
 Last reviewed 2026-10-02.
 
@@ -130,6 +130,7 @@ A real problem that happens to read like an instruction gets the weaker template
 ### 18. A broken change goes live, or production quietly serves an old version
 
 - `ci.yml: browser-tests`, `ci.yml: html-validate`, `ci.yml: link-check` and `ci.yml: static-checks`, required before merging to `main`
+- `ci.yml: lint` (strict lint, types and dead code) and `ci.yml: mutation-check`, to be added to the required checks
 - `site.spec.mjs: passes on a working site, and only reads` (`.github/workflows/deploy-check.yml` runs it against production after each deploy and every morning, after checking `/version.txt`)
 
 ### 19. A database change breaks the live leads list
