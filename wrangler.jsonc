@@ -36,7 +36,9 @@
   // AI_DAILY_LIMIT.
   "vars": {
     // Turnstile site key (public; part 2). The bot check turns on once TURNSTILE_SECRET is set too.
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAFLuDSC_z2QFnB6f"
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFLuDSC_z2QFnB6f",
+    // The 30-minute intro call on Cal.com (part 4). Booking turns on once saving is on (parts 1 and 3).
+    "CAL_LINK": "https://cal.com/wright-ai-solutions/intro-call"
   },
   // Writes version.txt (the commit being deployed) for the post-deploy check.
   "build": {
