@@ -1,0 +1,42 @@
+name: AI outline eval
+
+# Runs scripts/eval-outlines.mjs against the live Workers AI model whenever the
+# prompt, the checks or the cases change on main, and on demand (Actions → AI
+# outline eval → Run workflow). The result is on the run's summary page.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_ACCOUNT_ID   the account the site's Worker runs in
+#   CLOUDFLARE_API_TOKEN    a token with only the "Workers AI: Read" permission
+# Until both are set, the job says so and skips the run instead of failing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - worker/outline.js
+      - outlines.js
+      - scripts/eval-outlines.mjs
+      - scripts/outline-eval.json
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Run the eval against the live model
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::Add the CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN repository secrets to run the AI outline eval."
+            node scripts/eval-outlines.mjs --dry-run
+            exit 0
+          fi
+          node scripts/eval-outlines.mjs

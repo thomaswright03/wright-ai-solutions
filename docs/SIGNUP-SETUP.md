@@ -68,7 +68,7 @@ This shows your real open times on the page and books the call. Cal.com sends bo
 2. Set your working hours under **Availability**.
 3. **Event Types** → **New**: title `Intro call`, length **30 minutes**. Pick how you'll meet (Cal Video works with no setup). Leave "Requires confirmation" **off**. Save.
 4. Copy the event's link. It goes in `wrangler.jsonc` as `CAL_LINK`, and looks like `https://cal.com/yourname/intro-call`. Anything but a plain `cal.com` or `app.cal.com` event link leaves booking off.
-5. Optional: add a Cal.com API key as a secret named `CAL_API_KEY`. Public events work without one, but a key gets a higher rate limit.
+5. Optional: add a Cal.com API key as a secret named `CAL_API_KEY`. Public events work without one, but a key gets a higher rate limit, and it lets the site check Cal.com when a booking reply gets lost, so the visitor sees "You're booked" instead of being asked to look for the invite.
 
 ## 5. Optional: instant phone alerts (ntfy, about 3 minutes)
 
@@ -91,7 +91,7 @@ US law (CAN-SPAM) requires a valid physical postal address in commercial email, 
 | `ADMIN_PASSWORD` | You make it up (16+ characters) | Your leads list (part 1) |
 | `TURNSTILE_SECRET` | The Turnstile widget | The bot check (part 2) |
 | `RESEND_API_KEY` | Resend | Saving and emails (part 3) |
-| `CAL_API_KEY` | Cal.com | A higher Cal.com rate limit (part 4, optional) |
+| `CAL_API_KEY` | Cal.com | A higher Cal.com rate limit, and confirming a booking whose reply got lost (part 4, optional) |
 | `NTFY_TOPIC` | You make it up | Phone alerts (part 5, optional) |
 
 ## Where the settings go

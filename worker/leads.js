@@ -8,7 +8,7 @@ import { count, dayIn, ensureSchema, formatIn, hourIn, inboxTag, newId, sign, ve
 import { followUpEmail, leadEmail, outlineEmail } from './emails.js';
 import { clean, escapeHtml as esc, htmlResponse, json, overLimit, readJson, timeZoneOrNull, tooMany } from './http.js';
 import { page } from './pages.js';
-import { bookCall, notify, openTimes, sendEmail } from './services.js';
+import { bookCall, findBooking, notify, openTimes, sendEmail } from './services.js';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -236,27 +236,41 @@ export async function bookRoute(request, env, ctx, url) {
   await ensureSchema(env.DB);
   const lead = await env.DB.prepare('SELECT id, email, ad, src, kind, outline, booked_at FROM leads WHERE id = ?').bind(data.id).first();
   if (!lead) return json({ error: 'gone' }, 410);
-  // Claim the lead first, so two tabs can't book two calls for it.
+  // Claim the lead first, so two tabs can't book two calls for it. A lead
+  // still 'pending' is one whose booking Cal.com never clearly answered.
   const claim = await env.DB.prepare("UPDATE leads SET booked_at = 'pending' WHERE id = ? AND booked_at IS NULL").bind(lead.id).run();
-  if (!claim.meta || !claim.meta.changes) return json({ error: 'already_booked' }, 409);
+  if (!claim.meta || !claim.meta.changes) return json({ error: lead.booked_at === 'pending' ? 'unconfirmed' : 'already_booked' }, 409);
 
+  const startIso = new Date(start).toISOString();
   let booking = null;
   try {
     booking = await bookCall(env, on.cal, {
-      start: new Date(start).toISOString(),
+      start: startIso,
       name,
       email: lead.email,
       timeZone,
       notes: `Outline from wright-ai-solutions.com/start: ${JSON.parse(lead.outline).title}`,
       metadata: { source: 'start-page', ad: lead.ad },
     });
+    // No clear answer: Cal.com may have booked it anyway. Ask, when there's a
+    // key to ask with; a confirmed "no booking" is safe to try again.
+    if (booking && booking.uncertain) {
+      const found = await findBooking(env, { email: lead.email, start: startIso });
+      if (found !== undefined) booking = found;
+    }
   } finally {
+    // Free the lead only when it's certain nothing was booked. While it's
+    // uncertain the lead stays 'pending', so a retry can't make a second call.
     if (!booking || booking.taken) {
       await env.DB.prepare("UPDATE leads SET booked_at = NULL WHERE id = ? AND booked_at = 'pending'").bind(lead.id).run();
     }
   }
   if (!booking) return json({ error: 'booking_failed' }, 502);
   if (booking.taken) return json({ error: 'taken' }, 409);
+  if (booking.uncertain) {
+    ctx.waitUntil(notify(env, { title: 'Booking unconfirmed', body: 'Cal.com didn\'t confirm a booking from /start. Check your calendar; the lead is marked on your leads list.', click: `${url.origin}/admin` }).catch(() => {}));
+    return json({ error: 'unconfirmed' }, 502);
+  }
 
   const bookedAt = new Date(Number.isFinite(Date.parse(booking.start)) ? Date.parse(booking.start) : start).toISOString();
   await env.DB.prepare('UPDATE leads SET name = ?, booked_at = ?, booking_uid = ? WHERE id = ?').bind(name, bookedAt, booking.uid, lead.id).run();

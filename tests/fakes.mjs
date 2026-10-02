@@ -77,7 +77,9 @@ const DAY = 24 * 60 * 60 * 1000;
 const OPEN_UTC = [[15, 0], [15, 30], [16, 30], [17, 0], [19, 0], [20, 0], [21, 30], [22, 0]];
 
 export class FakeServices {
-  // options: { turnstile, calDown, emailDown, bare }
+  // options: { turnstile, calDown, calLost, emailDown, bare }. calLost: Cal.com
+  // books the first call but the reply never arrives, the way a dropped
+  // connection or a timeout looks.
   constructor(options = {}) {
     this.options = options;
     this.emails = [];
@@ -153,7 +155,20 @@ export class FakeServices {
         }
         const booking = { uid: `booking_${this.bookings.length + 1}`, start: new Date(start).toISOString(), end: new Date(start + 30 * 60 * 1000).toISOString(), ...request };
         this.bookings.push(booking);
+        if (this.options.calLost && !this.lostOne) {
+          this.lostOne = true;
+          throw new TypeError('Network connection lost.');
+        }
         return reply(201, { status: 'success', data: { uid: booking.uid, start: booking.start, end: booking.end } });
+      }
+      // Listing bookings needs an API key, as on Cal.com.
+      if (url.pathname === '/v2/bookings' && (init.method || 'GET') === 'GET') {
+        if (!headers.get('Authorization')) return reply(401, { status: 'error' });
+        const email = (url.searchParams.get('attendeeEmail') || '').toLowerCase();
+        const data = this.bookings
+          .filter(b => b.attendee.email.toLowerCase() === email)
+          .map(b => ({ uid: b.uid, start: b.start, end: b.end, status: 'accepted', attendees: [{ name: b.attendee.name, email: b.attendee.email }] }));
+        return reply(200, { status: 'success', data });
       }
     }
     return reply(404, { error: 'not faked' });
