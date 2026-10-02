@@ -33,3 +33,13 @@ test('every test and CI job docs/RISKS.md names exists', () => {
     }
   }
 });
+
+// scripts/mutation-check.mjs breaks each risk's guard and runs that risk's
+// tests; this keeps its list complete and pointed at code that still exists.
+test('every risk has a deliberate break in tests/mutations.mjs, aimed at code that exists exactly once', async () => {
+  const { MUTATIONS } = await import('./mutations.mjs');
+  expect([...new Set(MUTATIONS.map(m => m.risk))].sort((a, b) => a - b)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+  for (const m of MUTATIONS) {
+    expect(read(`../${m.file}`).split(m.find).length - 1, `risk ${m.risk}: ${m.why}`).toBe(1);
+  }
+});
