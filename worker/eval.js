@@ -10,7 +10,7 @@ import { settings } from './config.js';
 import { ensureSchema } from './db.js';
 import { CASES } from './eval-cases.js';
 import { json, overLimit, tooMany, withTimeout } from './http.js';
-import { AI_TIMEOUT_MS, MODEL, cleanProblem, finishOutline, looksLikeInjection, outlineRequest, rejectionReason } from './outline.js';
+import { AI_TIMEOUT_MS, GUARD, MODEL, cleanProblem, finishOutline, looksLikeInjection, outlineRequest, rejectionReason } from './outline.js';
 import { notify } from './services.js';
 
 export { CASES };
@@ -64,10 +64,10 @@ export function summarize(results) {
   };
 }
 
-// Names this model, prompt and set of cases, so changing any of them starts a
-// new run instead of mixing results.
+// Names this model, prompt, injection guard and set of cases, so changing any
+// of them starts a new run instead of mixing results.
 export async function evalVersion() {
-  const text = JSON.stringify({ model: MODEL, request: outlineRequest('', null), cases: CASES });
+  const text = JSON.stringify({ model: MODEL, request: outlineRequest('', null), guard: GUARD, cases: CASES });
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
   return [...hash.subarray(0, 6)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -119,35 +119,53 @@ export async function runEvalBatch(env, now = Date.now()) {
   ]);
   if (!finished) return;
   const { passed, total, rate } = summarize(results);
+  const before = await env.DB.prepare('SELECT results FROM eval_runs WHERE finished_at IS NOT NULL AND id < ? ORDER BY id DESC LIMIT 1').bind(run.id).first();
+  const last = before ? summarize(JSON.parse(before.results)) : null;
+  const click = `${settings(env).siteUrl}/admin#eval-title`;
   if (rate < EVAL_BAR) {
     await notify(env, {
       title: 'AI outline eval below the bar',
       body: `${passed} of ${total} sample problems came back right; the bar is ${Math.round(EVAL_BAR * 100)}%. Visitors still get an outline (templates cover what the AI gets wrong). Details on your leads list.`,
-      click: `${settings(env).siteUrl}/admin`,
+      click,
+    });
+  } else if (last && rate < last.rate) {
+    // A slide is worth knowing about before it reaches the bar.
+    await notify(env, {
+      title: 'AI outline eval dropped',
+      body: `${passed} of ${total} sample problems came back right, down from ${last.passed} of ${last.total} last time. Still above the ${Math.round(EVAL_BAR * 100)}% bar. Details on your leads list.`,
+      click,
     });
   }
 }
 
-// The latest finished run and any run under way, for /api/eval and /admin.
+// Finished runs kept in the report's history, newest first.
+export const EVAL_HISTORY = 6;
+
+// The latest finished run (with each case), the few before it, and any run
+// under way, for /api/eval and /admin.
 export async function evalReport(env) {
   const version = await evalVersion();
-  const report = { model: MODEL, version, bar: EVAL_BAR, cases: CASES.length, on: Boolean(env.AI && env.DB), latest: null, running: null };
+  const report = { model: MODEL, version, bar: EVAL_BAR, cases: CASES.length, on: Boolean(env.AI && env.DB), latest: null, running: null, history: [] };
   if (!env.DB) return report;
   await ensureSchema(env.DB);
-  const [latest, newest] = await Promise.all([
-    env.DB.prepare('SELECT * FROM eval_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1').first(),
+  const [finished, newest] = await Promise.all([
+    env.DB.prepare('SELECT * FROM eval_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT ?').bind(EVAL_HISTORY).all(),
     env.DB.prepare('SELECT * FROM eval_runs ORDER BY id DESC LIMIT 1').first(),
   ]);
   const expectOf = new Map(CASES.map(c => [c.id, c.expect]));
-  if (latest) {
-    const results = JSON.parse(latest.results);
+  const runs = (finished.results || []).map(row => ({ row, results: JSON.parse(row.results) }));
+  report.history = runs.map(({ row, results }) => ({
+    version: row.version,
+    model: row.model,
+    current: row.version === version,
+    finishedAt: row.finished_at,
+    ...summarize(results),
+  }));
+  if (runs.length) {
+    const [{ row, results }] = runs;
     report.latest = {
-      version: latest.version,
-      model: latest.model,
-      current: latest.version === version,
-      startedAt: latest.started_at,
-      finishedAt: latest.finished_at,
-      ...summarize(results),
+      ...report.history[0],
+      startedAt: row.started_at,
       results: results.map(r => ({ id: r.id, expect: expectOf.get(r.id) || null, pass: r.pass, outcome: r.outcome, kindMatch: r.kindMatch })),
     };
   }

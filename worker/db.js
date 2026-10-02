@@ -65,6 +65,9 @@ const SCHEMA = [
     finished_at TEXT,
     results TEXT NOT NULL DEFAULT '[]'
   )`,
+  // The daily check of each outside service (health.js): one row a day, with
+  // { service: { ok, note } }. Kept 30 days.
+  'CREATE TABLE IF NOT EXISTS service_checks (checked_at TEXT PRIMARY KEY, results TEXT NOT NULL)',
 ];
 
 // Columns added to a table after it first went live. CREATE TABLE IF NOT

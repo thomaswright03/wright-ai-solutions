@@ -1,13 +1,15 @@
 // The outside services /start uses, each behind one small function that never
 // throws: Resend (email), Cal.com (open times and bookings), ntfy (phone
 // alerts) and Cloudflare Turnstile (the bot check). A failure returns false or
-// null and the caller decides what the visitor sees.
-import { withTimeout } from './http.js';
+// null and the caller decides what the visitor sees. Calls to Resend and
+// Cal.com are tried up to three times after a quick failure that is safe to
+// repeat (withRetries in http.js).
+import { retryAnyFailure, withRetries, withTimeout } from './http.js';
 
 export async function sendEmail(env, message, idempotencyKey) {
   if (!env.RESEND_API_KEY) return false;
   try {
-    const response = await withTimeout(fetch('https://api.resend.com/emails', {
+    const response = await withRetries(() => withTimeout(fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
@@ -16,7 +18,7 @@ export async function sendEmail(env, message, idempotencyKey) {
         ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
       body: JSON.stringify(message),
-    }), 10000);
+    }), 10000), idempotencyKey ? retryAnyFailure : status => status === 429);
     return response.ok;
   } catch {
     return false;
@@ -75,7 +77,7 @@ export async function openTimes(env, cal, from, to) {
     end: to.toISOString(),
   });
   try {
-    const response = await withTimeout(fetch(`${CAL_API}/slots?${query}`, { headers: calHeaders(env, '2024-09-04') }), 8000);
+    const response = await withRetries(() => withTimeout(fetch(`${CAL_API}/slots?${query}`, { headers: calHeaders(env, '2024-09-04') }), 8000), retryAnyFailure);
     if (!response.ok) return null;
     const days = (await response.json())?.data;
     if (!days || typeof days !== 'object') return null;
@@ -98,11 +100,12 @@ export async function openTimes(env, cal, from, to) {
 // { uncertain: true } when there's no clear answer (a timeout, a dropped
 // connection, a server error mid-request or an unreadable reply), since the
 // call may have been booked anyway; or null when Cal.com clearly turned it
-// down, including a 503, which means it took nothing in.
+// down, including a 503, which means it took nothing in. Only a 429 or a 503
+// is tried again, since only those say nothing was booked.
 export async function bookCall(env, cal, { start, name, email, timeZone, notes, metadata }) {
   let response;
   try {
-    response = await withTimeout(fetch(`${CAL_API}/bookings`, {
+    response = await withRetries(() => withTimeout(fetch(`${CAL_API}/bookings`, {
       method: 'POST',
       headers: calHeaders(env, '2026-02-25'),
       body: JSON.stringify({
@@ -113,7 +116,7 @@ export async function bookCall(env, cal, { start, name, email, timeZone, notes, 
         bookingFieldsResponses: { notes },
         metadata,
       }),
-    }), 15000);
+    }), 15000), status => status === 429 || status === 503);
   } catch {
     return { uncertain: true };
   }
@@ -138,7 +141,7 @@ export async function findBooking(env, { email, start }) {
   if (!env.CAL_API_KEY) return undefined;
   const query = new URLSearchParams({ attendeeEmail: email, status: 'upcoming,unconfirmed', take: '100' });
   try {
-    const response = await withTimeout(fetch(`${CAL_API}/bookings?${query}`, { headers: calHeaders(env, '2024-08-13') }), 8000);
+    const response = await withRetries(() => withTimeout(fetch(`${CAL_API}/bookings?${query}`, { headers: calHeaders(env, '2024-08-13') }), 8000), retryAnyFailure);
     if (!response.ok) return undefined;
     const list = (await response.json())?.data;
     if (!Array.isArray(list)) return undefined;

@@ -5,8 +5,9 @@ name: Deploy check
 # visibly, if production isn't serving the pushed commit within 15 minutes, so a
 # failed or un-promoted deploy can't leave the live site silently stale. Then it
 # checks the live site works (scripts/smoke-test.mjs): pages and security
-# headers, the API, open times from Cal.com, the published AI eval result, and
-# the leads list asking for its password. It runs again each morning, which
+# headers, the API, open times from Cal.com, the published AI eval result, the
+# Worker's daily check of each outside service (email, calendar, AI, bot check,
+# phone alerts; /api/health), and the leads list asking for its password. It runs again each morning, which
 # also catches a dashboard change that deployed something other than main.
 on:
   push:

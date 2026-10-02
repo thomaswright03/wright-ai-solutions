@@ -77,12 +77,15 @@ const DAY = 24 * 60 * 60 * 1000;
 const OPEN_UTC = [[15, 0], [15, 30], [16, 30], [17, 0], [19, 0], [20, 0], [21, 30], [22, 0]];
 
 export class FakeServices {
-  // options: { turnstile, calDown, calLost, calSilent, emailDown, bare }.
-  // calLost: Cal.com books the first call but the reply never arrives, the way
-  // a dropped connection or a timeout looks. calSilent: the first booking
-  // request is lost the same way, but before Cal.com booked anything.
+  // options: { turnstile, calDown, calLost, calSilent, calFlaky, emailDown,
+  // emailFlaky, resendSendOnly, domainStatus, bare }. calLost: Cal.com books the first call but the reply
+  // never arrives, the way a dropped connection or a timeout looks. calSilent:
+  // the first booking request is lost the same way, but before Cal.com booked
+  // anything. calFlaky / emailFlaky: the next n requests to Cal.com / Resend
+  // get a 503 (briefly unavailable, nothing done).
   constructor(options = {}) {
     this.options = options;
+    this.requests = [];
     this.emails = [];
     this.alerts = [];
     this.bookings = [];
@@ -117,9 +120,21 @@ export class FakeServices {
     const headers = new Headers(init.headers);
     const body = typeof init.body === 'string' ? init.body : init.body ? String(init.body) : '';
     const reply = (status, data) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+    this.requests.push(`${init.method || 'GET'} ${url.host}${url.pathname}`);
+    const flaky = option => {
+      if (!this.options[option]) return false;
+      this.options[option] -= 1;
+      return true;
+    };
 
     if (url.host === 'api.resend.com') {
       if (this.options.emailDown) return reply(500, { message: 'down' });
+      if (flaky('emailFlaky')) return reply(503, { message: 'unavailable' });
+      // The daily service check lists domains; a sending-only key may not.
+      if (url.pathname === '/domains') {
+        if (this.options.resendSendOnly) return reply(401, { name: 'restricted_api_key', message: 'This API key is restricted to only send emails' });
+        return reply(200, { data: [{ name: 'wright-ai-solutions.com', status: this.options.domainStatus || 'verified' }] });
+      }
       const key = headers.get('Idempotency-Key');
       const earlier = key && this.emails.find(e => e.idempotencyKey === key);
       if (earlier) return reply(200, { id: earlier.id });
@@ -128,6 +143,7 @@ export class FakeServices {
       return reply(200, { id: email.id });
     }
 
+    if (url.host === 'ntfy.sh' && url.pathname === '/v1/health') return reply(200, { healthy: true });
     if (url.host === 'ntfy.sh') {
       this.alerts.push({ topic: decodeURIComponent(url.pathname.slice(1)), title: headers.get('Title'), click: headers.get('Click'), body });
       return reply(200, { id: 'alert' });
@@ -136,11 +152,13 @@ export class FakeServices {
     if (url.host === 'challenges.cloudflare.com' && url.pathname === '/turnstile/v0/siteverify') {
       const form = new URLSearchParams(body);
       this.botChecks.push({ response: form.get('response'), secret: form.get('secret'), remoteip: form.get('remoteip') });
-      return reply(200, { success: form.get('response') === 'pass-token' && form.get('secret') === this.env.TURNSTILE_SECRET });
+      const secretOk = form.get('secret') === this.env.TURNSTILE_SECRET;
+      const success = form.get('response') === 'pass-token' && secretOk;
+      return reply(200, { success, 'error-codes': success ? [] : [secretOk ? 'invalid-input-response' : 'invalid-input-secret'] });
     }
 
     if (url.host === 'api.cal.com') {
-      if (this.options.calDown) return reply(503, { status: 'error' });
+      if (this.options.calDown || flaky('calFlaky')) return reply(503, { status: 'error' });
       if (url.pathname === '/v2/slots') {
         const data = {};
         for (const start of this.openTimes(Date.parse(url.searchParams.get('start')), Date.parse(url.searchParams.get('end')))) {

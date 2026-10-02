@@ -4,8 +4,9 @@ name: AI outline eval
 # prompt, the checks or the cases change on main, and on demand (Actions → AI
 # outline eval → Run workflow). Each case is scored as the site runs it (the
 # injection guard first) and by the model alone, and both must reach 90%. The
-# result is on the run's summary page. The site also runs the same cases on
-# itself every week; see /api/eval.
+# result is on the run's summary page, and is added to eval-history.csv on the
+# `eval-results` branch (scripts/push-eval-record.sh) with its date and commit.
+# The site also runs the same cases on itself every week; see /api/eval.
 #
 # Needs two repository secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_ACCOUNT_ID   the account the site's Worker runs in
@@ -62,6 +63,12 @@ jobs:
     needs: cases
     if: needs.cases.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    # To push the result to the eval-results branch, one run at a time.
+    permissions:
+      contents: write
+    concurrency:
+      group: eval-results
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -71,4 +78,7 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node scripts/eval-outlines.mjs
+        run: node scripts/eval-outlines.mjs --json=eval-result.json
+      - name: Record the result on the eval-results branch
+        if: always() && hashFiles('eval-result.json') != ''
+        run: sh scripts/push-eval-record.sh --result=eval-result.json
