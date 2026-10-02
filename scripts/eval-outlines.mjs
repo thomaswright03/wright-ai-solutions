@@ -15,11 +15,13 @@
 //               error (default 0.9)
 //   --out=FILE  also write the result as Markdown, e.g. docs/EVAL-RESULTS.md,
 //               so it can be committed next to the prompt it measured
+//   --json=FILE also write it as one row for eval-history.csv
+//               (scripts/record-eval.mjs)
 // In GitHub Actions the same Markdown goes to the run's summary page
 // (.github/workflows/eval-outlines.yml).
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { KINDS, adFor } from '../outlines.js';
-import { CASES, EVAL_BAR, judge, requestFor, runCase } from '../worker/eval.js';
+import { CASES, EVAL_BAR, evalVersion, judge, requestFor, runCase } from '../worker/eval.js';
 import { MIN_PROBLEM, MODEL, cleanProblem, looksLikeInjection } from '../worker/outline.js';
 
 const args = process.argv.slice(2);
@@ -27,6 +29,7 @@ const dryRun = args.includes('--dry-run');
 const minArg = args.find(a => a.startsWith('--min='));
 const minRate = minArg ? Number(minArg.slice(6)) : EVAL_BAR;
 const outArg = args.find(a => a.startsWith('--out='));
+const jsonArg = args.find(a => a.startsWith('--json='));
 
 // Throws, listing every problem, unless each case is one the site would accept
 // with a known expectation, kind and ad.
@@ -117,6 +120,21 @@ async function main() {
     '',
   ].join('\n');
   if (outArg) writeFileSync(outArg.slice(6), markdown);
+  if (jsonArg) {
+    const failed = cases.filter((c, i) => !site[i].pass || !alone[i].pass).map(c => c.id);
+    writeFileSync(jsonArg.slice(7), JSON.stringify({
+      finished_at: new Date().toISOString(),
+      ref: `${process.env.GITHUB_REF_NAME || 'local'}${process.env.GITHUB_SHA ? `@${process.env.GITHUB_SHA.slice(0, 7)}` : ''}`,
+      model: MODEL,
+      version: await evalVersion(),
+      passed: ours.passed,
+      total: cases.length,
+      kind_right: model.kindRight,
+      kind_total: model.kindTotal,
+      model_alone_passed: model.passed,
+      failed: failed.join(' '),
+    }));
+  }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   if (!ok) {
     console.error(`Below the ${pct(minRate)} bar.`);

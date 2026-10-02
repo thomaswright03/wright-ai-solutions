@@ -11,6 +11,7 @@ import { bookCall, openTimes, sendEmail } from '../worker/services.js';
 import { runHealthChecks } from '../worker/health.js';
 import { AD_PAGES } from '../outlines.js';
 import { checkCases } from '../scripts/eval-outlines.mjs';
+import { addRows, parseCsv, siteRows } from '../scripts/record-eval.mjs';
 import { FakeD1, FakeServices, fakeContext, withFakes } from './fakes.mjs';
 
 const ORIGIN = 'https://wright-ai-solutions.com';
@@ -1094,6 +1095,8 @@ test.describe('AI outline eval on the site', () => {
     const ai = {
       inputs: [],
       async run(model, input) {
+        // The hourly job's daily service check asks for a word, not an outline.
+        if (input.messages.length < 2) return { response: 'OK' };
         ai.inputs.push(input);
         if (failOn.includes(ai.inputs.length)) throw new Error('quota');
         const c = CASES.find(k => input.messages[1].content.includes(cleanProblem(k.problem)));
@@ -1353,5 +1356,30 @@ test.describe('daily check of the outside services', () => {
     expect((await health(fakes)).services).toEqual({ email: true });
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
     expect(html).toContain('OK: Email (Resend), key accepted (sending only)');
+  });
+});
+
+test.describe('eval history in the repository', () => {
+  const run = (finishedAt, passed) => ({ finishedAt, version: 'abc123', model: MODEL, current: true, passed, total: 38, rate: passed / 38, kindRight: 20, kindTotal: 21 });
+
+  test('adds each run once, oldest first, and flags a run that scored lower than the one before', () => {
+    const report = {
+      history: [run('2026-10-16T03:17:00.000Z', 36), run('2026-10-09T03:17:00.000Z', 38)],
+      latest: { finishedAt: '2026-10-16T03:17:00.000Z', results: [{ id: 'spam-seo', pass: false }, { id: 'abuse', pass: false }, { id: 'gibberish', pass: true }] },
+    };
+    const rows = siteRows(report);
+    expect(rows.map(r => [r.finished_at, r.passed, r.failed])).toEqual([['2026-10-09T03:17:00.000Z', 38, ''], ['2026-10-16T03:17:00.000Z', 36, 'spam-seo abuse']]);
+    const added = addRows([], rows);
+    expect(added.map(a => a.dropped)).toEqual([false, true]);
+    // Already recorded: nothing is added the next day.
+    const existing = parseCsv('finished_at,source,passed,total\n2026-10-09T03:17:00.000Z,site,38,38\n2026-10-16T03:17:00.000Z,site,36,38\n');
+    expect(addRows(existing, rows)).toEqual([]);
+    // A GitHub run is compared only with earlier GitHub runs.
+    const github = { finished_at: '2026-10-17T10:00:00.000Z', source: 'github', passed: 37, total: 38 };
+    expect(addRows(existing, [github])).toEqual([{ row: github, dropped: false, before: undefined }]);
+  });
+
+  test('reads back quoted fields', () => {
+    expect(parseCsv('a,b\n"x, ""y""",2\n')).toEqual([{ a: 'x, "y"', b: '2' }]);
   });
 });

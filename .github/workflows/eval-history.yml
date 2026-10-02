@@ -1,0 +1,33 @@
+name: AI eval history
+
+# Keeps a dated record of the site's own AI outline eval runs in the
+# repository: once a day it reads https://wright-ai-solutions.com/api/eval and
+# adds any run it hasn't recorded to eval-history.csv on the `eval-results`
+# branch (scripts/push-eval-record.sh), next to every GitHub run of the eval
+# (eval-outlines.yml). The track record then lives in git as well as in the
+# site's database. A run that scores lower than the one before is flagged on
+# the summary page; the site also sends Thomas a phone alert for it.
+on:
+  schedule:
+    - cron: '41 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    name: Record the site's eval runs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: eval-results
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Add new runs to eval-history.csv
+        run: sh scripts/push-eval-record.sh --site=https://wright-ai-solutions.com
