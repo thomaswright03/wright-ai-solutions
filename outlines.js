@@ -2,10 +2,20 @@
 // (worker/index.js), so an outline the server sends by email is exactly the one
 // the visitor saw. Plain data and one pure function: no DOM, no network.
 
+/**
+ * An outline as the visitor sees it and the emails carry it.
+ * @typedef {{ kind: string, title: string, build: string, steps: string[], needs: string[], milestone: string, questions: string[] }} Outline
+ * A template: an outline's words, plus a project of Thomas's like it.
+ * @typedef {{ title: string, build: string, steps: string[], needs: string[], milestone: string, shippedHeading: string, shipped: string, questions: string[] }} OutlineTemplate
+ * The opening /start shows for an ad.
+ * @typedef {{ eyebrow: string, title: string[], sub: string, label: string, prefill: string, kind: string }} AdPage
+ */
+
 // The kinds of work the studio does. Every outline has one.
 export const KINDS = ['leads', 'data', 'support', 'app', 'website', 'general'];
 
 // Ad-matched openings. The key is the ?for= value in the ad's link.
+/** @type {Record<string, AdPage>} */
 export const AD_PAGES = {
   leads: {
     eyebrow: 'For businesses losing leads',
@@ -75,6 +85,7 @@ export const AD_PAGES = {
 
 // Outline templates, one per kind of work the studio does. "shipped" only
 // repeats what index.html already says about each project.
+/** @type {Record<string, OutlineTemplate>} */
 export const OUTLINES = {
   leads: {
     title: 'An AI agent that answers your leads',
@@ -219,6 +230,7 @@ export const OUTLINES = {
 
 // Whole-word patterns that point to each kind of work, for visitors who
 // didn't come from a matched ad (and to overrule the ad when the text is clear).
+/** @type {Record<string, RegExp[]>} */
 export const SIGNALS = {
   leads: [/\bleads?\b/, /\binquir/, /\benquir/, /\bprospects?\b/, /\bfollow[- ]?ups?\b/, /\bmiss(es|ed|ing)?\b[^.]{0,25}\b(calls?|them|messages?|texts?)\b/, /\bvoicemails?\b/, /\bcall(ing)? back\b/, /\bcrm\b/, /\bgohighlevel\b/, /\bhubspot\b/, /\bquote requests?\b/, /\bappointment requests?\b/, /\bbook(ing)? (a |an )?(call|appointment|consult)/,
     // People going elsewhere because nobody answered, in any language a visitor is likely to write in.
@@ -231,6 +243,7 @@ export const SIGNALS = {
 };
 
 // How many of each kind's signal words the visitor's text has.
+/** @param {unknown} text @returns {Record<string, number>} */
 export function kindScores(text) {
   const lower = String(text).toLowerCase();
   return Object.fromEntries(Object.entries(SIGNALS).map(([kind, patterns]) =>
@@ -239,9 +252,10 @@ export function kindScores(text) {
 
 // Which kind of work the visitor's own words point to. The ad they came from
 // only breaks ties; clear words in their text win.
+/** @param {unknown} text @param {string | null} [adKind] @returns {string} */
 export function pickKind(text, adKind = null) {
   const scores = kindScores(text);
-  const fallback = KINDS.includes(adKind) ? adKind : 'general';
+  const fallback = typeof adKind === 'string' && KINDS.includes(adKind) ? adKind : 'general';
   if (Object.hasOwn(scores, fallback)) scores[fallback] += 0.5;
   const [best, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
   return score >= 1 ? best : fallback;
@@ -249,6 +263,7 @@ export function pickKind(text, adKind = null) {
 
 // The ad page for a ?for= value, or null. hasOwn so ?for=constructor or
 // ?for=__proto__ fall back to the plain page.
+/** @param {unknown} key @returns {AdPage | null} */
 export function adFor(key) {
   return typeof key === 'string' && Object.hasOwn(AD_PAGES, key) ? AD_PAGES[key] : null;
 }

@@ -183,9 +183,10 @@ jobs:
 
       - name: One cache-busting version for every page's CSS and JS
         run: |
-          # start.js imports outlines.js with the same ?v=, and the pages the
-          # Worker writes (worker/pages.js) link the stylesheets with ASSET_VERSION.
-          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html start.html start.js | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
+          # start.js imports outlines.js with the same ?v= (and browser.d.ts
+          # types that import for the type check), and the pages the Worker
+          # writes (worker/pages.js) link the stylesheets with ASSET_VERSION.
+          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html start.html start.js browser.d.ts | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
           if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
             echo "::error::Pages reference different ?v= versions: $(echo $versions)"
             exit 1

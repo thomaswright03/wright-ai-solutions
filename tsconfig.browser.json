@@ -7,9 +7,9 @@
     "checkJs": true,
     "noEmit": true,
     "strict": true,
-    "lib": ["ES2023"],
-    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
     "skipLibCheck": true
   },
-  "include": ["worker/**/*.js", "worker/**/*.d.ts"]
+  "include": ["start.js", "script.js", "outlines.js", "theme-init.js", "browser.d.ts"]
 }

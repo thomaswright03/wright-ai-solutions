@@ -1,20 +1,20 @@
 const copyrightYear = document.getElementById('copyright-year');
-if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
+if (copyrightYear) copyrightYear.textContent = String(new Date().getFullYear());
 
 const navToggle = document.getElementById('navToggle');
 const navMobile = document.getElementById('navMobile');
 
 // The /start landing page has no section nav, so it has no menu to wire up.
 if (navToggle && navMobile) {
-  function closeMobileNav() {
+  const closeMobileNav = () => {
     navMobile.classList.remove('open');
     navToggle.setAttribute('aria-expanded', 'false');
-  }
+  };
 
-  function openMobileNav() {
+  const openMobileNav = () => {
     navMobile.classList.add('open');
     navToggle.setAttribute('aria-expanded', 'true');
-  }
+  };
 
   navToggle.addEventListener('click', () => {
     const isOpen = navMobile.classList.contains('open');
@@ -34,7 +34,8 @@ if (navToggle && navMobile) {
 
   document.addEventListener('click', (e) => {
     if (!navMobile.classList.contains('open')) return;
-    if (navMobile.contains(e.target) || navToggle.contains(e.target)) return;
+    const target = /** @type {Node | null} */ (e.target);
+    if (navMobile.contains(target) || navToggle.contains(target)) return;
     closeMobileNav();
   });
 
@@ -45,9 +46,9 @@ if (navToggle && navMobile) {
 
 const contactHint = document.getElementById('contactHint');
 if (contactHint) {
-  document.querySelectorAll('[data-copy]').forEach(el => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-copy]')).forEach(el => {
     el.addEventListener('click', () => {
-      const value = el.dataset.copy;
+      const value = /** @type {string} */ (el.dataset.copy);
       const showManual = () => {
         contactHint.textContent = `Copy this: ${value}`;
       };
@@ -64,6 +65,7 @@ if (contactHint) {
 const themeToggle = document.getElementById('themeToggle');
 if (themeToggle) {
   const themeOrder = ['system', 'light', 'dark'];
+  /** @type {Record<string, string>} */
   const themeLabels = { system: 'match system', light: 'light', dark: 'dark' };
 
   const readTheme = () => {
@@ -71,6 +73,7 @@ if (themeToggle) {
     return current === 'light' || current === 'dark' ? current : 'system';
   };
 
+  /** @param {string} choice */
   const showTheme = (choice) => {
     const next = themeOrder[(themeOrder.indexOf(choice) + 1) % themeOrder.length];
     themeToggle.dataset.choice = choice;

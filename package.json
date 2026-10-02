@@ -8,7 +8,7 @@
     "test": "playwright test",
     "validate": "html-validate index.html 404.html privacy.html start.html",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . && tsc -p tsconfig.browser.json",
     "deadcode": "knip --no-progress"
   },
   "devDependencies": {

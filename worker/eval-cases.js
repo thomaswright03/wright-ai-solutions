@@ -6,6 +6,11 @@
 // AI. New cases go in a commit of their own, before the change they check:
 // docs/EVAL-CASES.md has the rule and a log of where each group came from.
 // Changing them starts a new eval run on the site.
+/**
+ * One sample problem, the answer expected, and for a usable one the kind of work.
+ * @typedef {{ id: string, problem: string, expect: 'usable' | 'unusable', kind?: string, ad?: string }} EvalCase
+ */
+/** @type {EvalCase[]} */
 export const CASES = [
   { id: 'leads-after-hours', problem: 'We run a plumbing company and leads from our website come in after hours. Nobody replies until morning and we lose jobs to whoever answers first.', expect: 'usable', kind: 'leads' },
   { id: 'leads-missed-calls', problem: 'Our dental office misses a lot of calls at lunch and those people book somewhere else.', expect: 'usable', kind: 'leads' },
