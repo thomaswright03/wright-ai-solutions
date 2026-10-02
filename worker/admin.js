@@ -5,6 +5,7 @@
 import { features, settings } from './config.js';
 import { count, dayIn, ensureSchema, formatIn } from './db.js';
 import { evalReport } from './eval.js';
+import { SERVICES, healthReport } from './health.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
 import { page } from './pages.js';
 
@@ -144,6 +145,23 @@ ${lines.join('\n')}
 </section>`;
 }
 
+// Today's check of each outside service (health.js).
+function healthPanel(report, timeZone) {
+  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  const rows = report ? Object.entries(report.services) : [];
+  const body = !report
+    ? '<p>Not checked yet. It runs once a day, in the hourly job.</p>'
+    : rows.length
+      ? `<ul class="admin-health">${rows.map(([name, r]) => `<li>${r.ok ? 'OK' : '<strong>Failing</strong>'}: ${esc(SERVICES[name] || name)}, ${esc(r.note)}</li>`).join('')}</ul>`
+      : '<p>No outside services are switched on yet.</p>';
+  return `<section class="admin-eval" aria-labelledby="health-title">
+<h2 id="health-title">Outside services</h2>
+${report ? `<p>Checked ${esc(when(report.checkedAt))}.</p>` : ''}
+${body}
+<p class="admin-muted">Checked once a day; a phone alert goes out when one fails. Public summary: <a href="/api/health">/api/health</a></p>
+</section>`;
+}
+
 function leadCard(lead, timeZone) {
   const when = iso => formatIn(timeZone, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
   let outline = null;
@@ -258,12 +276,13 @@ export async function adminRoute(request, env, url) {
   if (url.pathname !== '/admin') return notFound();
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
-  const [counts, outcomes, leads, total, evaluation] = await Promise.all([
+  const [counts, outcomes, leads, total, evaluation, health] = await Promise.all([
     env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all(),
     env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all(),
     env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all(),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
     evalReport(env),
+    healthReport(env),
   ]);
   const list = leads.results || [];
   const body = `<p class="eyebrow">Private</p>
@@ -272,6 +291,7 @@ export async function adminRoute(request, env, url) {
 ${countsTable(counts.results || [])}
 ${outcomesTable(outcomes.results || [])}
 ${evalPanel(evaluation, timeZone)}
+${healthPanel(health, timeZone)}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
   return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

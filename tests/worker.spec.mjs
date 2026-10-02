@@ -7,6 +7,8 @@ import worker, { MODEL, SYSTEM_PROMPT, validateOutline, templateOutline } from '
 import { ensureSchema } from '../worker/db.js';
 import { CASES, EVAL_BAR, EVAL_BATCH, EVAL_HISTORY, EVAL_ROOM, evalVersion, judge, requestFor } from '../worker/eval.js';
 import { cleanProblem, looksLikeInjection, rejectionReason, settleKind } from '../worker/outline.js';
+import { bookCall, openTimes, sendEmail } from '../worker/services.js';
+import { runHealthChecks } from '../worker/health.js';
 import { AD_PAGES } from '../outlines.js';
 import { checkCases } from '../scripts/eval-outlines.mjs';
 import { FakeD1, FakeServices, fakeContext, withFakes } from './fakes.mjs';
@@ -1257,5 +1259,99 @@ test.describe('AI outline eval on the site', () => {
     expect(await (await send(fakes, get('/admin', basic('local-demo-password')))).text()).toContain('Off until Workers AI and the database are connected');
     expect((await send(fakes, post('/api/eval', {}))).status).toBe(405);
     expect((await send(new FakeServices({ bare: true }), get('/api/eval'))).status).toBe(200);
+  });
+});
+
+test.describe('outside services', () => {
+  const cal = { username: 'demo', slug: 'intro-call' };
+  const message = { from: 'site@example.com', to: ['pat@example.com'], subject: 'Your outline', text: 'Hello' };
+  const call = start => ({ start, name: 'Pat', email: 'pat@example.com', timeZone: 'America/New_York', notes: '', metadata: {} });
+  const count = (fakes, request) => fakes.requests.filter(r => r === request).length;
+
+  test('a quick failure at Resend is tried again, and the email still goes once', async () => {
+    const fakes = new FakeServices({ emailFlaky: 2 });
+    expect(await withFakes(fakes, () => sendEmail(fakes.env, message, 'outline-1'))).toBe(true);
+    expect(count(fakes, 'POST api.resend.com/emails')).toBe(3);
+    expect(fakes.emails).toHaveLength(1);
+    // Three tries at most.
+    const down = new FakeServices({ emailFlaky: 5 });
+    expect(await withFakes(down, () => sendEmail(down.env, message, 'outline-2'))).toBe(false);
+    expect(count(down, 'POST api.resend.com/emails')).toBe(3);
+    // Without a key Resend can't drop a repeat, so a server error isn't retried.
+    const unkeyed = new FakeServices({ emailFlaky: 1 });
+    expect(await withFakes(unkeyed, () => sendEmail(unkeyed.env, message))).toBe(false);
+    expect(count(unkeyed, 'POST api.resend.com/emails')).toBe(1);
+  });
+
+  test('Cal.com open times are fetched again after a quick failure', async () => {
+    const fakes = new FakeServices({ calFlaky: 1 });
+    const from = new Date(Date.UTC(2026, 9, 5));
+    const times = await withFakes(fakes, () => openTimes(fakes.env, cal, from, new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000)));
+    expect(times.length).toBeGreaterThan(0);
+    expect(count(fakes, 'GET api.cal.com/v2/slots')).toBe(2);
+  });
+
+  test('a booking is retried only when Cal.com said it took nothing in', async () => {
+    const start = '2026-10-05T15:00:00.000Z';
+    const busy = new FakeServices({ calFlaky: 1 });
+    expect(await withFakes(busy, () => bookCall(busy.env, cal, call(start)))).toMatchObject({ uid: 'booking_1', start });
+    expect(count(busy, 'POST api.cal.com/v2/bookings')).toBe(2);
+    expect(busy.bookings).toHaveLength(1);
+    // A dropped connection may have booked it, so it isn't sent again.
+    const lost = new FakeServices({ calLost: true });
+    expect(await withFakes(lost, () => bookCall(lost.env, cal, call(start)))).toEqual({ uncertain: true });
+    expect(count(lost, 'POST api.cal.com/v2/bookings')).toBe(1);
+    expect(lost.bookings).toHaveLength(1);
+  });
+});
+
+test.describe('daily check of the outside services', () => {
+  const NOW = Date.UTC(2026, 9, 6, 0, 17);
+  const HOUR = 60 * 60 * 1000;
+  const check = (fakes, now) => withFakes(fakes, () => runHealthChecks(fakes.env, now));
+  const health = async fakes => (await send(fakes, get('/api/health'))).json();
+  const all = { email: true, calendar: true, ai: true, botCheck: true, alerts: true };
+
+  test('checks each service once a day, sends nothing, and publishes only which passed', async () => {
+    const ai = fakeAI('OK');
+    const fakes = fakesWith({ AI: ai }, { turnstile: true });
+    expect(await health(fakes)).toEqual({ checkedAt: null, services: {} });
+    await check(fakes, NOW);
+    expect(await health(fakes)).toEqual({ checkedAt: new Date(NOW).toISOString(), services: all });
+    expect(ai.calls).toHaveLength(1);
+    expect(fakes.emails).toEqual([]);
+    expect(fakes.bookings).toEqual([]);
+    expect(fakes.alerts).toEqual([]);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('OK: Email (Resend), wright-ai-solutions.com is verified');
+    expect(html).toContain('OK: Bot check (Turnstile), secret accepted');
+
+    // Later the same day nothing runs; the next day it runs again.
+    const made = fakes.requests.length;
+    await check(fakes, NOW + 20 * HOUR);
+    expect(fakes.requests.length).toBe(made);
+    await check(fakes, NOW + 24 * HOUR);
+    expect(fakes.requests.length).toBeGreaterThan(made);
+    expect((await health(fakes)).checkedAt).toBe(new Date(NOW + 24 * HOUR).toISOString());
+  });
+
+  test('a failing service is shown, alerted and published', async () => {
+    const fakes = fakesWith({ AI: fakeAI(new Error('quota')) }, { calDown: true, domainStatus: 'pending' });
+    await check(fakes, NOW);
+    expect((await health(fakes)).services).toEqual({ email: false, calendar: false, ai: false, alerts: true });
+    expect(fakes.alerts.map(a => a.title)).toEqual(['A service /start needs is failing']);
+    expect(fakes.alerts[0].body).toBe('Email (Resend): wright-ai-solutions.com is pending. Calendar (Cal.com): Cal.com didn\'t answer. AI outlines (Workers AI): couldn\'t be reached. Details on your leads list.');
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('<strong>Failing</strong>: Calendar (Cal.com), Cal.com didn&#39;t answer');
+  });
+
+  test('a sending-only Resend key passes, and services that are off are left out', async () => {
+    const fakes = fakesWith({}, { resendSendOnly: true });
+    delete fakes.env.CAL_LINK;
+    delete fakes.env.NTFY_TOPIC;
+    await check(fakes, NOW);
+    expect((await health(fakes)).services).toEqual({ email: true });
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('OK: Email (Resend), key accepted (sending only)');
   });
 });

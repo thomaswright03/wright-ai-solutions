@@ -1,7 +1,8 @@
 // Checks a running copy of the site the way visitors and the outside services
 // meet it: the pages load with their security headers, the API answers, the
-// calendar (Cal.com) gives open times, the AI eval result is published, and
-// the private pages stay private. It only reads: nothing is saved, emailed or
+// calendar (Cal.com) gives open times, the AI eval result is published, the
+// Worker's own daily check of each outside service passed, and the private
+// pages stay private. It only reads: nothing is saved, emailed or
 // booked. Run by .github/workflows/deploy-check.yml after every deploy and
 // each morning, and by tests/site.spec.mjs against the local server.
 //
@@ -75,6 +76,17 @@ export function checks(base, { sha = null, headers = {} } = {}) {
       if (latest && latest.current && latest.rate < report.bar) throw new Error(`the latest run is below the bar: ${latest.passed}/${latest.total}`);
       if (latest) return `${latest.passed}/${latest.total} on ${latest.finishedAt.slice(0, 10)}${latest.current ? '' : ' (an earlier prompt or model)'}${running ? `; a new run is ${running.done}/${running.total} done` : ''}`;
       return running ? `first run ${running.done}/${running.total} done` : `not run yet${report.on ? '' : ' (AI not connected)'}`;
+    }],
+    ['outside services', async () => {
+      // The Worker checks each service with its own keys once a day (worker/health.js).
+      const res = await get('/api/health');
+      expectStatus(res, 200);
+      const { checkedAt, services } = await jsonOf(res);
+      if (!checkedAt) return 'not checked yet (the first check runs within the hour)';
+      if (Date.parse(checkedAt) < Date.now() - 26 * 60 * 60 * 1000) throw new Error(`the daily check hasn't run since ${checkedAt}`);
+      const failing = Object.entries(services).filter(([, ok]) => !ok).map(([name]) => name);
+      if (failing.length) throw new Error(`failing in the check at ${checkedAt}: ${failing.join(', ')}`);
+      return `${Object.keys(services).join(', ') || 'none switched on'} passed at ${checkedAt}`;
     }],
     ['outline API', async () => {
       // A request from another site is turned away before any work is done.

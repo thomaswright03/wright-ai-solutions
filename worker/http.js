@@ -76,6 +76,39 @@ export function withTimeout(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+// Waits before each retry; each wait is longer, with jitter so many visitors'
+// retries don't land together.
+export const RETRY_DELAYS_MS = [250, 750];
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Calls `attempt()` (a fetch) again after a quick failure that is safe to
+// repeat: an answer whose status `again` accepts (such as 429, "too many
+// requests"), or, when `again` also accepts a thrown error, a dropped
+// connection. Each caller decides what is safe: a request Resend can recognize
+// as a repeat may be sent again after anything; a booking only after Cal.com
+// said it took nothing in. A timeout is never retried, because the visitor has
+// already waited for it. Returns the last answer or throws the last error.
+export async function withRetries(attempt, again, delays = RETRY_DELAYS_MS) {
+  for (let i = 0; ; i++) {
+    let response;
+    try {
+      response = await attempt();
+    } catch (err) {
+      if (i >= delays.length || err?.message === 'timeout' || !again(null, err)) throw err;
+    }
+    if (response) {
+      if (i >= delays.length || !again(response.status, null)) return response;
+      try { await response.body?.cancel(); } catch { /* nothing to free */ }
+    }
+    const asked = response ? Number(response.headers.get('Retry-After')) : 0;
+    await sleep(Math.max(delays[i] * (0.75 + Math.random() * 0.5), asked > 0 && asked <= 2 ? asked * 1000 : 0));
+  }
+}
+
+// What's safe to repeat for a read, or a write the service drops as a repeat:
+// a dropped connection, 429, or a server error.
+export const retryAnyFailure = (status, err) => (err ? true : status === 429 || status >= 500);
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 

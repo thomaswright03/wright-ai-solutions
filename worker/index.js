@@ -9,10 +9,12 @@
 //   GET  /api/slots    open times from Cal.com
 //   POST /api/book     books the call through Cal.com
 //   GET  /api/eval     the latest result of the AI outline eval (eval.js)
+//   GET  /api/health   which outside services passed today's check (health.js)
 //   /forget            the "delete my details" link in every email
 //   /admin             Thomas's private leads list (admin.js)
 import { adminRoute } from './admin.js';
 import { evalRoute, runEvalBatch } from './eval.js';
+import { healthRoute, runHealthChecks } from './health.js';
 import { json } from './http.js';
 import { bookRoute, configRoute, eventRoute, forgetRoute, runSchedule, saveRoute, slotsRoute } from './leads.js';
 import { outlineRoute } from './outline.js';
@@ -27,6 +29,7 @@ const ROUTES = {
   '/api/slots': slotsRoute,
   '/api/book': bookRoute,
   '/api/eval': evalRoute,
+  '/api/health': healthRoute,
 };
 
 export default {
@@ -45,8 +48,10 @@ export default {
   },
 
   // Hourly: the leads list's upkeep and reminders, then the next few cases of
-  // the AI outline eval (which runs even if the first part failed).
+  // the AI outline eval (which runs even if the first part failed); and once
+  // a day, the check of each outside service.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runSchedule(env, event.scheduledTime).finally(() => runEvalBatch(env, event.scheduledTime)));
+    ctx.waitUntil(runHealthChecks(env, event.scheduledTime));
   },
 };

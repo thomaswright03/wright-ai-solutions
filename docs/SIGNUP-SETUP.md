@@ -72,7 +72,7 @@ This shows your real open times on the page and books the call. Cal.com sends bo
 
 ## 5. Optional: instant phone alerts (ntfy, about 3 minutes)
 
-You'll already get the lead email and Cal.com's booking email on your phone. This adds a separate, instant push alert for each new lead and booking, for a booking Cal.com didn't confirm, and for the weekly AI eval falling below 90% or scoring lower than the week before. It says what kind of project it is, which ad and platform it came from and, for a call, when it is. It never includes anyone's name, email address or words. Tapping it opens the leads list.
+You'll already get the lead email and Cal.com's booking email on your phone. This adds a separate, instant push alert for each new lead and booking, for a booking Cal.com didn't confirm, for the weekly AI eval falling below 90% or scoring lower than the week before, and for the daily check finding a service that isn't working (email, calendar, AI or bot check). It says what kind of project it is, which ad and platform it came from and, for a call, when it is. It never includes anyone's name, email address or words. Tapping it opens the leads list.
 
 1. Install the **ntfy** app (App Store or Google Play).
 2. Tap **+** and subscribe to a topic with a long, random name nobody could guess, like `wright-leads-` followed by 20 random letters. Anyone who knows the name can read or send these alerts, so treat it like a password.
