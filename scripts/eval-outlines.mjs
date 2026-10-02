@@ -1,7 +1,8 @@
-// Runs the sample problems in scripts/outline-eval.json through the same model,
+// Runs the sample problems in worker/eval-cases.js through the same model,
 // prompt and checks the site uses for /start outlines, and reports how many
 // come back the way they should. Run it before changing the prompt or the
-// model in worker/outline.js, and again after, and compare.
+// model in worker/outline.js, and again after, and compare. The site also
+// runs these cases on itself every week (worker/eval.js, /api/eval).
 //
 //   CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node scripts/eval-outlines.mjs
 //
@@ -13,44 +14,36 @@
 //               so it can be committed next to the prompt it measured
 // In GitHub Actions the same Markdown goes to the run's summary page
 // (.github/workflows/eval-outlines.yml).
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { KINDS, adFor } from '../outlines.js';
-import { MIN_PROBLEM, MODEL, cleanProblem, outlineRequest, rejectionReason, validateOutline } from '../worker/outline.js';
+import { CASES, EVAL_BAR, judge, requestFor } from '../worker/eval.js';
+import { MIN_PROBLEM, MODEL, cleanProblem } from '../worker/outline.js';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const minArg = args.find(a => a.startsWith('--min='));
-const minRate = minArg ? Number(minArg.slice(6)) : 0.9;
+const minRate = minArg ? Number(minArg.slice(6)) : EVAL_BAR;
 const outArg = args.find(a => a.startsWith('--out='));
 
-export function loadCases(file = new URL('./outline-eval.json', import.meta.url)) {
-  const { cases } = JSON.parse(readFileSync(file, 'utf8'));
+// Throws, listing every problem, unless each case is one the site would accept
+// with a known expectation, kind and ad.
+export function checkCases(cases = CASES) {
   const problems = [];
+  const ids = new Set();
   for (const c of cases) {
     if (!c.id || typeof c.problem !== 'string') problems.push(`${c.id || '?'}: needs an id and a problem`);
     else if (cleanProblem(c.problem).length < MIN_PROBLEM) problems.push(`${c.id}: too short for the site to accept`);
+    if (ids.has(c.id)) problems.push(`${c.id}: used twice`);
+    ids.add(c.id);
     if (!['usable', 'unusable'].includes(c.expect)) problems.push(`${c.id}: expect must be "usable" or "unusable"`);
     if (c.kind && !KINDS.includes(c.kind)) problems.push(`${c.id}: unknown kind "${c.kind}"`);
     if (c.ad && !adFor(c.ad)) problems.push(`${c.id}: unknown ad "${c.ad}"`);
   }
-  if (problems.length) throw new Error(`outline-eval.json:\n  ${problems.join('\n  ')}`);
+  if (problems.length) throw new Error(`worker/eval-cases.js:\n  ${problems.join('\n  ')}`);
   return cases;
 }
 
-// The request for one case, exactly as /api/outline would send it.
-export const requestFor = c => outlineRequest(cleanProblem(c.problem), c.ad ? adFor(c.ad).kind : null);
-
-// Whether the model's reply is right for the case: an outline that passes the
-// site's checks for a usable case, and a "usable": false for an unusable one.
-// Kind is reported but not required; a usable outline of another kind still
-// helps the visitor.
-export function judge(c, raw) {
-  const outline = validateOutline(raw);
-  const outcome = outline ? 'ai' : rejectionReason(raw);
-  const pass = c.expect === 'usable' ? Boolean(outline) : outcome === 'unusable';
-  const kindMatch = c.kind && outline ? outline.kind === c.kind : null;
-  return { outcome, pass, kindMatch, title: outline ? outline.title : null };
-}
+export { judge, requestFor };
 
 async function runModel(request) {
   const { CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_API_TOKEN: token } = process.env;
@@ -66,7 +59,7 @@ async function runModel(request) {
 }
 
 async function main() {
-  const cases = loadCases();
+  const cases = checkCases();
   if (dryRun) {
     for (const c of cases) console.log(`${c.id}: ${JSON.stringify(requestFor(c).messages[1].content).slice(0, 120)}`);
     console.log(`\n${cases.length} cases look fine (dry run, nothing sent).`);
@@ -98,12 +91,12 @@ async function main() {
     console.log(`${result.pass ? 'PASS' : 'FAIL'}  ${c.id.padEnd(22)} expected ${c.expect.padEnd(8)} got ${result.outcome}${kindNote}${result.title ? `  "${result.title}"` : ''}`);
   }
   const rate = passed / cases.length;
-  const verdict = `${passed}/${cases.length} passed (${Math.round(rate * 100)}%). Kind right on ${kinds}/${kindTotal}.`;
+  const verdict = `${rate >= minRate ? 'Passed' : 'Below the bar'}: ${passed}/${cases.length} right (${Math.round(rate * 100)}%). Kind right on ${kinds}/${kindTotal}.`;
   console.log(`\n${verdict}`);
   const markdown = [
     '# AI outline eval result',
     '',
-    `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC against \`${MODEL}\`, with the prompt in \`worker/outline.js\` and the cases in \`scripts/outline-eval.json\`.`,
+    `Run ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC against \`${MODEL}\`, with the prompt in \`worker/outline.js\` and the cases in \`worker/eval-cases.js\`.`,
     '',
     `**${verdict}** The bar is ${Math.round(minRate * 100)}%.`,
     '',

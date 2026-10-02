@@ -5,9 +5,10 @@
 import { test, expect } from '@playwright/test';
 import worker, { MODEL, SYSTEM_PROMPT, validateOutline, templateOutline } from '../worker/index.js';
 import { ensureSchema } from '../worker/db.js';
-import { rejectionReason } from '../worker/outline.js';
-import { judge, loadCases, requestFor } from '../scripts/eval-outlines.mjs';
-import { FakeServices, fakeContext, withFakes } from './fakes.mjs';
+import { CASES, EVAL_BATCH, EVAL_ROOM, evalVersion, judge, requestFor } from '../worker/eval.js';
+import { cleanProblem, rejectionReason } from '../worker/outline.js';
+import { checkCases } from '../scripts/eval-outlines.mjs';
+import { FakeD1, FakeServices, fakeContext, withFakes } from './fakes.mjs';
 
 const ORIGIN = 'https://wright-ai-solutions.com';
 const IP = '203.0.113.7';
@@ -168,7 +169,9 @@ test.describe('outline', () => {
   });
 
   test('the eval set is well formed and is sent exactly as the site sends it', async () => {
-    const cases = loadCases();
+    const cases = checkCases();
+    expect(() => checkCases([...cases, cases[0]])).toThrow(/used twice/);
+    expect(() => checkCases([{ id: 'x', problem: 'too short', expect: 'maybe' }])).toThrow(/too short[\s\S]*expect must be/);
     expect(cases.length).toBeGreaterThanOrEqual(20);
     expect(cases.filter(c => c.expect === 'unusable').length).toBeGreaterThanOrEqual(5);
     const ai = fakeAI(GOOD);
@@ -602,6 +605,93 @@ test.describe('booking', () => {
     expect(fakes.bookings).toHaveLength(1);
   });
 
+  // A lost reply from Cal.com, then Thomas's answer from the leads list.
+  async function unconfirmedLead(fakes, email = 'pat@example.com') {
+    const { saved } = await saveLead(fakes, { email });
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    const res = await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }));
+    expect(await res.json()).toEqual({ error: 'unconfirmed' });
+    const [{ id }] = await rows(fakes, 'SELECT id FROM leads WHERE email = ?', email);
+    return { saved, times, id };
+  }
+  const settle = (id, booked, origin = ORIGIN) => new Request(`${ORIGIN}/admin/booking`, {
+    method: 'POST',
+    headers: { ...basic('local-demo-password'), ...(origin ? { Origin: origin } : {}) },
+    body: new URLSearchParams({ id, booked }),
+  });
+
+  test('an unconfirmed booking shows on the leads list with the time asked for', async () => {
+    const fakes = new FakeServices({ calLost: true });
+    const { times, id } = await unconfirmedLead(fakes);
+    expect(await rows(fakes, 'SELECT booked_at, booking_start, name FROM leads')).toEqual([{ booked_at: 'pending', booking_start: times[0], name: 'Pat' }]);
+    expect(fakes.alerts.at(-1).body).toMatch(/^Cal\.com didn't confirm a call for \w{3}, \w{3} \d+, .+\. Check your calendar, then mark it booked or not on your leads list\.$/);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain(`id="lead-${id}"`);
+    expect(html).toMatch(/Unconfirmed for \w{3}, \w{3} \d+, [^;]+; check Cal\.com/);
+    expect(html).toContain('Cal.com didn\'t confirm the call Pat asked for on');
+    expect(html).toContain('<button type="submit" name="booked" value="yes" class="btn btn-primary">It\'s booked</button>');
+    expect(html).toContain('<button type="submit" name="booked" value="no" class="btn btn-ghost">Not booked: let them pick again</button>');
+    const csv = await (await send(fakes, get('/admin/leads.csv', basic('local-demo-password')))).text();
+    expect(csv).toContain(`"unconfirmed","${times[0]}"`);
+    expect(csv).not.toContain('pending');
+  });
+
+  test('marking it booked keeps the time asked for and counts the booking', async () => {
+    const fakes = new FakeServices({ calLost: true });
+    const { saved, times, id } = await unconfirmedLead(fakes);
+    for (const origin of ['https://evil.example', null]) expect((await send(fakes, settle(id, 'yes', origin))).status).toBe(403);
+    expect(await rows(fakes, 'SELECT booked_at FROM leads')).toEqual([{ booked_at: 'pending' }]);
+
+    const res = await send(fakes, settle(id, 'yes'));
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/admin#lead-${id}`);
+    expect(await rows(fakes, 'SELECT booked_at, booking_start FROM leads')).toEqual([{ booked_at: times[0], booking_start: times[0] }]);
+    expect(await rows(fakes, "SELECT ad, src, n FROM counts WHERE step = 'book'")).toEqual([{ ad: 'leads', src: 'google', n: 1 }]);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('Call booked for');
+    expect(html).not.toContain('admin-booking');
+    expect(await (await send(fakes, get('/admin/leads.csv', basic('local-demo-password')))).text()).toContain(`"booked","${times[0]}"`);
+
+    // Settled once: a second answer, either way, changes nothing.
+    for (const booked of ['no', 'yes']) await send(fakes, settle(id, booked));
+    expect(await rows(fakes, 'SELECT booked_at FROM leads')).toEqual([{ booked_at: times[0] }]);
+    expect(await rows(fakes, "SELECT n FROM counts WHERE step = 'book'")).toEqual([{ n: 1 }]);
+    expect(await (await send(fakes, post('/api/book', { lead: saved.lead, start: times[1], name: 'Pat' }))).json()).toEqual({ error: 'already_booked' });
+    expect(fakes.bookings).toHaveLength(1);
+  });
+
+  test('marking it not booked lets the visitor book from the page again', async () => {
+    // The request was lost before Cal.com booked anything.
+    const fakes = new FakeServices({ calSilent: true });
+    const { saved, times, id } = await unconfirmedLead(fakes);
+    expect(fakes.bookings).toHaveLength(0);
+    expect((await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }))).status).toBe(409);
+
+    expect((await send(fakes, settle(id, 'no'))).status).toBe(303);
+    expect(await rows(fakes, 'SELECT booked_at, booking_start FROM leads')).toEqual([{ booked_at: null, booking_start: null }]);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('No call booked');
+    expect(await (await send(fakes, get('/admin/leads.csv', basic('local-demo-password')))).text()).toContain('"none",""');
+
+    const res = await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }));
+    expect(await res.json()).toEqual({ ok: true, start: times[0] });
+    expect(fakes.bookings).toHaveLength(1);
+  });
+
+  test('an unconfirmed booking from before the time was kept can only be freed', async () => {
+    const fakes = new FakeServices({ calLost: true });
+    const { id } = await unconfirmedLead(fakes);
+    await fakes.env.DB.prepare('UPDATE leads SET booking_start = NULL').run();
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('the time asked for wasn\'t recorded');
+    expect(html).not.toContain('value="yes"');
+    await send(fakes, settle(id, 'yes'));
+    expect(await rows(fakes, 'SELECT booked_at FROM leads')).toEqual([{ booked_at: 'pending' }]);
+    expect(await (await send(fakes, get('/admin/leads.csv', basic('local-demo-password')))).text()).toContain('"unconfirmed",""');
+    await send(fakes, settle(id, 'no'));
+    expect(await rows(fakes, 'SELECT booked_at FROM leads')).toEqual([{ booked_at: null }]);
+  });
+
   test('a lead deleted in the meantime can\'t book', async () => {
     const fakes = new FakeServices();
     const { saved } = await saveLead(fakes);
@@ -730,7 +820,7 @@ test.describe('leads list', () => {
     expect(res.headers.get('content-type')).toContain('text/csv');
     expect(res.headers.get('content-disposition')).toContain('attachment');
     const csv = await res.text();
-    expect(csv.split('\r\n')[0]).toBe('created_at,email,name,ad,src,kind,source,follow_up,follow_up_sent_at,booked_at,title,problem');
+    expect(csv.split('\r\n')[0]).toBe('created_at,email,name,ad,src,kind,source,follow_up,follow_up_sent_at,call,call_at,title,problem');
     expect(csv).toContain('"\'=HYPERLINK(""http://evil.example"",""click"") we miss calls"');
   });
 
@@ -883,5 +973,169 @@ test.describe('hourly job', () => {
     await runHourly(fakes);
     expect(fakes.emails).toHaveLength(0);
     expect(await rows(fakes, 'SELECT email FROM leads')).toEqual([{ email: 'recent@example.com' }]);
+  });
+});
+
+test.describe('database', () => {
+  // The leads table as it first went live, before booking_start was added.
+  const FIRST_LEADS_TABLE = `CREATE TABLE leads (id TEXT PRIMARY KEY, outline_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
+    email TEXT NOT NULL, emailed_at TEXT, tz TEXT, problem TEXT NOT NULL, kind TEXT NOT NULL, ad TEXT NOT NULL, src TEXT NOT NULL,
+    source TEXT NOT NULL, outline TEXT NOT NULL, follow_up INTEGER NOT NULL DEFAULT 0, follow_up_sent_at TEXT,
+    sends INTEGER NOT NULL DEFAULT 1, name TEXT, booked_at TEXT, booking_uid TEXT)`;
+
+  test('a database from before a column was added gets it, keeping its rows, and the flow works on it', async () => {
+    const fakes = new FakeServices({ calLost: true });
+    fakes.env.DB.db.exec(FIRST_LEADS_TABLE);
+    fakes.env.DB.db.exec("INSERT INTO leads (id, outline_id, created_at, email, problem, kind, ad, src, source, outline) VALUES ('oldlead0001', 'o1', '2026-10-01T00:00:00.000Z', 'old@example.com', 'p', 'leads', 'none', 'direct', 'template', '{}')");
+    const { saved } = await saveLead(fakes);
+    expect((await rows(fakes, 'PRAGMA table_info(leads)')).map(c => c.name)).toContain('booking_start');
+    expect(await rows(fakes, "SELECT email, booking_start FROM leads WHERE id = 'oldlead0001'")).toEqual([{ email: 'old@example.com', booking_start: null }]);
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }));
+    expect(await rows(fakes, "SELECT booking_start FROM leads WHERE email = 'pat@example.com'")).toEqual([{ booking_start: times[0] }]);
+  });
+
+  test('two copies of the Worker starting at once both add the column without an error', async () => {
+    const first = new FakeD1();
+    first.db.exec(FIRST_LEADS_TABLE);
+    const second = Object.assign(Object.create(FakeD1.prototype), { db: first.db });
+    await Promise.all([ensureSchema(first), ensureSchema(second)]);
+    expect(first.db.prepare('PRAGMA table_info(leads)').all().filter(c => c.name === 'booking_start')).toHaveLength(1);
+  });
+});
+
+test.describe('AI outline eval on the site', () => {
+  const HOUR = 60 * 60 * 1000;
+  const NOW = Date.UTC(2026, 9, 7, 16, 17);
+
+  // A stand-in model that answers every eval case the way it should, except
+  // the ids in `wrong`, and throws (down, or out of its allowance) on the
+  // calls listed in `failOn` (counting from 1).
+  function evalAI({ wrong = [], failOn = [] } = {}) {
+    const ai = {
+      inputs: [],
+      async run(model, input) {
+        ai.inputs.push(input);
+        if (failOn.includes(ai.inputs.length)) throw new Error('quota');
+        const c = CASES.find(k => input.messages[1].content.includes(cleanProblem(k.problem)));
+        const usable = (c.expect === 'usable') !== wrong.includes(c.id);
+        return { response: usable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
+      },
+    };
+    return ai;
+  }
+
+  async function hourly(fakes, now) {
+    await withFakes(fakes, async () => {
+      const ctx = fakeContext();
+      await worker.scheduled({ scheduledTime: now }, fakes.env, ctx);
+      await ctx.settle();
+    });
+  }
+  const report = async fakes => (await send(fakes, get('/api/eval'))).json();
+
+  test('runs the cases a batch an hour, exactly as the site asks, then publishes the result', async () => {
+    const ai = evalAI();
+    const fakes = fakesWith({ AI: ai });
+    expect(await report(fakes)).toMatchObject({ on: true, model: MODEL, bar: 0.9, cases: CASES.length, latest: null, running: null });
+
+    await hourly(fakes, NOW);
+    expect(ai.inputs).toHaveLength(EVAL_BATCH);
+    expect(ai.inputs).toEqual(CASES.slice(0, EVAL_BATCH).map(requestFor));
+    expect((await report(fakes)).running).toEqual({ startedAt: new Date(NOW).toISOString(), done: EVAL_BATCH, total: CASES.length });
+
+    for (let hour = 1; ai.inputs.length < CASES.length; hour++) await hourly(fakes, NOW + hour * HOUR);
+    const done = await report(fakes);
+    expect(done.running).toBeNull();
+    expect(done.latest).toMatchObject({ current: true, version: await evalVersion(), model: MODEL, passed: CASES.length, total: CASES.length, rate: 1 });
+    expect(done.latest.kindRight).toBe(done.latest.kindTotal);
+    expect(done.latest.results.map(r => r.id)).toEqual(CASES.map(c => c.id));
+    expect(done.latest.results.find(r => r.id === 'spam-seo')).toEqual({ id: 'spam-seo', expect: 'unusable', pass: true, outcome: 'unusable', kindMatch: null });
+    // Counted with visitors' outlines, so the daily AI cap covers it too.
+    expect(await rows(fakes, 'SELECT n FROM ai_daily')).toEqual([{ n: CASES.length }]);
+    expect(fakes.alerts).toEqual([]);
+
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain(`${CASES.length} of ${CASES.length} sample problems came back right (100%; the bar is 90%)`);
+    expect(html).not.toContain('Missed:');
+
+    // Nothing more until a week after it finished.
+    await hourly(fakes, NOW + 3 * 24 * HOUR);
+    expect(ai.inputs).toHaveLength(CASES.length);
+    await hourly(fakes, NOW + 8 * 24 * HOUR);
+    expect(ai.inputs).toHaveLength(CASES.length + EVAL_BATCH);
+    const rerun = await report(fakes);
+    expect(rerun.running.done).toBe(EVAL_BATCH);
+    expect(rerun.latest.finishedAt).toBe(done.latest.finishedAt);
+  });
+
+  test('cases the model gets wrong are listed, and Thomas is alerted when it falls below the bar', async () => {
+    const fakes = fakesWith({ AI: evalAI({ wrong: ['spam-seo', 'injection-ignore', 'data-invoices'] }) });
+    await hourly(fakes, NOW);
+    await hourly(fakes, NOW + HOUR);
+    const { latest } = await report(fakes);
+    expect(latest).toMatchObject({ passed: CASES.length - 3, total: CASES.length });
+    expect(latest.results.filter(r => !r.pass)).toEqual([
+      { id: 'data-invoices', expect: 'usable', pass: false, outcome: 'unusable', kindMatch: null },
+      { id: 'spam-seo', expect: 'unusable', pass: false, outcome: 'ai', kindMatch: null },
+      { id: 'injection-ignore', expect: 'unusable', pass: false, outcome: 'ai', kindMatch: null },
+    ]);
+    expect(fakes.alerts.map(a => a.title)).toEqual(['AI outline eval below the bar']);
+    expect(fakes.alerts[0].body).toContain(`${CASES.length - 3} of ${CASES.length} sample problems came back right`);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('<strong>Below the bar.</strong>');
+    expect(html).toContain('Missed: data-invoices (expected usable, got unusable), spam-seo (expected unusable, got ai), injection-ignore (expected unusable, got ai).');
+  });
+
+  test('a case the AI can\'t answer is tried again the next hour, not counted against the prompt', async () => {
+    const ai = evalAI({ failOn: [4] });
+    const fakes = fakesWith({ AI: ai });
+    await hourly(fakes, NOW);
+    expect((await report(fakes)).running.done).toBe(3);
+    // The failed call still used some of the allowance, so it's counted.
+    expect(await rows(fakes, 'SELECT n FROM ai_daily')).toEqual([{ n: 4 }]);
+    for (let hour = 1; hour <= 3; hour++) await hourly(fakes, NOW + hour * HOUR);
+    expect((await report(fakes)).latest).toMatchObject({ passed: CASES.length, total: CASES.length });
+    expect(ai.inputs[3]).toEqual(ai.inputs[4]);
+  });
+
+  test('leaves visitors their share of the daily AI allowance', async () => {
+    const ai = evalAI();
+    const fakes = fakesWith({ AI: ai });
+    await ensureSchema(fakes.env.DB);
+    const today = new Date(NOW).toISOString().slice(0, 10);
+    await fakes.env.DB.prepare('INSERT INTO ai_daily (day, n) VALUES (?, ?)').bind(today, EVAL_ROOM - 5).run();
+    await hourly(fakes, NOW);
+    expect(ai.inputs).toHaveLength(5);
+    await hourly(fakes, NOW + HOUR);
+    expect(ai.inputs).toHaveLength(5);
+    expect(await rows(fakes, 'SELECT n FROM ai_daily WHERE day = ?', today)).toEqual([{ n: EVAL_ROOM }]);
+  });
+
+  test('a changed model, prompt or set of cases starts a new run, and the old result says it is out of date', async () => {
+    const fakes = fakesWith({ AI: evalAI() });
+    await ensureSchema(fakes.env.DB);
+    const old = new Date(NOW - HOUR).toISOString();
+    await fakes.env.DB.prepare('INSERT INTO eval_runs (version, model, started_at, finished_at, results) VALUES (?, ?, ?, ?, ?)')
+      .bind('0ldversion00', 'an-older-model', old, old, JSON.stringify(CASES.map(c => ({ id: c.id, pass: true, outcome: 'ai', kindMatch: null })))).run();
+    expect((await report(fakes)).latest).toMatchObject({ current: false, model: 'an-older-model' });
+    expect(await (await send(fakes, get('/admin', basic('local-demo-password')))).text()).toContain('have changed since; a new run starts within the hour');
+    await hourly(fakes, NOW);
+    const now = await report(fakes);
+    expect(now.running.done).toBe(EVAL_BATCH);
+    expect(now.latest.current).toBe(false);
+  });
+
+  test('is off without the AI, and the public result never needs a password', async () => {
+    const fakes = new FakeServices();
+    await hourly(fakes, NOW);
+    expect(await rows(fakes, 'SELECT COUNT(*) AS n FROM eval_runs')).toEqual([{ n: 0 }]);
+    const res = await send(fakes, get('/api/eval'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({ on: false, latest: null, running: null });
+    expect(await (await send(fakes, get('/admin', basic('local-demo-password')))).text()).toContain('Off until Workers AI and the database are connected');
+    expect((await send(fakes, post('/api/eval', {}))).status).toBe(405);
+    expect((await send(new FakeServices({ bare: true }), get('/api/eval'))).status).toBe(200);
   });
 });

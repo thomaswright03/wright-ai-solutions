@@ -24,7 +24,7 @@ export const MIN_PROBLEM = 10;
 export const MAX_PROBLEM = 1200;
 // Room for 1,200 characters of any script plus the bot-check token.
 const MAX_BODY = 10000;
-const AI_TIMEOUT_MS = 25000;
+export const AI_TIMEOUT_MS = 25000;
 
 export const SYSTEM_PROMPT = `You write a short first-draft project outline for Wright AI Solutions LLC, a one-person studio run by Thomas Wright. The studio builds AI agents and automation, data pipelines and integrations, and websites and web apps for small and mid-sized businesses.
 

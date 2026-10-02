@@ -3,7 +3,8 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { dayIn, ensureSchema, formatIn } from './db.js';
+import { count, dayIn, ensureSchema, formatIn } from './db.js';
+import { evalReport } from './eval.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
 import { page } from './pages.js';
 
@@ -87,20 +88,67 @@ function outcomesTable(rows) {
 </table></div>`;
 }
 
+// Where a lead's call stands: 'booked', 'unconfirmed' (Cal.com never clearly
+// answered, so the lead is held until Thomas checks) or 'none'; and the time
+// booked or asked for.
+export function callOf(lead) {
+  if (lead.booked_at === 'pending') return { status: 'unconfirmed', at: lead.booking_start || null };
+  return lead.booked_at ? { status: 'booked', at: lead.booked_at } : { status: 'none', at: null };
+}
+
+// For a call Cal.com didn't confirm: what was asked for, and two buttons to
+// say what the calendar shows. "Booked" keeps the time; "not booked" lets the
+// visitor pick a time again from the page.
+function unconfirmedForm(lead, when) {
+  const { at } = callOf(lead);
+  const ask = at
+    ? `Cal.com didn't confirm the call ${lead.name ? `${esc(lead.name)} asked for` : 'asked for'} on ${esc(when(at))}. Check your calendar, then:`
+    : 'Cal.com didn\'t confirm this call, and the time asked for wasn\'t recorded. If your calendar has no call with this email:';
+  return `<form method="post" action="/admin/booking" class="admin-booking">
+    <input type="hidden" name="id" value="${esc(lead.id)}">
+    <p>${ask}</p>
+    ${at ? '<button type="submit" name="booked" value="yes" class="btn btn-primary">It\'s booked</button>' : ''}
+    <button type="submit" name="booked" value="no" class="btn btn-ghost">Not booked: let them pick again</button>
+  </form>`;
+}
+
+// The AI outline eval the site runs on itself (eval.js): the latest result,
+// what it got wrong, and any run under way.
+function evalPanel(report, timeZone) {
+  const day = iso => formatIn(timeZone, { month: 'short', day: 'numeric' }).format(new Date(iso));
+  const bar = `${Math.round(report.bar * 100)}%`;
+  const lines = [];
+  const { latest, running } = report;
+  if (latest) {
+    const missed = latest.results.filter(r => !r.pass);
+    lines.push(`<p>On ${esc(day(latest.finishedAt))}, ${latest.passed} of ${latest.total} sample problems came back right (${Math.round(latest.rate * 100)}%; the bar is ${bar})${latest.kindTotal ? `, with the right kind of work for ${latest.kindRight} of ${latest.kindTotal}` : ''}.${latest.rate < report.bar ? ' <strong>Below the bar.</strong>' : ''}</p>`);
+    if (missed.length) lines.push(`<p>Missed: ${missed.map(r => `${esc(r.id)} (expected ${esc(r.expect || '?')}, got ${esc(r.outcome)})`).join(', ')}.</p>`);
+    if (!latest.current && !running) lines.push('<p>The model, prompt or cases have changed since; a new run starts within the hour.</p>');
+  }
+  if (running) lines.push(`<p>Run under way: ${running.done} of ${running.total} done.</p>`);
+  if (!latest && !running) lines.push(`<p>${report.on ? 'Not run yet. It runs a few sample problems each hour' : 'Off until Workers AI and the database are connected'}.</p>`);
+  return `<section class="admin-eval" aria-labelledby="eval-title">
+<h2 id="eval-title">AI outline eval</h2>
+${lines.join('\n')}
+<p class="admin-muted">${report.cases} sample problems (worker/eval-cases.js), rerun weekly and whenever the prompt changes. Public result: <a href="/api/eval">/api/eval</a></p>
+</section>`;
+}
+
 function leadCard(lead, timeZone) {
-  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
+  const when = iso => formatIn(timeZone, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
   let outline = null;
   try { outline = JSON.parse(lead.outline); } catch { /* shown without it */ }
-  const booked = lead.booked_at === 'pending'
-    ? 'Booking didn\'t finish; check Cal.com'
-    : lead.booked_at ? `Call booked for ${when(lead.booked_at)}` : 'No call booked';
+  const call = callOf(lead);
+  const booked = call.status === 'unconfirmed'
+    ? `Unconfirmed${call.at ? ` for ${when(call.at)}` : ''}; check Cal.com`
+    : call.status === 'booked' ? `Call booked for ${when(call.at)}` : 'No call booked';
   const facts = [
     ['From', `${lead.ad === 'none' ? 'No ad' : `${lead.ad} ad`}${lead.src !== 'direct' ? ` (${lead.src})` : ''}`],
     ['Outline', lead.source === 'ai' ? 'Written by AI' : 'Template'],
     ['Call', booked],
     ['Reminder', lead.follow_up ? (lead.follow_up_sent_at ? `Sent ${when(lead.follow_up_sent_at)}` : 'Asked for one') : 'None'],
   ];
-  return `<article class="admin-lead">
+  return `<article class="admin-lead" id="lead-${esc(lead.id)}">
   <h2><a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>${lead.name ? ` <span class="admin-muted">${esc(lead.name)}</span>` : ''}</h2>
   <p class="admin-muted">Saved ${esc(when(lead.created_at))}${outline ? ` · ${esc(outline.title)}` : ''}</p>
   <dl class="admin-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
@@ -111,6 +159,7 @@ function leadCard(lead, timeZone) {
     <p><strong>First milestone:</strong> ${esc(outline.milestone)}</p>
     <p><strong>Questions:</strong></p><ul>${(outline.questions || []).map(q => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}
   </details>
+  ${call.status === 'unconfirmed' ? unconfirmedForm(lead, when) : ''}
   <form method="post" action="/admin/delete" class="admin-delete">
     <input type="hidden" name="id" value="${esc(lead.id)}">
     <button type="submit" class="btn btn-ghost">Delete this lead</button>
@@ -128,12 +177,16 @@ function csvCell(value) {
 
 async function csv(env) {
   const { results } = await env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 5000').all();
-  const columns = ['created_at', 'email', 'name', 'ad', 'src', 'kind', 'source', 'follow_up', 'follow_up_sent_at', 'booked_at', 'title', 'problem'];
+  // call: booked, unconfirmed (check Cal.com) or none; call_at: the time
+  // booked, or asked for while unconfirmed.
+  const columns = ['created_at', 'email', 'name', 'ad', 'src', 'kind', 'source', 'follow_up', 'follow_up_sent_at', 'call', 'call_at', 'title', 'problem'];
   const lines = [columns.join(',')];
   for (const lead of results || []) {
     let title = '';
     try { title = JSON.parse(lead.outline).title; } catch { /* left blank */ }
-    lines.push(columns.map(c => csvCell(c === 'title' ? title : lead[c])).join(','));
+    const { status, at } = callOf(lead);
+    const row = { ...lead, title, call: status, call_at: at };
+    lines.push(columns.map(c => csvCell(row[c])).join(','));
   }
   return new Response(lines.join('\r\n') + '\r\n', {
     headers: {
@@ -147,6 +200,20 @@ async function csv(env) {
   });
 }
 
+// Thomas's answer for a call Cal.com didn't confirm. 'yes' records the call at
+// the time asked for (and counts it as booked); 'no' frees the lead, so the
+// visitor can pick a time again from the page. Only an unconfirmed lead changes.
+async function settleBooking(env, timeZone, id, booked) {
+  if (booked === 'yes') {
+    const lead = await env.DB.prepare(
+      "UPDATE leads SET booked_at = booking_start WHERE id = ? AND booked_at = 'pending' AND booking_start IS NOT NULL RETURNING ad, src",
+    ).bind(id).first();
+    if (lead) await count(env, timeZone, lead, 'book');
+  } else if (booked === 'no') {
+    await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(id).run();
+  }
+}
+
 export async function adminRoute(request, env, url) {
   if (!features(env).admin) return notFound();
   if (await overLimit(env.ADMIN_LIMIT, request)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
@@ -158,30 +225,35 @@ export async function adminRoute(request, env, url) {
   await ensureSchema(env.DB);
   const timeZone = settings(env).ownerTz;
 
-  if (url.pathname === '/admin/delete') {
+  if (url.pathname === '/admin/delete' || url.pathname === '/admin/booking') {
     if (request.method !== 'POST') return adminPage('Method not allowed', 405, { Allow: 'POST' });
     // The browser re-sends the password on any request to this site, so only a
-    // form on this site's own page may delete. Browsers mark where a request
-    // came from in headers no page can set: Origin, and Sec-Fetch-Site.
+    // form on this site's own page may change anything. Browsers mark where a
+    // request came from in headers no page can set: Origin, and Sec-Fetch-Site.
     const fromThisSite = request.headers.get('Origin') === url.origin || request.headers.get('Sec-Fetch-Site') === 'same-origin';
     if (!fromThisSite) return adminPage('Forbidden', 403);
     const form = await request.formData().catch(() => null);
     const id = form ? form.get('id') : null;
-    if (typeof id === 'string' && /^[A-Za-z0-9_-]{10,40}$/.test(id)) {
+    const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,40}$/.test(id)) return back('/admin');
+    if (url.pathname === '/admin/delete') {
       await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+      return back('/admin');
     }
-    return new Response(null, { status: 303, headers: { Location: '/admin', 'Cache-Control': 'no-store' } });
+    await settleBooking(env, timeZone, id, form.get('booked'));
+    return back(`/admin#lead-${id}`);
   }
   if (request.method !== 'GET') return adminPage('Method not allowed', 405, { Allow: 'GET' });
   if (url.pathname === '/admin/leads.csv') return csv(env);
   if (url.pathname !== '/admin') return notFound();
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
-  const [counts, outcomes, leads, total] = await Promise.all([
+  const [counts, outcomes, leads, total, evaluation] = await Promise.all([
     env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all(),
     env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all(),
     env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all(),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
+    evalReport(env),
   ]);
   const list = leads.results || [];
   const body = `<p class="eyebrow">Private</p>
@@ -189,6 +261,7 @@ export async function adminRoute(request, env, url) {
 <p>${Number(total) || 0} saved outline${Number(total) === 1 ? '' : 's'}, newest first${Number(total) > LIST_LIMIT ? ` (showing the latest ${LIST_LIMIT})` : ''}. Each is deleted automatically a year after it was saved. <a href="/admin/leads.csv">Download all as a spreadsheet (CSV)</a></p>
 ${countsTable(counts.results || [])}
 ${outcomesTable(outcomes.results || [])}
+${evalPanel(evaluation, timeZone)}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
   return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

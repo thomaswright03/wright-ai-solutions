@@ -8,9 +8,11 @@
 //   POST /api/save     emails the outline and adds the lead to the list (leads.js)
 //   GET  /api/slots    open times from Cal.com
 //   POST /api/book     books the call through Cal.com
+//   GET  /api/eval     the latest result of the AI outline eval (eval.js)
 //   /forget            the "delete my details" link in every email
 //   /admin             Thomas's private leads list (admin.js)
 import { adminRoute } from './admin.js';
+import { evalRoute, runEvalBatch } from './eval.js';
 import { json } from './http.js';
 import { bookRoute, configRoute, eventRoute, forgetRoute, runSchedule, saveRoute, slotsRoute } from './leads.js';
 import { outlineRoute } from './outline.js';
@@ -24,6 +26,7 @@ const ROUTES = {
   '/api/save': saveRoute,
   '/api/slots': slotsRoute,
   '/api/book': bookRoute,
+  '/api/eval': evalRoute,
 };
 
 export default {
@@ -41,7 +44,9 @@ export default {
     }
   },
 
+  // Hourly: the leads list's upkeep and reminders, then the next few cases of
+  // the AI outline eval (which runs even if the first part failed).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runSchedule(env, event.scheduledTime));
+    ctx.waitUntil(runSchedule(env, event.scheduledTime).finally(() => runEvalBatch(env, event.scheduledTime)));
   },
 };

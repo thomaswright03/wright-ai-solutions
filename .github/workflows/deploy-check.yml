@@ -3,10 +3,16 @@ name: Deploy check
 # After a push to main, Cloudflare Workers Builds deploys the site and publishes
 # the deployed commit at /version.txt (scripts/write-version.sh). This fails,
 # visibly, if production isn't serving the pushed commit within 15 minutes, so a
-# failed or un-promoted deploy can't leave the live site silently stale.
+# failed or un-promoted deploy can't leave the live site silently stale. Then it
+# checks the live site works (scripts/smoke-test.mjs): pages and security
+# headers, the API, open times from Cal.com, the published AI eval result, and
+# the leads list asking for its password. It runs again each morning, which
+# also catches a dashboard change that deployed something other than main.
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '23 14 * * *'
   workflow_dispatch:
 
 permissions:
@@ -29,3 +35,9 @@ jobs:
           done
           echo "::error::Production is not serving $GITHUB_SHA after 15 minutes. Check the Cloudflare Workers Builds log and which deployment the domain points at."
           exit 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check the live site works
+        run: node scripts/smoke-test.mjs --sha="$GITHUB_SHA"
