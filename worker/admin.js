@@ -62,6 +62,31 @@ function countsTable(rows) {
 </table></div>`;
 }
 
+// How each outline was written, so a prompt or model change that quietly
+// sends everyone the templates shows up here.
+const OUTCOMES = [
+  ['ai', 'Written by AI'],
+  ['cap', 'Template: daily AI limit reached'],
+  ['error', 'Template: the AI timed out or was down'],
+  ['rejected', 'Template: the AI\'s reply broke a rule'],
+  ['unusable', 'Template: not a business problem'],
+  ['off', 'Template: AI not connected'],
+];
+
+function outcomesTable(rows) {
+  const byOutcome = new Map(rows.map(({ outcome, n }) => [outcome, Number(n) || 0]));
+  const total = [...byOutcome.values()].reduce((sum, n) => sum + n, 0);
+  if (!total) return '<p>No outlines written yet.</p>';
+  const share = n => `${Math.round((n / total) * 100)}%`;
+  const lines = OUTCOMES.filter(([key]) => byOutcome.get(key));
+  return `<div class="admin-scroll"><table class="admin-table">
+<caption>Last 30 days, how each outline was written</caption>
+<thead><tr><th scope="col">Outline</th><th scope="col">Count</th><th scope="col">Share</th></tr></thead>
+<tbody>${lines.map(([key, label]) => `<tr><th scope="row">${esc(label)}</th><td>${byOutcome.get(key)}</td><td>${share(byOutcome.get(key))}</td></tr>`).join('')}</tbody>
+<tfoot><tr><th scope="row">All</th><td>${total}</td><td>100%</td></tr></tfoot>
+</table></div>`;
+}
+
 function leadCard(lead, timeZone) {
   const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
   let outline = null;
@@ -152,8 +177,9 @@ export async function adminRoute(request, env, url) {
   if (url.pathname !== '/admin') return notFound();
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
-  const [counts, leads, total] = await Promise.all([
+  const [counts, outcomes, leads, total] = await Promise.all([
     env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all(),
+    env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all(),
     env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all(),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
   ]);
@@ -162,6 +188,7 @@ export async function adminRoute(request, env, url) {
 <h1>Leads</h1>
 <p>${Number(total) || 0} saved outline${Number(total) === 1 ? '' : 's'}, newest first${Number(total) > LIST_LIMIT ? ` (showing the latest ${LIST_LIMIT})` : ''}. Each is deleted automatically a year after it was saved. <a href="/admin/leads.csv">Download all as a spreadsheet (CSV)</a></p>
 ${countsTable(counts.results || [])}
+${outcomesTable(outcomes.results || [])}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
   return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

@@ -6,7 +6,7 @@
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
 // outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=10';
+import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=11';
 
 const $ = id => document.getElementById(id);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -25,6 +25,32 @@ const state = {
   config: {}, problem: '', kind: 'general', token: null, outlineTitle: '',
   email: '', emailed: false, lead: null, days: [], slots: [], slot: null, booked: null, done: false,
 };
+// The outline is kept in this tab (sessionStorage) until it's saved or the
+// tab is closed, so a reload or a slip of the Back button doesn't lose it. It
+// expires with its token (3 hours), after which saving wouldn't work anyway.
+const KEPT_KEY = 'start-outline';
+const KEPT_FOR_MS = 3 * 60 * 60 * 1000;
+
+function keepOutline(outline, fromAI) {
+  try {
+    sessionStorage.setItem(KEPT_KEY, JSON.stringify({ at: Date.now(), problem: state.problem, kind: state.kind, token: state.token, outline, fromAI }));
+  } catch (e) { /* storage off: a reload starts over, as before */ }
+}
+
+function forgetOutline() {
+  try { sessionStorage.removeItem(KEPT_KEY); } catch (e) { /* nothing kept */ }
+}
+
+function keptOutline() {
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(KEPT_KEY) || 'null');
+    const fresh = kept && typeof kept.at === 'number' && Date.now() - kept.at < KEPT_FOR_MS;
+    if (fresh && typeof kept.problem === 'string' && kept.outline && Object.hasOwn(OUTLINES, kept.outline.kind)) return kept;
+  } catch (e) { /* unreadable: start over */ }
+  forgetOutline();
+  return null;
+}
+
 let outlineTimers = [];
 // Bumped for each outline request, so a reply that arrives after the visitor
 // has gone back is ignored.
@@ -332,7 +358,7 @@ function showOutline(outline, fromAI) {
   fillList($('outlineQuestions'), outline.questions);
   $('outlineMilestone').textContent = outline.milestone;
   $('outlineDraft').textContent = fromAI
-    ? 'Written by AI from what you wrote, as a starting point. Thomas reads every outline and we\'d sharpen it together on a call.'
+    ? 'Written by AI from what you wrote, as a starting point. I read every outline, and we\'d sharpen it together on a call.'
     : 'A first draft from what you wrote. We\'d sharpen it together on a call.';
 
   // Past work always comes from the fixed text, never from the AI.
@@ -393,9 +419,22 @@ async function buildOutline(turnstile) {
     state.kind = reply.outline.kind;
     state.token = typeof reply.token === 'string' ? reply.token : null;
     showOutline(reply.outline, reply.source === 'ai');
+    keepOutline(reply.outline, reply.source === 'ai');
   } else {
     showOutline({ kind: state.kind, ...OUTLINES[state.kind] }, false);
+    forgetOutline();
   }
+}
+
+// After a reload: the outline this tab already had, with the save form ready.
+async function restoreOutline(kept) {
+  state.problem = kept.problem;
+  state.kind = kept.outline.kind;
+  state.token = typeof kept.token === 'string' ? kept.token : null;
+  $('problem').value = kept.problem;
+  await configReady;
+  history.pushState({ step: 'outline' }, '');
+  showOutline(kept.outline, kept.fromAI === true);
 }
 
 $('editProblem').addEventListener('click', () => go('describe'));
@@ -440,6 +479,7 @@ $('saveForm').addEventListener('submit', async e => {
     $('email').focus();
     return;
   }
+  forgetOutline();
   state.email = email;
   state.emailed = result.data.emailed !== false;
   state.lead = typeof result.data.lead === 'string' ? result.data.lead : null;
@@ -666,3 +706,10 @@ function finish(booked, note = '') {
   }
   go('done');
 }
+
+// A reload (or coming back with the browser's Back button) brings back the
+// outline this tab already had. Opening /start afresh, say from another ad,
+// starts a new one.
+const navigation = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+const kept = ['reload', 'back_forward'].includes(navigation.type) ? keptOutline() : null;
+if (kept) restoreOutline(kept);

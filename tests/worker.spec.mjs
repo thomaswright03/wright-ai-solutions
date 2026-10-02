@@ -5,6 +5,8 @@
 import { test, expect } from '@playwright/test';
 import worker, { MODEL, SYSTEM_PROMPT, validateOutline, templateOutline } from '../worker/index.js';
 import { ensureSchema } from '../worker/db.js';
+import { rejectionReason } from '../worker/outline.js';
+import { judge, loadCases, requestFor } from '../scripts/eval-outlines.mjs';
 import { FakeServices, fakeContext, withFakes } from './fakes.mjs';
 
 const ORIGIN = 'https://wright-ai-solutions.com';
@@ -134,6 +136,53 @@ test.describe('outline', () => {
     expect(sources).toEqual(['ai', 'ai', 'template']);
     expect(ai.calls).toHaveLength(2);
     expect(await rows(fakes, 'SELECT day, n FROM ai_daily')).toEqual([{ day: new Date().toISOString().slice(0, 10), n: 3 }]);
+  });
+
+  test('records how every outline was written, including why the template was used', async () => {
+    const fakes = fakesWith({ AI_DAILY_LIMIT: '4' });
+    const replies = [GOOD, { ...GOOD, usable: false }, { ...GOOD, steps: ['one'] }, new Error('timeout'), GOOD];
+    const ai = {
+      async run() {
+        const reply = replies.shift();
+        if (reply instanceof Error) throw reply;
+        return { response: reply };
+      },
+    };
+    fakes.env.AI = ai;
+    for (let i = 0; i < 5; i++) await send(fakes, post('/api/outline', { problem }));
+    delete fakes.env.AI;
+    await send(fakes, post('/api/outline', { problem }));
+    expect(await rows(fakes, 'SELECT outcome, n FROM outline_outcomes ORDER BY outcome')).toEqual([
+      { outcome: 'ai', n: 1 }, { outcome: 'cap', n: 1 }, { outcome: 'error', n: 1 },
+      { outcome: 'off', n: 1 }, { outcome: 'rejected', n: 1 }, { outcome: 'unusable', n: 1 },
+    ]);
+  });
+
+  test('says why a reply was turned down', () => {
+    expect(rejectionReason(GOOD)).toBeNull();
+    expect(rejectionReason({ ...GOOD, usable: false })).toBe('unusable');
+    expect(rejectionReason(JSON.stringify({ ...GOOD, usable: false }))).toBe('unusable');
+    expect(rejectionReason({ ...GOOD, build: 'Only $500 for the whole thing, delivered for you.' })).toBe('rejected');
+    expect(rejectionReason('not json')).toBe('rejected');
+    expect(rejectionReason(null)).toBe('rejected');
+  });
+
+  test('the eval set is well formed and is sent exactly as the site sends it', async () => {
+    const cases = loadCases();
+    expect(cases.length).toBeGreaterThanOrEqual(20);
+    expect(cases.filter(c => c.expect === 'unusable').length).toBeGreaterThanOrEqual(5);
+    const ai = fakeAI(GOOD);
+    const fakes = fakesWith({ AI: ai }, { bare: true });
+    for (const c of cases.slice(0, 4)) {
+      await send(fakes, post('/api/outline', { problem: c.problem, ad: c.ad }));
+      expect(ai.calls.at(-1).input).toEqual(requestFor(c));
+    }
+    const usableCase = cases.find(c => c.expect === 'usable' && c.kind === 'leads');
+    const unusableCase = cases.find(c => c.expect === 'unusable');
+    expect(judge(usableCase, GOOD)).toMatchObject({ outcome: 'ai', pass: true, kindMatch: true });
+    expect(judge(usableCase, { ...GOOD, usable: false }).pass).toBe(false);
+    expect(judge(unusableCase, { ...GOOD, usable: false })).toMatchObject({ outcome: 'unusable', pass: true });
+    expect(judge(unusableCase, GOOD).pass).toBe(false);
   });
 
   test('a year range is not mistaken for a phone number', async () => {
@@ -587,6 +636,9 @@ test.describe('leads list', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>alert(1)');
     expect(html).toMatch(/<td scope="row">leads <span class="admin-muted">\(google\)<\/span><\/td><td>1<\/td><td>1<\/td><td>1<\/td><td>0<\/td>/);
+    // The local server has no AI, so the one outline is counted as a template.
+    expect(html).toContain('how each outline was written');
+    expect(html).toMatch(/<th scope="row">Template: AI not connected<\/th><td>1<\/td><td>100%<\/td>/);
   });
 
   test('deletes a lead only from its own page', async () => {
@@ -652,6 +704,19 @@ test.describe('counting', () => {
       { ad: 'none', src: 'other', step: 'view', n: 1 },
     ]);
     expect((await send(new FakeServices({ bare: true }), post('/api/event', { ad: 'leads' }))).status).toBe(200);
+  });
+
+  test('a visitor with no ad platform is "direct" at every step, from the visit to the booking', async () => {
+    const fakes = new FakeServices();
+    await send(fakes, post('/api/event', { ad: 'leads' }));
+    const { saved } = await saveLead(fakes, { src: '' });
+    const { times } = await (await send(fakes, get('/api/slots'))).json();
+    expect((await send(fakes, post('/api/book', { lead: saved.lead, start: times[0], name: 'Pat' }))).status).toBe(200);
+
+    expect(await rows(fakes, 'SELECT DISTINCT src FROM counts')).toEqual([{ src: 'direct' }]);
+    expect((await rows(fakes, 'SELECT step FROM counts ORDER BY step')).map(r => r.step)).toEqual(['book', 'outline', 'save', 'view']);
+    expect((await rows(fakes, 'SELECT src FROM leads'))[0].src).toBe('direct');
+    expect(fakes.alerts.map(a => a.body).join(' ')).not.toContain('other');
   });
 });
 
@@ -741,6 +806,14 @@ test.describe('hourly job', () => {
     await runHourly(fakes);
     expect(await rows(fakes, 'SELECT day FROM ai_daily ORDER BY day')).toEqual([{ day: '2026-10-06' }, { day: '2026-10-07' }]);
     expect(await rows(fakes, 'SELECT tag FROM outline_sends')).toEqual([{ tag: 'recent' }]);
+  });
+
+  test('how outlines were written is kept for about 13 months, like the visit counts', async () => {
+    const fakes = new FakeServices();
+    await ensureSchema(fakes.env.DB);
+    await fakes.env.DB.prepare("INSERT INTO outline_outcomes (day, outcome, n) VALUES ('2025-08-01', 'ai', 3), ('2026-10-01', 'ai', 2)").run();
+    await runHourly(fakes);
+    expect(await rows(fakes, 'SELECT day FROM outline_outcomes')).toEqual([{ day: '2026-10-01' }]);
   });
 
   test('a reminder that fails to send is tried again the next hour', async () => {

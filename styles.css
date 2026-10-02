@@ -52,6 +52,8 @@
   --fs-huge:clamp(64px, 12vw, 120px);
 
   /* spacing scale (4px base) */
+  /* The smallest comfortable tap target. */
+  --tap-min:44px;
   --space-1:4px;
   --space-2:8px;
   --space-3:12px;
@@ -384,7 +386,9 @@ section h2{font-size:var(--fs-h2); margin-bottom:var(--space-7); max-width:600px
 html:has(main.legal){scroll-padding-top:var(--space-9);}
 .legal p{color:var(--text-dim); font-size:var(--fs-md); margin-bottom:var(--space-3);}
 .legal .legal-updated{font-size:var(--fs-xs); color:var(--text-dimmer); margin-bottom:var(--space-5);}
-.legal a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+/* Links inside running text stay inline, so the lines keep their spacing; the
+   padding only grows the tap area (to 44px tall) without moving anything. */
+.legal a{padding-block:calc((var(--tap-min) - 1em) / 2); color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
 
 /* start: the signup flow on /start (start.html, start.js) */
 .start{position:relative; z-index:1; padding:var(--space-6) 0 var(--space-9);}
@@ -444,7 +448,7 @@ html:has(main.start){scroll-padding-top:var(--space-9);}
 .start-reassure{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-3);}
 .start-reassure::before{content:'✓' / ''; color:var(--accent-3); font-weight:700; margin-right:var(--space-2);}
 .start-fineprint{font-size:var(--fs-xs); color:var(--text-dimmer); margin-top:var(--space-2);}
-.start-fineprint a, .start-sub a, #timesUnavailable a, .book-fallback a{display:inline-block; padding:var(--space-1) 0; color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
+.start-fineprint a, .start-sub a, #timesUnavailable a, .book-fallback a{padding-block:calc((var(--tap-min) - 1em) / 2); color:var(--accent-3); text-decoration:underline; text-underline-offset:3px;}
 .start-botcheck:not(:empty){margin-top:var(--space-4);}
 .start-busy{font-size:var(--fs-sm); color:var(--text-dim); margin-top:var(--space-2);}
 .start-busy:empty{display:none;}

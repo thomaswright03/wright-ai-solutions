@@ -207,14 +207,14 @@ test('the desktop "Start a Project" button is at least 44px tall', async ({ page
   }
 });
 
-test('email links in the privacy notice are at least 24px tall and do not overlap', async ({ page }) => {
+test('email links in the privacy notice are at least 44px tall to tap and do not overlap', async ({ page }) => {
   for (const width of [375, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/privacy');
     const boxes = await page.locator('main a[href^="mailto:"]').evaluateAll(els =>
       els.map(e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; }));
     expect(boxes.length).toBeGreaterThan(0);
-    for (const box of boxes) expect(box.height, `mailto link at ${width}px`).toBeGreaterThanOrEqual(24);
+    for (const box of boxes) expect(box.height, `mailto link at ${width}px`).toBeGreaterThanOrEqual(44);
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const [a, b] = [boxes[i], boxes[j]];
@@ -222,6 +222,17 @@ test('email links in the privacy notice are at least 24px tall and do not overla
         expect(overlap, `mailto links ${i} and ${j} overlap at ${width}px`).toBe(false);
       }
     }
+  }
+});
+
+test('the privacy link under the outline button on /start is at least 44px tall to tap, without spacing the text out', async ({ page }) => {
+  for (const width of [375, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/start');
+    const link = page.locator('.start-fineprint a');
+    expect((await link.boundingBox()).height, `${width}px`).toBeGreaterThanOrEqual(44);
+    // Still an inline link: the paragraph's lines keep their normal height.
+    expect(await link.evaluate(e => getComputedStyle(e).display)).toBe('inline');
   }
 });
 
@@ -683,6 +694,45 @@ test.describe('signup flow on /start', () => {
     await expect(page.locator('#outlineTitle')).toContainText('pipeline');
     await page.goForward();
     await expect(page.locator('#bookTitle')).toBeFocused();
+  });
+
+  test('a reload keeps the outline and the save form without writing it again, until it is saved', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    const calls = watchRequests(page);
+    await page.goto('/start');
+    await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    const title = await page.locator('#outlineTitle').textContent();
+
+    await page.reload();
+    await expect(page.locator('#outline')).toBeVisible();
+    await expect(page.locator('#outlineTitle')).toHaveText(title);
+    await expect(page.locator('#outlineProblem')).toHaveText('We re-enter every Shopify order into QuickBooks by hand.');
+    expect(calls.filter(c => c.call === 'POST /api/outline')).toHaveLength(1);
+
+    // The kept outline can still be saved, and Back still reaches the answer.
+    await page.fill('#email', 'reload@example.com');
+    await page.getByRole('button', { name: 'Email it to me' }).click();
+    await expect(page.locator('#bookTitle')).toBeFocused();
+
+    // Once saved, a reload starts fresh.
+    await page.reload();
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#stepOutline')).toBeHidden();
+  });
+
+  test('opening /start afresh in the same tab starts a new outline', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    await page.goto('/start');
+    await page.fill('#problem', 'We re-enter every Shopify order into QuickBooks by hand.');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    await page.goto('/start?for=leads');
+    await expect(page.locator('#stepDescribe')).toBeVisible();
+    await expect(page.locator('#problem')).not.toHaveValue(/Shopify/);
   });
 
   test('"Not now" finishes the flow, and booking stays one tap away', async ({ page }) => {

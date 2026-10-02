@@ -39,6 +39,15 @@ const SCHEMA = [
     n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, ad, src, step)
   )`,
+  // Every outline written each day, by how it was written: 'ai', or why the
+  // template was used instead ('cap', 'error', 'rejected', 'unusable', 'off').
+  // Shown on /admin, so a prompt or model change that quietly breaks the AI shows.
+  `CREATE TABLE IF NOT EXISTS outline_outcomes (
+    day TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, outcome)
+  )`,
   // How many outlines the AI was asked for each day (UTC), for the daily cap.
   'CREATE TABLE IF NOT EXISTS ai_daily (day TEXT PRIMARY KEY, n INTEGER NOT NULL)',
   // One row per outline email, for the daily cap per inbox. `tag` stands in for
@@ -164,4 +173,12 @@ export async function count(env, timeZone, { ad, src }, step) {
   await env.DB.prepare(
     'INSERT INTO counts (day, ad, src, step, n) VALUES (?, ?, ?, ?, 1) ON CONFLICT (day, ad, src, step) DO UPDATE SET n = n + 1',
   ).bind(dayIn(timeZone), ad, src, step).run();
+}
+
+export async function countOutcome(env, timeZone, outcome) {
+  if (!env.DB) return;
+  await ensureSchema(env.DB);
+  await env.DB.prepare(
+    'INSERT INTO outline_outcomes (day, outcome, n) VALUES (?, ?, 1) ON CONFLICT (day, outcome) DO UPDATE SET n = n + 1',
+  ).bind(dayIn(timeZone), outcome).run();
 }

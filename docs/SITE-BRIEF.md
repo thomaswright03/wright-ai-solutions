@@ -29,7 +29,7 @@ It must also:
 |---|---|
 | Header (`.site-header`) | Name the studio. Link to each section and to `/start`, and offer a light/dark choice (`/start` itself keeps only the logo and the theme choice) |
 | Hero (`.hero`) | Say in one line what the studio builds and for whom, and give two ways forward (see the work, start a project on `/start`). The stats count only what the page shows |
-| What we do (`#services`) | Name the three kinds of work, so a visitor can tell quickly whether their problem fits |
+| What I do (`#services`) | Name the three kinds of work, so a visitor can tell quickly whether their problem fits |
 | Selected work (`#work`) | Prove the work is real: what was built and what problem it solved, with a live link where one exists |
 | About (`#about`) | Say who they'd work with (one person, end to end) and what that means for them |
 | Get in touch (`#contact`) | Make contact easy. Say what to send and when to expect a reply, with the email and phone one tap away |

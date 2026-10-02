@@ -6,7 +6,7 @@
 // stored only if they choose to save the outline (see leads.js).
 import { KINDS, OUTLINES, adFor, pickKind } from '../outlines.js';
 import { features, settings } from './config.js';
-import { count, ensureSchema, newId, sign } from './db.js';
+import { count, countOutcome, ensureSchema, newId, sign } from './db.js';
 import { cameFrom } from './leads.js';
 import { clean, clientIp, json, overLimit, readJson, tooMany, withTimeout } from './http.js';
 import { passedBotCheck } from './services.js';
@@ -20,7 +20,8 @@ import { passedBotCheck } from './services.js';
 export const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 export { KINDS };
-const MAX_PROBLEM = 1200;
+export const MIN_PROBLEM = 10;
+export const MAX_PROBLEM = 1200;
 // Room for 1,200 characters of any script plus the bot-check token.
 const MAX_BODY = 10000;
 const AI_TIMEOUT_MS = 25000;
@@ -142,27 +143,57 @@ async function underDailyCap(env) {
   return Number(used) <= settings(env).aiDailyLimit;
 }
 
+// The visitor's text as the AI sees it: plain, single-spaced, cut to length,
+// and without the markers, so it can't close the block the prompt puts it in.
+export const cleanProblem = value => (typeof value === 'string' ? clean(value.replace(/<<<|>>>/g, ' ')).slice(0, MAX_PROBLEM) : '');
+
+// The request the AI gets for one visitor's problem. Shared with the eval
+// script (scripts/eval-outlines.mjs), so a prompt change is tested exactly as
+// the site sends it.
+export function outlineRequest(problem, hint) {
+  return {
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `${hint ? `They came from an ad about "${hint}" problems.\n` : ''}The client's problem, in their words, between the markers:\n<<<\n${problem}\n>>>`,
+      },
+    ],
+    response_format: { type: 'json_schema', json_schema: SCHEMA },
+    max_tokens: 800,
+    temperature: 0.4,
+  };
+}
+
+// Why a reply wasn't used: 'unusable' when the model judged the text not a
+// real business problem, 'rejected' when the reply broke a rule (shape,
+// length, a price, a promise or a link). Null when the reply is fine.
+export function rejectionReason(raw) {
+  if (validateOutline(raw)) return null;
+  let data = raw;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ''));
+    } catch {
+      return 'rejected';
+    }
+  }
+  return data && typeof data === 'object' && data.usable === false ? 'unusable' : 'rejected';
+}
+
+// Answers { outline, outcome }: the AI's outline and 'ai', or a null outline
+// and why the template is used instead. No AI binding (the local test server)
+// is 'off'; past the daily cap 'cap'; a timeout, quota error or outage 'error'.
 async function writeWithAI(env, problem, hint) {
-  // No AI binding (the local test server), the daily cap or quota used up, a
-  // timeout or an unusable reply all end the same way: the template.
-  if (!env.AI) return null;
+  if (!env.AI) return { outline: null, outcome: 'off' };
   try {
-    if (!(await underDailyCap(env))) return null;
-    const result = await withTimeout(env.AI.run(MODEL, {
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `${hint ? `They came from an ad about "${hint}" problems.\n` : ''}The client's problem, in their words, between the markers:\n<<<\n${problem}\n>>>`,
-        },
-      ],
-      response_format: { type: 'json_schema', json_schema: SCHEMA },
-      max_tokens: 800,
-      temperature: 0.4,
-    }), AI_TIMEOUT_MS);
-    return validateOutline(result && result.response);
+    if (!(await underDailyCap(env))) return { outline: null, outcome: 'cap' };
+    const result = await withTimeout(env.AI.run(MODEL, outlineRequest(problem, hint)), AI_TIMEOUT_MS);
+    const raw = result && result.response;
+    const outline = validateOutline(raw);
+    return outline ? { outline, outcome: 'ai' } : { outline: null, outcome: rejectionReason(raw) };
   } catch {
-    return null;
+    return { outline: null, outcome: 'error' };
   }
 }
 
@@ -173,11 +204,8 @@ async function writeWithAI(env, problem, hint) {
 export async function outlineRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, MAX_BODY);
   if (error) return error;
-  // The markers are stripped so the text can't close the block the prompt puts it in.
-  const problem = typeof body.problem === 'string'
-    ? clean(body.problem.replace(/<<<|>>>/g, ' ')).slice(0, MAX_PROBLEM)
-    : '';
-  if (problem.length < 10) return json({ error: 'bad_request' }, 400);
+  const problem = cleanProblem(body.problem);
+  if (problem.length < MIN_PROBLEM) return json({ error: 'bad_request' }, 400);
   const from = cameFrom(body);
   const ad = adFor(from.ad);
   const hint = ad ? ad.kind : null;
@@ -189,11 +217,12 @@ export async function outlineRoute(request, env, ctx, url) {
     return json({ error: 'bot_check' }, 403);
   }
 
-  const written = await writeWithAI(env, problem, hint);
+  const { outline: written, outcome } = await writeWithAI(env, problem, hint);
   const outline = written || templateOutline(pickKind(problem, hint));
   const source = written ? 'ai' : 'template';
   const reply = { source, outline };
   if (on.save) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, ...from });
-  ctx.waitUntil(count(env, settings(env).ownerTz, from, 'outline').catch(() => {}));
+  const tz = settings(env).ownerTz;
+  ctx.waitUntil(Promise.allSettled([count(env, tz, from, 'outline'), countOutcome(env, tz, outcome)]));
   return json(reply);
 }

@@ -30,6 +30,15 @@ The tests need Node 22.13 or later too, for the local database.
 - `tests/worker.spec.mjs` calls the Worker directly: outlines and their template fallback, saving, booking, the delete link, the leads list, the counts and the hourly job.
 - `tests/ads.spec.mjs` opens each ad page (`/start?for=<key>`) and checks `docs/ADS.md` against them.
 
+**Checking the AI outlines.** `scripts/outline-eval.json` holds 24 sample visitor problems (real requests, spam and prompt-injection attempts), each marked as one the AI should write an outline for or turn down. `scripts/eval-outlines.mjs` sends them to the live model with exactly the prompt and checks the site uses, and prints how many came back right; it exits with an error below 90%. Run it before and after changing the prompt or the model in `worker/outline.js`:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node scripts/eval-outlines.mjs   # token needs "Workers AI: Read"
+node scripts/eval-outlines.mjs --dry-run                                             # checks the cases without calling the AI
+```
+
+In production, `/admin` shows how every outline of the last 30 days was written: by the AI, or from a template and why (daily limit, timeout, a reply that broke a rule, or text that wasn't a business problem).
+
 CI runs them on every push and PR, alongside link, secret, HTML, header/footer-drift, cache-version and type/spacing-scale checks (`.github/workflows/ci.yml`).
 
 ## Deploying
@@ -65,6 +74,7 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 - `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`: icons (the PNGs are rendered from the SVG)
 - `tests/`: Playwright tests (`site.spec.mjs` in a browser, `worker.spec.mjs` for the Worker, `ads.spec.mjs` for the ad pages and `docs/ADS.md`), the local server that mimics Cloudflare (`serve.mjs`) and its stand-in services (`fakes.mjs`)
 - `SECURITY.md`: how to report a problem, what the site and the Worker do to stay safe, and the procedure for rotating a leaked credential
+- `scripts/`: `write-version.sh` (run by Cloudflare's build) and the AI outline eval (`eval-outlines.mjs`, `outline-eval.json`)
 - `docs/SITE-BRIEF.md`: who the site is for, what each section does, and how success is judged
 - `fonts/`: self-hosted Inter and Space Grotesk (latin subset), each with its SIL Open Font License text (`LICENSE-Inter.txt`, `LICENSE-SpaceGrotesk.txt`), which the licence requires to ship alongside the font files
 
