@@ -1111,3 +1111,27 @@ test('the hero stats each read as a number and a short label, with the industrie
     expect(industries).toBe(Number(stat));
   }
 });
+
+test('Our Services lists each product by name, presented by Wright AI Solutions, with its own sign-up button', async ({ page }) => {
+  await page.goto('/');
+  const section = page.locator('#our-services');
+  await expect(section.locator('.eyebrow')).toHaveText('Our Services');
+  const expected = {
+    'AI Waste Bot': '/start?for=leads',
+    'Data→Lead→Sell': 'https://dataleadsell.com',
+    'ParkLess': 'https://park-less.vercel.app/signup',
+  };
+  const cards = section.locator('.product-card');
+  await expect(cards).toHaveCount(Object.keys(expected).length);
+  for (const [name, href] of Object.entries(expected)) {
+    const card = cards.filter({ has: page.locator('h3', { hasText: name }) });
+    await expect(card.locator('.product-by')).toHaveText('Presented by Wright AI Solutions');
+    const button = card.locator('a.product-signup');
+    await expect(button).toHaveAttribute('href', href);
+    await expect(button).toContainText('Sign up');
+  }
+  await page.setViewportSize({ width: 375, height: 800 });
+  for (const button of await cards.locator('a.product-signup').all()) {
+    expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  }
+});
