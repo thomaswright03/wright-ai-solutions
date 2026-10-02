@@ -8,7 +8,7 @@
 //   the leads list needs the database and a 16+ character ADMIN_PASSWORD
 import { clean, timeZoneOrNull } from './http.js';
 
-export const SITE_URL = 'https://wright-ai-solutions.com';
+const SITE_URL = 'https://wright-ai-solutions.com';
 
 /** @param {Env} env */
 export const settings = env => ({

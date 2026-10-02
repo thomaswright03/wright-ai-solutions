@@ -109,7 +109,7 @@ function outcomesTable(rows) {
  * @param {Pick<LeadRow, 'booked_at' | 'booking_start'>} lead
  * @returns {{ status: 'unconfirmed', at: string | null } | { status: 'booked', at: string } | { status: 'none', at: null }}
  */
-export function callOf(lead) {
+function callOf(lead) {
   if (lead.booked_at === 'pending') return { status: 'unconfirmed', at: lead.booking_start || null };
   return lead.booked_at ? { status: 'booked', at: lead.booked_at } : { status: 'none', at: null };
 }

@@ -10,8 +10,5 @@
   ],
   "project": [
     "**/*.{js,mjs}"
-  ],
-  "ignoreDependencies": [
-    "@cloudflare/workers-types"
   ]
 }

@@ -61,7 +61,7 @@ export async function runCase(c, ask, { guard = true } = {}) {
 }
 
 /** @param {{ pass: boolean, kindMatch?: boolean | null }[]} results @returns {EvalSummary} */
-export function summarize(results) {
+function summarize(results) {
   const passed = results.filter(r => r.pass).length;
   const kinds = results.filter(r => r.kindMatch !== null && r.kindMatch !== undefined);
   return {

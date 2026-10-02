@@ -54,7 +54,7 @@ const KIND_WORDS = {
 const fromWords = ({ ad, src }) => `${ad === 'none' ? 'no ad' : `the ${ad} ad`}${src === 'direct' ? '' : ` on ${src}`}`;
 
 /** @param {unknown} value @returns {string | null} */
-export function normalizeEmail(value) {
+function normalizeEmail(value) {
   if (typeof value !== 'string') return null;
   const email = value.trim();
   if (email.length > 254 || /[\s<>()[\]\\,;:"]/.test(email)) return null;
@@ -68,7 +68,7 @@ export function normalizeEmail(value) {
 // The mailbox an address reaches, for the daily cap: changing the case, adding
 // a +tag or (for Gmail) moving the dots still reaches the same person.
 /** @param {string} email */
-export function inboxKey(email) {
+function inboxKey(email) {
   const at = email.lastIndexOf('@');
   const local = email.slice(0, at).toLowerCase().replace(/\+.*$/, '');
   const domain = email.slice(at + 1).toLowerCase();

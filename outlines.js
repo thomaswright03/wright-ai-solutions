@@ -231,7 +231,7 @@ export const OUTLINES = {
 // Whole-word patterns that point to each kind of work, for visitors who
 // didn't come from a matched ad (and to overrule the ad when the text is clear).
 /** @type {Record<string, RegExp[]>} */
-export const SIGNALS = {
+const SIGNALS = {
   leads: [/\bleads?\b/, /\binquir/, /\benquir/, /\bprospects?\b/, /\bfollow[- ]?ups?\b/, /\bmiss(es|ed|ing)?\b[^.]{0,25}\b(calls?|them|messages?|texts?)\b/, /\bvoicemails?\b/, /\bcall(ing)? back\b/, /\bcrm\b/, /\bgohighlevel\b/, /\bhubspot\b/, /\bquote requests?\b/, /\bappointment requests?\b/, /\bbook(ing)? (a |an )?(call|appointment|consult)/,
     // People going elsewhere because nobody answered, in any language a visitor is likely to write in.
     /\b(nobody|no one|no-one) (answers|replies|responds|picks up|gets back)/, /\bunanswered\b/, /\b(somewhere|someone) else\b|\belsewhere\b|\bcompetitors?\b|\bwhoever (answers|replies)/, /\bafter hours\b/, /\bgo(es|ne)? cold\b/,

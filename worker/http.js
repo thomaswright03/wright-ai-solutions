@@ -92,7 +92,7 @@ export function withTimeout(promise, ms) {
 
 // Waits before each retry; each wait is longer, with jitter so many visitors'
 // retries don't land together.
-export const RETRY_DELAYS_MS = [250, 750];
+const RETRY_DELAYS_MS = [250, 750];
 /** @param {number} ms */
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
