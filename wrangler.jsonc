@@ -34,7 +34,10 @@
   // Cloudflare dashboard, never here. Optional overrides, with their defaults in
   // worker/config.js: EMAIL_FROM, REPLY_TO, LEADS_TO, OWNER_TZ, SITE_URL,
   // AI_DAILY_LIMIT.
-  "vars": {},
+  "vars": {
+    // Turnstile site key (public; part 2). The bot check turns on once TURNSTILE_SECRET is set too.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFLuDSC_z2QFnB6f"
+  },
   // Writes version.txt (the commit being deployed) for the post-deploy check.
   "build": {
     "command": "sh scripts/write-version.sh"
