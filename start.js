@@ -6,7 +6,7 @@
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
 // outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=13';
+import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=14';
 
 const $ = id => document.getElementById(id);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
