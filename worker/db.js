@@ -68,6 +68,15 @@ const SCHEMA = [
   // The daily check of each outside service (health.js): one row a day, with
   // { service: { ok, note } }. Kept 30 days.
   'CREATE TABLE IF NOT EXISTS service_checks (checked_at TEXT PRIMARY KEY, results TEXT NOT NULL)',
+  // Every change to the leads list, newest last: what was done, when, and to
+  // which lead (its random ID, never its details). Shown on /admin and kept
+  // about 13 months, like the counts.
+  `CREATE TABLE IF NOT EXISTS admin_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    lead TEXT
+  )`,
 ];
 
 // Columns added to a table after it first went live. CREATE TABLE IF NOT
@@ -103,6 +112,13 @@ export function ensureSchema(DB) {
     ready.set(DB, setup);
   }
   return /** @type {Promise<void>} */ (ready.get(DB));
+}
+
+// Records one change to the leads list in admin_log ('deleted', 'marked
+// booked', 'downloaded the list', ...), with the lead's ID when it's about one.
+/** @param {D1Database} DB @param {string} action @param {string | null} [lead] */
+export async function audit(DB, action, lead = null) {
+  await DB.prepare('INSERT INTO admin_log (at, action, lead) VALUES (?, ?, ?)').bind(new Date().toISOString(), action, lead).run();
 }
 
 // The key that signs tokens: made once, at random, and kept in the database,

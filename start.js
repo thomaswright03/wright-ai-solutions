@@ -78,6 +78,28 @@ function forgetOutline() {
   try { sessionStorage.removeItem(KEPT_KEY); } catch (e) { /* nothing kept */ }
 }
 
+// What the visitor is typing is kept in the tab as well, so a reload or a
+// slip before they build the outline doesn't lose it. It's dropped once the
+// outline is built, which keeps the words from then on.
+const DRAFT_KEY = 'start-draft';
+
+function keepDraft() {
+  try {
+    const text = $('problem').value;
+    if (text.trim()) sessionStorage.setItem(DRAFT_KEY, text.slice(0, 2000));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch (e) { /* storage off: a reload starts over */ }
+}
+
+function forgetDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing kept */ }
+}
+
+/** @returns {string} */
+function keptDraft() {
+  try { return sessionStorage.getItem(DRAFT_KEY) || ''; } catch (e) { return ''; }
+}
+
 /** @returns {Kept | null} */
 function keptOutline() {
   try {
@@ -289,6 +311,7 @@ $('describeForm').addEventListener('submit', async e => {
   }
   state.problem = problem;
   state.kind = pickKind(problem);
+  forgetDraft();
   buildOutline(turnstile);
 });
 
@@ -351,6 +374,7 @@ if (Recognition && micAllowed) {
       heard = Array.from(e.results, r => r[0].transcript.trim()).filter(Boolean).join(' ');
       $('problem').value = [before, heard].filter(Boolean).join(' ');
       showError($('problemError'), $('problem'), '');
+      keepDraft();
     };
     recognition.onerror = e => {
       if (e.error !== 'aborted') say(VOICE_ERRORS[e.error] || 'Talking isn\'t working in this browser right now. You can type instead.', true);
@@ -794,3 +818,8 @@ function finish(booked, note = '') {
 const navigation = /** @type {Partial<PerformanceNavigationTiming>} */ ((performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {});
 const kept = ['reload', 'back_forward'].includes(navigation.type ?? '') ? keptOutline() : null;
 if (kept) restoreOutline(kept, stepBeforeReload);
+else if (navigation.type === 'reload' || navigation.type === 'back_forward') {
+  const draft = keptDraft();
+  if (draft) $('problem').value = draft;
+}
+$('problem').addEventListener('input', keepDraft);

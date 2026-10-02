@@ -4,7 +4,7 @@
 // the one next-day reminder and deletes old leads.
 import { adFor } from '../outlines.js';
 import { calEvent, features, settings } from './config.js';
-import { count, dayIn, ensureSchema, formatIn, hasDatabase, hourIn, inboxTag, newId, sign, verify } from './db.js';
+import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase, hourIn, inboxTag, newId, sign, verify } from './db.js';
 import { followUpEmail, leadEmail, outlineEmail } from './emails.js';
 import { clean, escapeHtml as esc, htmlResponse, json, overLimit, readJson, timeZoneOrNull, tooMany } from './http.js';
 import { page } from './pages.js';
@@ -341,7 +341,8 @@ export async function forgetRoute(request, env, url) {
   if (!data) return htmlResponse(forgetPage('This link doesn\'t work', `It may have been cut short. ${contact}`), 400);
 
   if (request.method === 'POST') {
-    await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();
+    const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();
+    if (deleted.meta && deleted.meta.changes) await audit(env.DB, 'deleted by the visitor', String(data.id));
     return htmlResponse(forgetPage('Your details are deleted', 'Nothing more will be sent to you from this site. If you booked a call, it stays on the calendar until you cancel it with the link in your invite.'));
   }
   const lead = await env.DB.prepare('SELECT id FROM leads WHERE id = ?').bind(data.id).first();
@@ -364,13 +365,16 @@ export async function runSchedule(env, now = Date.now()) {
   const cfg = settings(env);
   /** @param {number} ms */
   const iso = ms => new Date(ms).toISOString();
-  await env.DB.batch([
+  const [expired] = await env.DB.batch([
     env.DB.prepare('DELETE FROM leads WHERE created_at < ?').bind(iso(now - RETENTION_DAYS * DAY)),
     env.DB.prepare('DELETE FROM counts WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM outline_outcomes WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM ai_daily WHERE day < ?').bind(iso(now - 2 * DAY).slice(0, 10)),
     env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
+    env.DB.prepare('DELETE FROM admin_log WHERE at < ?').bind(iso(now - 400 * DAY)),
   ]);
+  const removed = Number(expired && expired.meta && expired.meta.changes) || 0;
+  if (removed) await audit(env.DB, `deleted ${removed} lead${removed === 1 ? '' : 's'} saved over a year ago`);
 
   const on = features(env);
   if (!on.followUp) return;

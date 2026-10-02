@@ -3,7 +3,7 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
+import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
 import { evalReport } from './eval.js';
 import { SERVICES, healthReport } from './health.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
@@ -184,6 +184,24 @@ ${body}
 </section>`;
 }
 
+// The latest changes to the list (admin_log): who did what isn't recorded
+// beyond "you" (the list has one password) or "the visitor" (their delete link).
+const CHANGES_SHOWN = 30;
+
+/** @param {AuditRow[]} rows @param {string} timeZone */
+function changesPanel(rows, timeZone) {
+  /** @param {string} iso */
+  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  const body = rows.length
+    ? `<ul class="admin-health">${rows.map(r => `<li>${esc(when(r.at))}: ${esc(r.action)}${r.lead ? ` <span class="admin-muted">(lead ${esc(r.lead.slice(0, 8))})</span>` : ''}</li>`).join('')}</ul>`
+    : '<p>No changes yet.</p>';
+  return `<section class="admin-eval" aria-labelledby="changes-title">
+<h2 id="changes-title">Changes</h2>
+${body}
+<p class="admin-muted">Every delete, booking you settled and download, newest first (the latest ${CHANGES_SHOWN}). Kept about 13 months.</p>
+</section>`;
+}
+
 /** @param {LeadRow} lead @param {string} timeZone */
 function leadCard(lead, timeZone) {
   /** @param {string} iso */
@@ -267,9 +285,10 @@ async function settleBooking(env, timeZone, id, booked) {
     const lead = await env.DB.prepare(
       "UPDATE leads SET booked_at = booking_start WHERE id = ? AND booked_at = 'pending' AND booking_start IS NOT NULL RETURNING ad, src",
     ).bind(id).first();
-    if (lead) await count(env, timeZone, lead, 'book');
+    if (lead) await Promise.all([count(env, timeZone, lead, 'book'), audit(env.DB, 'marked booked', id)]);
   } else if (booked === 'no') {
-    await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(id).run();
+    const freed = await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(id).run();
+    if (freed.meta && freed.meta.changes) await audit(env.DB, 'marked not booked', id);
   }
 }
 
@@ -298,24 +317,29 @@ export async function adminRoute(request, env, url) {
     const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,40}$/.test(id)) return back('/admin');
     if (url.pathname === '/admin/delete') {
-      await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+      const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+      if (deleted.meta && deleted.meta.changes) await audit(env.DB, 'deleted', id);
       return back('/admin');
     }
     await settleBooking(env, timeZone, id, /** @type {FormData} */ (form).get('booked'));
     return back(`/admin#lead-${id}`);
   }
   if (request.method !== 'GET') return adminPage('Method not allowed', 405, { Allow: 'GET' });
-  if (url.pathname === '/admin/leads.csv') return csv(env);
+  if (url.pathname === '/admin/leads.csv') {
+    await audit(env.DB, 'downloaded the list');
+    return csv(env);
+  }
   if (url.pathname !== '/admin') return notFound();
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
-  const [counts, outcomes, leads, total, evaluation, health] = await Promise.all([
+  const [counts, outcomes, leads, total, evaluation, health, changes] = await Promise.all([
     /** @type {Promise<D1Result<{ ad: string, src: string, step: CountStep, n: number }>>} */ (env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all()),
     /** @type {Promise<D1Result<{ outcome: string, n: number }>>} */ (env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all()),
     /** @type {Promise<D1Result<LeadRow>>} */ (env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all()),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
     evalReport(env),
     healthReport(env),
+    /** @type {Promise<D1Result<AuditRow>>} */ (env.DB.prepare('SELECT at, action, lead FROM admin_log ORDER BY id DESC LIMIT ?').bind(CHANGES_SHOWN).all()),
   ]);
   const list = leads.results || [];
   const body = `<p class="eyebrow">Private</p>
@@ -325,6 +349,7 @@ ${countsTable(counts.results || [])}
 ${outcomesTable(outcomes.results || [])}
 ${evalPanel(evaluation, timeZone)}
 ${healthPanel(health, timeZone)}
+${changesPanel(changes.results || [], timeZone)}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
   return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

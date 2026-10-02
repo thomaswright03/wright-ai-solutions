@@ -79,6 +79,20 @@ export async function overLimit(limiter, request) {
   return !success;
 }
 
+// Logs an unexpected error as one JSON line in the Worker's logs, under a short
+// reference the visitor is shown too: Cloudflare's Ray ID for the request when
+// there is one, so the log line can be found from either side. Returns the
+// reference. Only the method, path and error message are logged, never the
+// request's body or headers.
+/** @param {unknown} err @param {{ request?: Request, where?: string }} [context] @returns {string} */
+export function logError(err, { request, where } = {}) {
+  const ray = request ? (request.headers.get('CF-Ray') || '').split('-')[0] : '';
+  const ref = /^[0-9a-f]{8,32}$/.test(ray) ? ray : [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const entry = { level: 'error', ref, ...(where ? { where } : {}), ...(request ? { method: request.method, path: new URL(request.url).pathname } : {}), error: err instanceof Error ? err.message : String(err) };
+  console.error(JSON.stringify(entry));
+  return ref;
+}
+
 export const tooMany = () => json({ error: 'rate_limited' }, 429, { 'Retry-After': '60' });
 
 /** @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>} */

@@ -40,7 +40,7 @@ export const MUTATIONS = [
     risk: 5,
     why: 'nothing is retried after a quick failure',
     file: 'worker/http.js',
-    find: 'export const retryAnyFailure = (status, err) => (err ? true : status === 429 || status >= 500);',
+    find: 'export const retryAnyFailure = (status, err) => (err ? true : status === 429 || (status !== null && status >= 500));',
     replace: 'export const retryAnyFailure = () => false;',
   },
   {

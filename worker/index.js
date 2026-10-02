@@ -15,7 +15,7 @@
 import { adminRoute } from './admin.js';
 import { evalRoute, runEvalBatch } from './eval.js';
 import { healthRoute, runHealthChecks } from './health.js';
-import { json } from './http.js';
+import { json, logError } from './http.js';
 import { bookRoute, configRoute, eventRoute, forgetRoute, runSchedule, saveRoute, slotsRoute } from './leads.js';
 import { outlineRoute } from './outline.js';
 
@@ -42,9 +42,10 @@ export default /** @satisfies {ExportedHandler<Env>} */ ({
       if (url.pathname === '/forget') return await forgetRoute(request, env, url);
       if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return await adminRoute(request, env, url);
       return json({ error: 'not_found' }, 404);
-    } catch {
-      // Never show the visitor (or an attacker) the details.
-      return json({ error: 'server_error' }, 500);
+    } catch (err) {
+      // Never show the visitor (or an attacker) the details: only a reference
+      // to the log line, for them to quote (docs/FAILURES.md).
+      return json({ error: 'server_error', ref: logError(err, { request }) }, 500);
     }
   },
 
@@ -52,7 +53,9 @@ export default /** @satisfies {ExportedHandler<Env>} */ ({
   // the AI outline eval (which runs even if the first part failed); and once
   // a day, the check of each outside service.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runSchedule(env, event.scheduledTime).finally(() => runEvalBatch(env, event.scheduledTime)));
-    ctx.waitUntil(runHealthChecks(env, event.scheduledTime));
+    /** @param {string} where @returns {(err: unknown) => void} */
+    const logged = where => err => { logError(err, { where }); };
+    ctx.waitUntil(runSchedule(env, event.scheduledTime).catch(logged('hourly upkeep')).then(() => runEvalBatch(env, event.scheduledTime)).catch(logged('AI eval')));
+    ctx.waitUntil(runHealthChecks(env, event.scheduledTime).catch(logged('service check')));
   },
 });

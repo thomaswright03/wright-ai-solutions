@@ -103,6 +103,13 @@ interface LeadRow extends SavedLead {
   booking_start: string | null;
 }
 
+// A row of the admin_log table (db.js): one change to the leads list.
+interface AuditRow {
+  at: string;
+  action: string;
+  lead: string | null;
+}
+
 // A row of the eval_runs table; `results` is JSON of CaseResult[].
 interface EvalRunRow {
   id: number;
