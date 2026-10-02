@@ -174,7 +174,7 @@ export function followUpEmail({ outline, bookLink, forgetLink, postalAddress }) 
       preheader: 'A quick call is the fastest way to see if it\'s a fit.',
       body: [
         para('Hi,'),
-        para(`Following up on your outline for “${esc(outline.title)}”: if you'd like to talk it through, a 15-minute call is the quickest way to see if it's a fit.`),
+        para(`Following up on your outline for “${esc(outline.title)}”: if you'd like to talk it through, a 30-minute call is the quickest way to see if it's a fit.`),
         cta.html,
         para('If you\'ve already picked a time, thank you, and you can ignore this one.'),
         SIGNATURE_HTML,
@@ -184,7 +184,7 @@ export function followUpEmail({ outline, bookLink, forgetLink, postalAddress }) 
     text: [
       'Hi,',
       '',
-      `Following up on your outline for "${outline.title}": if you'd like to talk it through, a 15-minute call is the quickest way to see if it's a fit.`,
+      `Following up on your outline for "${outline.title}": if you'd like to talk it through, a 30-minute call is the quickest way to see if it's a fit.`,
       '',
       cta.text,
       '',

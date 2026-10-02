@@ -151,7 +151,7 @@ export class FakeServices {
         if (!this.openTimes(start, start + 1).length) {
           return reply(400, { status: 'error', error: { code: 'BadRequestException', message: 'User either already has booking at this time or is not available' } });
         }
-        const booking = { uid: `booking_${this.bookings.length + 1}`, start: new Date(start).toISOString(), end: new Date(start + 15 * 60 * 1000).toISOString(), ...request };
+        const booking = { uid: `booking_${this.bookings.length + 1}`, start: new Date(start).toISOString(), end: new Date(start + 30 * 60 * 1000).toISOString(), ...request };
         this.bookings.push(booking);
         return reply(201, { status: 'success', data: { uid: booking.uid, start: booking.start, end: booking.end } });
       }

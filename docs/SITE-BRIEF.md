@@ -34,7 +34,7 @@ It must also:
 | About (`#about`) | Say who they'd work with (one person, end to end) and what that means for them |
 | Get in touch (`#contact`) | Make contact easy. Say what to send and when to expect a reply, with the email and phone one tap away |
 | Footer (`.site-footer`) | Legal name, privacy notice, and contact details again |
-| `start.html` (`/start`) | Turn a visitor who arrives from an ad or a "Start a project" button into a conversation: one question, a project outline on the page, then save it by email and book a 15-minute call. Each ad opens it on the problem the ad named (`?for=`, copy in `docs/ADS.md`) |
+| `start.html` (`/start`) | Turn a visitor who arrives from an ad or a "Start a project" button into a conversation: one question, a project outline on the page, then save it by email and book a 30-minute call. Each ad opens it on the problem the ad named (`?for=`, copy in `docs/ADS.md`) |
 | `privacy.html` | Say plainly what's collected and kept, and how to ask for removal (see `docs/PRIVACY-ROUTINE.md`) |
 | `404.html` | Get someone who followed a bad link back to the homepage |
 

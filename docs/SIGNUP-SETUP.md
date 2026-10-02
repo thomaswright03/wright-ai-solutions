@@ -66,7 +66,7 @@ This shows your real open times on the page and books the call. Cal.com sends bo
 
 1. Sign up at `cal.com` (free plan) and connect the calendar you actually use, so busy times are blocked.
 2. Set your working hours under **Availability**.
-3. **Event Types** → **New**: title `Intro call`, length **15 minutes**. Pick how you'll meet (Cal Video works with no setup). Leave "Requires confirmation" **off**. Save.
+3. **Event Types** → **New**: title `Intro call`, length **30 minutes**. Pick how you'll meet (Cal Video works with no setup). Leave "Requires confirmation" **off**. Save.
 4. Copy the event's link. It goes in `wrangler.jsonc` as `CAL_LINK`, and looks like `https://cal.com/yourname/intro-call`. Anything but a plain `cal.com` or `app.cal.com` event link leaves booking off.
 5. Optional: add a Cal.com API key as a secret named `CAL_API_KEY`. Public events work without one, but a key gets a higher rate limit.
 

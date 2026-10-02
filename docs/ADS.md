@@ -6,13 +6,13 @@ Ready-to-paste copy for every ad-matched version of `/start`. Each ad links to `
 
 ## Before you run these
 
-- The ads offer a free project outline and a free 15-minute call. Run them only once parts 1 to 4 of `docs/SIGNUP-SETUP.md` are done (the leads database, the bot check, email and Cal.com). Until then `/start` can't save outlines or book calls, and offers email and phone instead.
+- The ads offer a free project outline and a free 30-minute call. Run them only once parts 1 to 4 of `docs/SIGNUP-SETUP.md` are done (the leads database, the bot check, email and Cal.com). Until then `/start` can't save outlines or book calls, and offers email and phone instead.
 - Edit the copy freely, but keep to the rules below and keep each section's layout, so the test can still read it.
 
 ## Rules the copy follows
 
-- Say only what's true today: describe the problem in a sentence and get a project outline back on the page, no email needed to see it, a free 15-minute call, and Thomas plans and builds every project (no hand-offs).
-- No guarantees, numbers, statistics or percentages (the 15-minute call is the one exception), no "best" or "#1", no urgency or scarcity, no competitor names and no prices. Nothing about results or past work beyond what the Work section of the home page shows.
+- Say only what's true today: describe the problem in a sentence and get a project outline back on the page, no email needed to see it, a free 30-minute call, and Thomas plans and builds every project (no hand-offs).
+- No guarantees, numbers, statistics or percentages (the 30-minute call is the one exception), no "best" or "#1", no urgency or scarcity, no competitor names and no prices. Nothing about results or past work beyond what the Work section of the home page shows.
 - Google: no words in all caps (AI is an acronym, which is allowed), no exclamation marks in headlines, no repeated punctuation and no phone numbers.
 - Meta: ask about the business ("Missing calls while you're with a customer?"). Never state something about the person reading ("Your business is failing").
 
@@ -41,14 +41,14 @@ https://wright-ai-solutions.com/start?for=leads&utm_source=google&utm_medium=cpc
 - Hands Leads to Your Team
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for an AI agent that replies to new leads by text, even after hours.
 - Describe how leads reach you today and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -86,14 +86,14 @@ https://wright-ai-solutions.com/start?for=spreadsheets&utm_source=google&utm_med
 - Automated Data Entry
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for an automation that moves data between your spreadsheets and tools.
 - Describe where your data lives and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -131,14 +131,14 @@ https://wright-ai-solutions.com/start?for=support&utm_source=google&utm_medium=c
 - Unusual Questions Go to You
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for an AI assistant that answers repeat questions and hands you the rest.
 - Describe what customers keep asking and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -176,14 +176,14 @@ https://wright-ai-solutions.com/start?for=app&utm_source=google&utm_medium=cpc&u
 - Put Your App in Users' Hands
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for a first version of your app that you can put in real users' hands.
 - Describe what the app should do and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -221,14 +221,14 @@ https://wright-ai-solutions.com/start?for=missed-calls&utm_source=google&utm_med
 - You Take Over When Ready
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for an AI agent that texts back missed callers and hands them to you.
 - Describe when calls get missed and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -266,14 +266,14 @@ https://wright-ai-solutions.com/start?for=reports&utm_source=google&utm_medium=c
 - Skip the Copy and Paste
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for a weekly report that pulls your numbers together on a schedule.
 - Describe the numbers you track and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -311,14 +311,14 @@ https://wright-ai-solutions.com/start?for=website&utm_source=google&utm_medium=c
 - Make It Easy to Contact You
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for a site you can update yourself and customers can reach you from.
 - Describe what your business does and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 
@@ -356,14 +356,14 @@ https://wright-ai-solutions.com/start?for=booking&utm_source=google&utm_medium=c
 - AI Agent for Booking Requests
 - Get a Free Project Outline
 - Your Outline, No Email Needed
-- Free 15-Minute Call
+- Free 30-Minute Call
 - Wright AI Solutions
 
 #### Google descriptions
 
 - Get an outline for an AI agent that replies to booking requests and offers open times.
 - Describe how customers book today and see your outline on the page. No email needed.
-- Free 15-minute call with Thomas Wright, who plans and builds every project.
+- Free 30-minute call with Thomas Wright, who plans and builds every project.
 
 ### Meta (Facebook and Instagram)
 

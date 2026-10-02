@@ -117,8 +117,8 @@ test.describe('ad copy in docs/ADS.md', () => {
         const where = `${key}: ${text}`;
         expect(text, where).not.toMatch(/([!?.,;:])\1/);
         expect((text.match(/\b[A-Z]{2,}\b/g) || []).filter(word => word !== 'AI'), `${where} (all-caps words)`).toEqual([]);
-        // No figures, prices or phone numbers; the free 15-minute call is the one number allowed.
-        expect(text.replace(/\b15-minute\b/gi, ''), where).not.toMatch(/\d/);
+        // No figures, prices or phone numbers; the free 30-minute call is the one number allowed.
+        expect(text.replace(/\b30-minute\b/gi, ''), where).not.toMatch(/\d/);
         expect(text, where).not.toMatch(/guarantee|\bbest\b|#1|number one|cheapest|limited|hurry|act now/i);
         expect(text, `${where} (plain ASCII dashes and quotes)`).not.toMatch(/[\u2013\u2014\u2018\u2019\u201c\u201d]/);
       }

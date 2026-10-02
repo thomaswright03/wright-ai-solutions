@@ -47,7 +47,7 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 ## Project structure
 
 - `index.html`: the home page (one page, anchor-linked sections)
-- `start.html`, `start.js`: `/start`, the ad landing page. One question, a project outline on the page (written by AI, or from a template), then saving it by email and booking a 15-minute call. `?for=<key>` opens it on the problem a given ad named
+- `start.html`, `start.js`: `/start`, the ad landing page. One question, a project outline on the page (written by AI, or from a template), then saving it by email and booking a 30-minute call. `?for=<key>` opens it on the problem a given ad named
 - `outlines.js`: the words behind `/start` (the ad-matched openings and the fixed outline templates), shared by the page and the Worker
 - `worker/`: the server code for `/start`, the "delete my details" link (`/forget`) and Thomas's private leads list (`/admin`). `index.js` lists the routes, and `config.js` says which parts are switched on
 - `admin.css`: styles for the leads list
