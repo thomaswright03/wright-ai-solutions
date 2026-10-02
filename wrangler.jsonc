@@ -10,6 +10,11 @@
   "main": "worker/index.js",
   // Workers AI, which writes the /start outlines.
   "ai": { "binding": "AI" },
+  // The leads list, per-ad counts and the daily AI cap (docs/SIGNUP-SETUP.md, part 1).
+  // The Worker creates its tables on first use.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "wright-ai-solutions-leads", "database_id": "58a6eab1-c102-469f-a7e0-d26e60cc3573" }
+  ],
   // Per visitor (IP) per minute, per Cloudflare location.
   "ratelimits": [
     // Outlines: each one uses some of the daily free AI allowance.
