@@ -318,6 +318,16 @@ test.describe('config', () => {
     }
   });
 
+  test('a preview link uses none of the live secrets, leads or AI', async () => {
+    const fakes = fakesWith({ AI: fakeAI('{}') }, { turnstile: true });
+    const preview = path => new Request(`https://feature-x-wright-ai-solutions.example.workers.dev${path}`, { headers: { ...basic('local-demo-password'), 'CF-Connecting-IP': IP } });
+    const config = await (await send(fakes, preview('/api/config'))).json();
+    expect(config).toMatchObject({ save: false, book: false, followUp: false, turnstile: null });
+    // No leads list: it's off without the database and the password.
+    expect((await send(fakes, preview('/admin'))).status).toBe(404);
+    expect(fakes.requests).toEqual([]);
+  });
+
   test('a Cal.com setting that isn\'t a plain event link leaves booking off', async () => {
     for (const link of ['http://cal.com/demo/intro', 'https://evil.example/demo/intro', 'https://cal.com/demo', 'https://cal.com/demo/intro/extra', 'not a url']) {
       const config = await (await send(fakesWith({ CAL_LINK: link }), get('/api/config'))).json();
@@ -1011,9 +1021,25 @@ test.describe('phone alerts', () => {
     const fakes = new FakeServices({ ntfyDown: true });
     await withFakes(fakes, () => runHealthChecks(fakes.env, Date.UTC(2026, 9, 6, 0, 17)));
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
-    expect(html).toContain('Phone alerts (ntfy), ntfy answered 429 (ntfy limits Cloudflare&#39;s shared addresses; an NTFY_TOKEN fixes it); alerts go to your email instead');
+    expect(html).toContain('Phone alerts (ntfy), ntfy answered 429 (ntfy may limit Cloudflare&#39;s shared addresses; an NTFY_TOKEN fixes that); alerts go to your email instead');
     // The failing-service alert itself came by email.
     expect(fakes.emails.map(e => e.subject)).toEqual(['Alert: A service /start needs is failing']);
+  });
+
+  test('an alert ntfy took in the last week counts as working, even when its health page doesn\'t answer', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const fakes = new FakeServices({ ntfyFlaky: 10 });
+    await send(fakes, get('/admin', basic('local-demo-password')));
+    expect(await withFakes(fakes, () => notify(fakes.env, { title: 'New lead', body: 'A lead' }))).toBe('phone');
+    const now = Date.now();
+    await withFakes(fakes, () => runHealthChecks(fakes.env, now + DAY));
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain(`OK: Phone alerts (ntfy), ntfy took an alert on ${new Date().toISOString().slice(0, 10)}`);
+    expect(fakes.requests).not.toContain('GET ntfy.sh/v1/health');
+    // A week later that alert is too old, so ntfy's health page is asked, and it doesn't answer.
+    await withFakes(fakes, () => runHealthChecks(fakes.env, now + 8 * DAY));
+    expect(fakes.requests).toContain('GET ntfy.sh/v1/health');
+    expect((await (await send(fakes, get('/api/health'))).json()).services.alerts).toBe(false);
   });
 });
 
@@ -1476,19 +1502,20 @@ test.describe('daily check of the outside services', () => {
   });
 
   test('a failed service is checked again each hour until it passes, without another alert', async () => {
-    const fakes = fakesWith({ AI: fakeAI('OK') }, { ntfyFlaky: 2 });
+    const fakes = fakesWith({ AI: fakeAI('OK') }, { calDown: true });
     await check(fakes, NOW);
-    expect((await health(fakes)).services).toEqual({ ...all, botCheck: undefined, alerts: false });
+    expect((await health(fakes)).services).toEqual({ ...all, botCheck: undefined, calendar: false });
     expect(fakes.alerts.map(a => a.title)).toEqual(['A service /start needs is failing']);
     const resend = () => fakes.requests.filter(r => r.startsWith('GET api.resend.com')).length;
     const checkedEmail = resend();
 
-    // Still failing an hour later: only ntfy is asked again, and no new alert.
+    // Still failing an hour later: only the calendar is asked again, and no new alert.
     await check(fakes, NOW + HOUR);
-    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + HOUR).toISOString(), services: { email: true, alerts: false } });
+    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + HOUR).toISOString(), services: { email: true, calendar: false } });
     // Passing the hour after: the failure clears the same day.
+    fakes.options.calDown = false;
     await check(fakes, NOW + 2 * HOUR);
-    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + 2 * HOUR).toISOString(), services: { email: true, alerts: true } });
+    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + 2 * HOUR).toISOString(), services: { email: true, calendar: true } });
     expect(resend()).toBe(checkedEmail);
     expect(fakes.alerts).toHaveLength(1);
 

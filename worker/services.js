@@ -52,7 +52,11 @@ export async function notify(env, { title, body, click }) {
       headers: { Title: title, Tags: 'bell', ...(click ? { Click: click } : {}) },
       body,
     });
-    if (response.ok) return 'phone';
+    if (response.ok) {
+      // The proof the daily check uses that alerts get through (health.js).
+      if (env.DB) await env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind('alert_delivered_at', new Date().toISOString()).run().catch(() => {});
+      return 'phone';
+    }
   } catch {
     // Falls through to the email.
   }

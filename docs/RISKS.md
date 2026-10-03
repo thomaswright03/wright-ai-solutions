@@ -111,6 +111,7 @@ A real problem that happens to read like an instruction gets the weaker template
 - `worker.spec.mjs: slows down password guessing`
 - `worker.spec.mjs: wrong passwords shut out an address for an hour, even without the rate limit binding's help, and are logged without the password`
 - `worker.spec.mjs: a burst of wrong passwords from many addresses alerts Thomas once`
+- `worker.spec.mjs: a preview link uses none of the live secrets, leads or AI`
 - `worker.spec.mjs: deletes a lead only from its own page`
 - `site.spec.mjs: passes on a working site, and only reads` (the live check confirms `/admin` asks for its password)
 

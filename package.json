@@ -11,7 +11,8 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p . && tsc -p tsconfig.browser.json",
     "deadcode": "knip --no-progress",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261003.1",

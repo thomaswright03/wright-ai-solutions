@@ -33,9 +33,21 @@ const ROUTES = {
   '/api/health': healthRoute,
 };
 
+// Cloudflare preview links (branch and version previews, on workers.dev) share
+// production's secrets and leads database. A request there gets none of them:
+// no leads, email, calls, alerts or AI, only the template outlines. The live
+// site is served on its own domain, never workers.dev.
+const LIVE_ONLY = ['DB', 'AI', 'RESEND_API_KEY', 'TURNSTILE_SECRET', 'ADMIN_PASSWORD', 'NTFY_TOPIC', 'NTFY_TOKEN', 'CAL_API_KEY'];
+/** @param {Env} env @param {URL} url @returns {Env} */
+export function envFor(env, url) {
+  if (!url.hostname.endsWith('.workers.dev')) return env;
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !LIVE_ONLY.includes(name)));
+}
+
 export default /** @satisfies {ExportedHandler<Env>} */ ({
-  async fetch(request, env, ctx) {
+  async fetch(request, liveEnv, ctx) {
     const url = new URL(request.url);
+    const env = envFor(liveEnv, url);
     const context = ctx || { waitUntil() {} };
     try {
       if (Object.hasOwn(ROUTES, url.pathname)) return await ROUTES[url.pathname](request, env, context, url);

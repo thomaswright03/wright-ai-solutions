@@ -56,5 +56,22 @@
     "html_handling": "auto-trailing-slash",
     // Only these paths run worker/index.js; every other path is a static file.
     "run_worker_first": ["/api/*", "/admin", "/admin/*", "/forget"]
+  },
+  // A separate Worker for trying a branch: `npm run deploy:preview`. It has no
+  // leads database, AI or secrets, and no hourly job, so nothing it does can
+  // reach a real lead, inbox, calendar or phone. (Preview links of the live
+  // Worker, on workers.dev, get none of them either: worker/index.js envFor.)
+  "env": {
+    "preview": {
+      "name": "wright-ai-solutions-preview",
+      "vars": { "CAL_LINK": "https://cal.com/wright-ai-solutions/intro-call" },
+      "ratelimits": [
+        { "name": "OUTLINE_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+        { "name": "SAVE_LIMIT", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
+        { "name": "API_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } },
+        { "name": "ADMIN_LIMIT", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "triggers": { "crons": [] }
+    }
   }
 }

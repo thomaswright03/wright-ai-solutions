@@ -1,7 +1,8 @@
 // A daily check, from inside the Worker where the keys are, that each outside
 // service /start depends on still answers: email (Resend), the calendar
 // (Cal.com open times), the AI (Workers AI), the bot check's secret
-// (Turnstile) and phone alerts (ntfy). The hourly job runs every check once a
+// (Turnstile) and phone alerts (ntfy: an alert it took in the last week, or
+// else its health page). The hourly job runs every check once a
 // UTC day, then checks again each hour any service that failed, until it
 // passes, so a short outage clears the same day. Results are kept 30 days and
 // shown on /admin, and Thomas gets a phone alert when one fails in the daily
@@ -27,11 +28,13 @@ export const SERVICES = {
 
 // Workers AI's answer when the free daily allowance is used up (error 4006):
 // visitors get template outlines until it frees up, but nothing is down.
+// How recent an alert ntfy took must be to count as proof that alerts work.
+const ALERT_PROOF_AGE = 7 * DAY;
 const ALLOWANCE_USED_UP = /\b4006\b|free allocation/i;
 
 // Each check answers { ok, note }, or null when that service isn't switched on.
 // `limited` marks a failure that is only a used-up allowance.
-/** @type {Record<string, (env: Env) => Promise<CheckResult | null>>} */
+/** @type {Record<string, (env: Env, now: number) => Promise<CheckResult | null>>} */
 const CHECKS = {
   async email(env) {
     if (!env.RESEND_API_KEY) return null;
@@ -79,13 +82,19 @@ const CHECKS = {
     if (!response.ok || !body) return { ok: false, note: `Turnstile answered ${response.status}` };
     return (body['error-codes'] || []).includes('invalid-input-secret') ? { ok: false, note: 'Turnstile turned down the secret' } : { ok: true, note: 'secret accepted' };
   },
-  async alerts(env) {
+  async alerts(env, now) {
     if (!env.NTFY_TOPIC) return null;
+    // ntfy's own health page often doesn't answer Cloudflare's servers while
+    // alerts still arrive, so an alert ntfy took in the last week is the proof.
+    const delivered = env.DB ? await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('alert_delivered_at').first('value') : null;
+    if (typeof delivered === 'string' && now - Date.parse(delivered) < ALERT_PROOF_AGE && Date.parse(delivered) <= now) {
+      return { ok: true, note: `ntfy took an alert on ${delivered.slice(0, 10)}` };
+    }
     const response = await ntfyFetch(env, '/v1/health');
     const body = /** @type {{ healthy?: unknown } | null} */ (await response.json().catch(() => null));
     if (body && body.healthy === true) return { ok: true, note: 'ntfy is up' };
     const fallback = env.RESEND_API_KEY ? '; alerts go to your email instead' : '';
-    const hint = response.status === 429 && !env.NTFY_TOKEN ? ' (ntfy limits Cloudflare\'s shared addresses; an NTFY_TOKEN fixes it)' : '';
+    const hint = response.status === 429 && !env.NTFY_TOKEN ? ' (ntfy may limit Cloudflare\'s shared addresses; an NTFY_TOKEN fixes that)' : '';
     return { ok: false, note: `ntfy answered ${response.status}${hint}${fallback}` };
   },
 };
@@ -109,7 +118,7 @@ export async function runHealthChecks(env, now = Date.now()) {
   for (const name of names) {
     let result;
     try {
-      result = await CHECKS[name](env);
+      result = await CHECKS[name](env, now);
     } catch (err) {
       result = { ok: false, note: err && /** @type {Error} */ (err).message === 'timeout' ? 'no answer in time' : 'couldn\'t be reached' };
     }
