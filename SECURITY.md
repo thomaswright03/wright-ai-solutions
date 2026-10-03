@@ -20,9 +20,9 @@ A secret that has been pushed to this public repository is compromised, even if 
 
 For this site's own secrets (listed under "Secrets" below), `docs/SIGNUP-SETUP.md` says where each one comes from and where it's set.
 
-### Open item
+### Past leak
 
-Commits `8f395ac` and `651fb5f` contain a dashboard credential for a separate lead-responder system. As of 2026-09-23 it has **not been rotated**, so `secret-scan` fails on every run. Thomas needs to do steps 1–4 above.
+Commits `8f395ac` and `651fb5f` contain a dashboard credential for a separate lead-responder system. Thomas rotated it on 2026-10-03, so the value in history is dead, and both findings are recorded in `.gitleaksignore`.
 
 ## What the site does to stay safe
 
