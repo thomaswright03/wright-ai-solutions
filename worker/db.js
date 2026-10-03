@@ -68,6 +68,15 @@ const SCHEMA = [
   // The daily check of each outside service (health.js): one row a day, with
   // { service: { ok, note } }. Kept 30 days.
   'CREATE TABLE IF NOT EXISTS service_checks (checked_at TEXT PRIMARY KEY, results TEXT NOT NULL)',
+  // Every change to the leads list, newest last: what was done, when, and to
+  // which lead (its random ID, never its details). Shown on /admin and kept
+  // about 13 months, like the counts.
+  `CREATE TABLE IF NOT EXISTS admin_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    lead TEXT
+  )`,
 ];
 
 // Columns added to a table after it first went live. CREATE TABLE IF NOT
@@ -78,6 +87,7 @@ const ADDED_COLUMNS = [
   ['leads', 'booking_start', 'TEXT'],
 ];
 
+/** @param {D1Database} DB */
 async function addColumns(DB) {
   for (const [table, column, type] of ADDED_COLUMNS) {
     const { results } = await DB.prepare(`PRAGMA table_info(${table})`).all();
@@ -89,8 +99,10 @@ async function addColumns(DB) {
   }
 }
 
+/** @type {WeakMap<D1Database, Promise<void>>} */
 const ready = new WeakMap();
 
+/** @param {D1Database} DB @returns {Promise<void>} */
 export function ensureSchema(DB) {
   if (!ready.has(DB)) {
     const setup = DB.batch(SCHEMA.map(sql => DB.prepare(sql))).then(() => addColumns(DB)).catch(err => {
@@ -99,16 +111,26 @@ export function ensureSchema(DB) {
     });
     ready.set(DB, setup);
   }
-  return ready.get(DB);
+  return /** @type {Promise<void>} */ (ready.get(DB));
+}
+
+// Records one change to the leads list in admin_log ('deleted', 'marked
+// booked', 'downloaded the list', ...), with the lead's ID when it's about one.
+/** @param {D1Database} DB @param {string} action @param {string | null} [lead] */
+export async function audit(DB, action, lead = null) {
+  await DB.prepare('INSERT INTO admin_log (at, action, lead) VALUES (?, ?, ?)').bind(new Date().toISOString(), action, lead).run();
 }
 
 // The key that signs tokens: made once, at random, and kept in the database,
 // so there's no extra secret to set up. Anyone who can read the database can
 // already read the leads, so this protects nothing more by living elsewhere.
+/** @type {WeakMap<D1Database, Promise<CryptoKey>>} */
 const keys = new WeakMap();
 
+/** @param {D1Database} DB @returns {Promise<CryptoKey>} */
 async function loadKey(DB) {
   await ensureSchema(DB);
+  /** @returns {Promise<string | null>} */
   const read = () => DB.prepare('SELECT value FROM settings WHERE key = ?').bind('signing_key').first('value');
   let value = await read();
   if (!value) {
@@ -117,9 +139,10 @@ async function loadKey(DB) {
     await DB.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').bind('signing_key', fresh).run();
     value = await read();
   }
-  return crypto.subtle.importKey('raw', fromBase64url(value), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+  return crypto.subtle.importKey('raw', fromBase64url(/** @type {string} */ (value)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
+/** @param {D1Database} DB @returns {Promise<CryptoKey>} */
 function signingKey(DB) {
   if (!keys.has(DB)) {
     keys.set(DB, loadKey(DB).catch(err => {
@@ -127,13 +150,14 @@ function signingKey(DB) {
       throw err;
     }));
   }
-  return keys.get(DB);
+  return /** @type {Promise<CryptoKey>} */ (keys.get(DB));
 }
 
 // "v1.<data>.<signature>": the data is readable by whoever holds the token, but
 // only this Worker can make a signature that matches it. `iat` (issued at, in
 // seconds) can be fixed so the same token comes out every time, as the delete
 // link does, so a retried email is identical to the first try.
+/** @param {EnvWithDB} env @param {string} purpose @param {object} data @param {number} [iat] */
 export async function sign(env, purpose, data, iat = Math.floor(Date.now() / 1000)) {
   const key = await signingKey(env.DB);
   const payload = toBase64url(JSON.stringify({ ...data, p: purpose, iat }));
@@ -145,6 +169,7 @@ export async function sign(env, purpose, data, iat = Math.floor(Date.now() / 100
 // maxAge seconds (when given); otherwise null. Each token has exactly one
 // spelling: base64 decoding forgives spaces, padding and unused bits, so a
 // signature is only accepted written the way sign() writes it.
+/** @param {EnvWithDB} env @param {string} purpose @param {unknown} token @param {number} [maxAge] @returns {Promise<TokenData | null>} */
 export async function verify(env, purpose, token, maxAge) {
   if (typeof token !== 'string' || token.length > 20000) return null;
   const parts = token.split('.');
@@ -165,10 +190,16 @@ export async function verify(env, purpose, token, maxAge) {
   }
 }
 
+// Whether the leads database is bound. Each part that needs it already checks
+// (features() in config.js); this tells the type checker too.
+/** @param {Env} env @returns {env is EnvWithDB} */
+export const hasDatabase = env => Boolean(env.DB);
+
 export const newId = () => toBase64url(crypto.getRandomValues(new Uint8Array(16)));
 
 // A keyed hash that stands in for an inbox: the same inbox always gives the
 // same tag, but a tag can't be read back as the address.
+/** @param {EnvWithDB} env @param {string} inbox */
 export async function inboxTag(env, inbox) {
   const key = await signingKey(env.DB);
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, textToBytes(`inbox.${inbox}`)));
@@ -177,13 +208,16 @@ export async function inboxTag(env, inbox) {
 
 // Making a date formatter is slow next to using one, so each is made once.
 // Time zones are checked names, so there are only a few hundred at most.
+/** @type {Map<string, Intl.DateTimeFormat>} */
 const formats = new Map();
+/** @param {string} timeZone @param {Intl.DateTimeFormatOptions} options @returns {Intl.DateTimeFormat} */
 export function formatIn(timeZone, options) {
   const key = `${timeZone}|${JSON.stringify(options)}`;
   if (!formats.has(key)) formats.set(key, new Intl.DateTimeFormat('en-US', { timeZone, ...options }));
-  return formats.get(key);
+  return /** @type {Intl.DateTimeFormat} */ (formats.get(key));
 }
 
+/** @param {string} timeZone @param {Date} date @param {Intl.DateTimeFormatOptions} options */
 function partsIn(timeZone, date, options) {
   const parts = formatIn(timeZone, options).formatToParts(date);
   return Object.fromEntries(parts.map(p => [p.type, p.value]));
@@ -191,15 +225,18 @@ function partsIn(timeZone, date, options) {
 
 // The date (YYYY-MM-DD) in a time zone, so "today" in the counts matches
 // Thomas's day.
+/** @param {string} timeZone @param {Date} [date] */
 export function dayIn(timeZone, date = new Date()) {
   const { year, month, day } = partsIn(timeZone, date, { year: 'numeric', month: '2-digit', day: '2-digit' });
   return `${year}-${month}-${day}`;
 }
 
 // The hour of the day (0-23) in a time zone.
+/** @param {string} timeZone @param {Date} [date] */
 export const hourIn = (timeZone, date = new Date()) =>
   Number(partsIn(timeZone, date, { hour: 'numeric', hourCycle: 'h23' }).hour);
 
+/** @param {Env} env @param {string} timeZone @param {CameFrom} from @param {CountStep} step */
 export async function count(env, timeZone, { ad, src }, step) {
   if (!env.DB) return;
   await ensureSchema(env.DB);
@@ -208,6 +245,7 @@ export async function count(env, timeZone, { ad, src }, step) {
   ).bind(dayIn(timeZone), ad, src, step).run();
 }
 
+/** @param {Env} env @param {string} timeZone @param {string} outcome */
 export async function countOutcome(env, timeZone, outcome) {
   if (!env.DB) return;
   await ensureSchema(env.DB);

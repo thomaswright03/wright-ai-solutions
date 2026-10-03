@@ -6,8 +6,40 @@
 // is connected (GET /api/config); until then the page offers email and phone
 // instead. If the AI can't answer, the outline comes from the templates in
 // outlines.js, so there's always an outline.
-import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=14';
+import { OUTLINES, adFor, pickKind as kindOf } from './outlines.js?v=15';
 
+/**
+ * @typedef {import('./outlines.js').Outline} Outline
+ * What the server said is switched on (GET /api/config).
+ * @typedef {{ save?: boolean, book?: boolean, followUp?: boolean, turnstile?: string | null, bookLink?: string | null }} Config
+ * A reply from the server's JSON routes: whichever of these the route sends.
+ * @typedef {{ ok?: boolean, error?: string, outline?: Outline, source?: string, token?: unknown, emailed?: boolean, lead?: unknown, start?: string }} Reply
+ * The outline this tab kept (sessionStorage), as keptOutline() checked it.
+ * @typedef {{ problem: string, outline: Outline, token?: unknown, fromAI?: unknown }} Kept
+ */
+
+// An element of start.html by id. Every id this script asks for is on the page.
+/**
+ * @overload
+ * @param {'problem'} id
+ * @returns {HTMLTextAreaElement}
+ */
+/**
+ * @overload
+ * @param {'email' | 'name' | 'followUp'} id
+ * @returns {HTMLInputElement}
+ */
+/**
+ * @overload
+ * @param {'outlineButton' | 'saveButton' | 'bookButton'} id
+ * @returns {HTMLButtonElement}
+ */
+/**
+ * @overload
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+/** @param {string} id */
 const $ = id => document.getElementById(id);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const scrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
@@ -21,6 +53,10 @@ const visitorTimeZone = (() => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
 })();
 
+/**
+ * @type {{ config: Config, problem: string, kind: string, token: string | null, outlineTitle: string, email: string, emailed: boolean,
+ *   lead: string | null, days: Date[][], slots: Date[], slot: Date | null, booked: Date | null, done: boolean }}
+ */
 const state = {
   config: {}, problem: '', kind: 'general', token: null, outlineTitle: '',
   email: '', emailed: false, lead: null, days: [], slots: [], slot: null, booked: null, done: false,
@@ -31,6 +67,7 @@ const state = {
 const KEPT_KEY = 'start-outline';
 const KEPT_FOR_MS = 3 * 60 * 60 * 1000;
 
+/** @param {Outline} outline @param {boolean} fromAI */
 function keepOutline(outline, fromAI) {
   try {
     sessionStorage.setItem(KEPT_KEY, JSON.stringify({ at: Date.now(), problem: state.problem, kind: state.kind, token: state.token, outline, fromAI }));
@@ -41,6 +78,29 @@ function forgetOutline() {
   try { sessionStorage.removeItem(KEPT_KEY); } catch (e) { /* nothing kept */ }
 }
 
+// What the visitor is typing is kept in the tab as well, so a reload or a
+// slip before they build the outline doesn't lose it. It's dropped once the
+// outline is built, which keeps the words from then on.
+const DRAFT_KEY = 'start-draft';
+
+function keepDraft() {
+  try {
+    const text = $('problem').value;
+    if (text.trim()) sessionStorage.setItem(DRAFT_KEY, text.slice(0, 2000));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch (e) { /* storage off: a reload starts over */ }
+}
+
+function forgetDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing kept */ }
+}
+
+/** @returns {string} */
+function keptDraft() {
+  try { return sessionStorage.getItem(DRAFT_KEY) || ''; } catch (e) { return ''; }
+}
+
+/** @returns {Kept | null} */
 function keptOutline() {
   try {
     const kept = JSON.parse(sessionStorage.getItem(KEPT_KEY) || 'null');
@@ -51,20 +111,25 @@ function keptOutline() {
   return null;
 }
 
+/** @type {ReturnType<typeof setTimeout>[]} */
 let outlineTimers = [];
 // Bumped for each outline request, so a reply that arrives after the visitor
 // has gone back is ignored.
 let outlineRequest = 0;
 
+/** @param {string} text */
 const pickKind = text => kindOf(text, adPage ? adPage.kind : null);
 
+/** @param {string} path @param {object} body @param {number} [timeout] @returns {Promise<{ ok: boolean, status: number, data: Reply }>} */
 async function postJson(path, body, timeout = 20000) {
   const response = await fetch(path, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+  /** @type {Reply} */
   let data = {};
   try { data = await response.json(); } catch (e) { /* stays {} */ }
   return { ok: response.ok, status: response.status, data: data || {} };
 }
 
+/** @param {HTMLElement} list @param {string[]} items */
 function fillList(list, items) {
   list.replaceChildren(...items.map(text => {
     const li = document.createElement('li');
@@ -73,16 +138,18 @@ function fillList(list, items) {
   }));
 }
 
+/** @param {HTMLElement} el @param {HTMLElement | null} field @param {string} message */
 function showError(el, field, message) {
   el.textContent = message;
   if (field) field.setAttribute('aria-invalid', message ? 'true' : 'false');
 }
 
 // A button that's working: disabled, with a short label saying what's happening.
+/** @param {HTMLButtonElement} button @param {boolean} isBusy @param {string} [label] */
 function busy(button, isBusy, label) {
   if (isBusy) {
     button.dataset.label = button.innerHTML;
-    button.textContent = label;
+    button.textContent = label ?? '';
   } else if (button.dataset.label) {
     button.innerHTML = button.dataset.label;
     delete button.dataset.label;
@@ -106,25 +173,28 @@ postJson('/api/event', from, 8000).catch(() => {});
 
 // Cloudflare Turnstile, the bot check, once it's switched on. It runs out of
 // sight and only draws a box to tick when it isn't sure.
+/** @type {{ widget: string | null | undefined, token: string | null, failed: boolean, interactive: boolean, waiting: (() => void)[] }} */
 const botCheck = { widget: null, token: null, failed: false, interactive: false, waiting: [] };
 const TICK_THE_BOX = 'Tick the box above so I know you\'re not a bot.';
 
+/** @param {string | null} token */
 function botCheckDone(token) {
   botCheck.token = token;
   botCheck.waiting.splice(0).forEach(resolve => resolve());
 }
 
+/** @param {string} siteKey */
 function loadBotCheck(siteKey) {
   const script = document.createElement('script');
   script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
   script.async = true;
   script.onload = () => {
     try {
-      botCheck.widget = window.turnstile.render('#botCheck', {
+      botCheck.widget = /** @type {Turnstile} */ (window.turnstile).render('#botCheck', {
         sitekey: siteKey,
         action: 'outline',
         appearance: 'interaction-only',
-        callback: token => botCheckDone(token),
+        callback: /** @param {string} token */ token => botCheckDone(token),
         'expired-callback': () => { botCheck.token = null; },
         // Turnstile wants a tick from this visitor: say so if they're waiting.
         'before-interactive-callback': () => {
@@ -151,7 +221,7 @@ async function botCheckToken() {
     const slow = setTimeout(() => {
       $('outlineBusy').textContent = botCheck.interactive ? TICK_THE_BOX : 'Checking you\'re not a bot…';
     }, 400);
-    await new Promise(resolve => {
+    await new Promise(/** @param {(value?: unknown) => void} resolve */ resolve => {
       botCheck.waiting.push(resolve);
       // Give up after 30 seconds, but not while the visitor has a box to tick.
       const giveUp = () => (botCheck.interactive ? setTimeout(giveUp, 30000) : resolve());
@@ -171,6 +241,7 @@ async function botCheckToken() {
 // One place decides what's on screen for each step, so Back, "See my
 // outline again" and "Pick a time after all" all land in the same state.
 const STEPS = ['describe', 'outline', 'book', 'done'];
+/** @param {string} step @param {{ focus?: boolean }} [options] */
 function render(step, { focus = true } = {}) {
   if (step !== 'describe') stopTalking();
   $('stepDescribe').hidden = step !== 'describe';
@@ -178,18 +249,19 @@ function render(step, { focus = true } = {}) {
   $('stepBook').hidden = step !== 'book';
   $('stepDone').hidden = step !== 'done';
   const current = STEPS.indexOf(step);
-  document.querySelectorAll('.start-progress li').forEach(li => {
-    const i = STEPS.indexOf(li.dataset.step);
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.start-progress li')).forEach(li => {
+    const i = STEPS.indexOf(/** @type {string} */ (li.dataset.step));
     li.classList.toggle('is-current', i === current);
     li.classList.toggle('is-done', i < current);
     if (i === current) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
   });
   if (!focus) return;
-  const target = { describe: $('problem'), outline: $('outlineTitle'), book: $('bookTitle'), done: $('doneTitle') }[step];
+  const target = /** @type {Record<string, HTMLElement>} */ ({ describe: $('problem'), outline: $('outlineTitle'), book: $('bookTitle'), done: $('doneTitle') })[step];
   target.focus({ preventScroll: true });
   (step === 'describe' ? $('stepDescribe') : target).scrollIntoView({ behavior: scrollBehavior, block: 'start' });
 }
 
+/** @param {string} step */
 function go(step) {
   history.pushState({ step }, '');
   render(step);
@@ -230,7 +302,7 @@ $('describeForm').addEventListener('submit', async e => {
   }
   showError($('problemError'), $('problem'), '');
   busy(button, true, 'One moment…');
-  let turnstile = null;
+  let turnstile;
   try {
     await configReady;
     turnstile = await botCheckToken();
@@ -239,6 +311,7 @@ $('describeForm').addEventListener('submit', async e => {
   }
   state.problem = problem;
   state.kind = pickKind(problem);
+  forgetDraft();
   buildOutline(turnstile);
 });
 
@@ -250,10 +323,12 @@ const micAllowed = !document.featurePolicy || document.featurePolicy.allowsFeatu
 if (Recognition && micAllowed) {
   const button = $('talkButton');
   const status = $('talkStatus');
+  /** @type {SpeechRecognition | null} */
   let recognition = null;
   let before = '';
   let heard = '';
 
+  /** @type {Record<string, string>} */
   const VOICE_ERRORS = {
     'not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
     'service-not-allowed': 'The microphone is blocked. Allow it from the icon in your browser\'s address bar, or type instead.',
@@ -262,11 +337,13 @@ if (Recognition && micAllowed) {
     'network': 'Talking needs an internet connection. You can type instead.',
   };
 
+  /** @param {string} text @param {boolean} [isError] */
   const say = (text, isError = false) => {
     status.hidden = !text;
     status.textContent = text;
     status.classList.toggle('is-error', isError);
   };
+  /** @param {boolean} on */
   const setListening = on => {
     button.classList.toggle('is-listening', on);
     $('talkLabel').textContent = on ? 'Stop' : 'Talk instead';
@@ -297,6 +374,7 @@ if (Recognition && micAllowed) {
       heard = Array.from(e.results, r => r[0].transcript.trim()).filter(Boolean).join(' ');
       $('problem').value = [before, heard].filter(Boolean).join(' ');
       showError($('problemError'), $('problem'), '');
+      keepDraft();
     };
     recognition.onerror = e => {
       if (e.error !== 'aborted') say(VOICE_ERRORS[e.error] || 'Talking isn\'t working in this browser right now. You can type instead.', true);
@@ -340,16 +418,18 @@ history.replaceState({ step: 'describe' }, '');
 // Step 2: the outline. The server answers with the AI's outline or, if the AI
 // can't, the matching template, plus a token that lets the visitor save it.
 // If the server can't be reached at all, the page shows its own template.
+/** @param {string} problem @param {string | null | undefined} turnstile @returns {Promise<Reply & { outline: Outline } | null>} */
 async function fetchOutline(problem, turnstile) {
   try {
     const { ok, data } = await postJson('/api/outline', { problem, ad: from.ad, src: from.src, turnstile }, 30000);
     if (!ok || !data.outline || !Object.hasOwn(OUTLINES, data.outline.kind)) return null;
-    return data;
+    return /** @type {Reply & { outline: Outline }} */ (data);
   } catch (e) {
     return null;
   }
 }
 
+/** @param {Outline} outline @param {boolean} fromAI @param {{ show?: boolean }} [options] */
 function showOutline(outline, fromAI, { show = true } = {}) {
   state.outlineTitle = outline.title;
   $('outlineTitle').textContent = outline.title;
@@ -372,14 +452,14 @@ function showOutline(outline, fromAI, { show = true } = {}) {
   link.rel = 'noopener';
   link.className = 'work-link';
   link.innerHTML = 'See the work <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span>';
-  $('outlineShipped').replaceChildren(template.shipped + ' ', link);
+  $('outlineShipped').replaceChildren(`${template.shipped} `, link);
 
   // Saving needs the server's say-so (the token); without it, offer email and phone.
   const canSave = Boolean(state.config.save && state.token);
   $('saveLive').hidden = !canSave;
   $('saveOff').hidden = canSave;
   $('saveTitle').textContent = canSave ? 'Save your outline, then pick a time to talk' : 'Want to talk it through?';
-  $('jumpToSave').firstChild.textContent = canSave ? 'Save it and pick a time to talk ' : 'How to talk it through ';
+  /** @type {ChildNode} */ ($('jumpToSave').firstChild).textContent = canSave ? 'Save it and pick a time to talk ' : 'How to talk it through ';
   $('followUpField').hidden = !state.config.followUp;
   showError($('emailError'), $('email'), '');
 
@@ -389,6 +469,7 @@ function showOutline(outline, fromAI, { show = true } = {}) {
   if (show) render('outline');
 }
 
+/** @param {string | null | undefined} turnstile */
 async function buildOutline(turnstile) {
   outlineTimers.forEach(clearTimeout);
   const request = ++outlineRequest;
@@ -433,6 +514,7 @@ async function buildOutline(turnstile) {
 // keeps its own step: reloading on the outline shows the outline again, and
 // reloading on the question shows the question, with Forward still going to
 // the outline. No entry is added, so each Back press still does something.
+/** @param {Kept} kept @param {unknown} step */
 async function restoreOutline(kept, step) {
   state.problem = kept.problem;
   state.kind = kept.outline.kind;
@@ -452,6 +534,7 @@ $('jumpToSave').addEventListener('click', () => {
 });
 
 // Saving: the outline is emailed to the visitor, and Thomas gets a copy.
+/** @type {Record<string, string>} */
 const SAVE_ERRORS = {
   bad_email: 'That email doesn\'t look right. Check it and try again.',
   expired: 'This outline has been open a while. Choose "Change what I wrote" above and build it again to save it.',
@@ -472,7 +555,7 @@ $('saveForm').addEventListener('submit', async e => {
   }
   showError($('emailError'), $('email'), '');
   busy(button, true, 'Sending…');
-  let result = null;
+  let result;
   try {
     result = await postJson('/api/save', { token: state.token, email, followUp: $('followUp').checked, timeZone: visitorTimeZone });
   } catch (err) {
@@ -503,6 +586,7 @@ const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
 // The zone's name on that date, so a slot after a clock change gets the right label.
+/** @param {Date} date */
 function zoneName(date) {
   try {
     const part = new Intl.DateTimeFormat(undefined, { timeZoneName: 'long' })
@@ -511,6 +595,7 @@ function zoneName(date) {
   } catch (e) { return ''; }
 }
 
+/** @param {string} name @param {string} value @param {string} text */
 function chip(name, value, text) {
   const label = document.createElement('label');
   label.className = 'chip';
@@ -524,9 +609,10 @@ function chip(name, value, text) {
   return label;
 }
 
+/** @param {string} text */
 function calLink(text) {
   const link = document.createElement('a');
-  link.href = state.config.bookLink;
+  link.href = String(state.config.bookLink);
   link.target = '_blank';
   link.rel = 'noopener';
   link.textContent = text;
@@ -537,12 +623,13 @@ function calLink(text) {
   return link;
 }
 
+/** @param {string} message */
 function timesUnavailable(message) {
   $('timesLoading').hidden = true;
   $('bookForm').hidden = true;
   const box = $('timesUnavailable');
   box.hidden = false;
-  box.replaceChildren(message + ' ');
+  box.replaceChildren(`${message} `);
   if (state.config.bookLink) box.append(calLink('Pick a time on Cal.com'), ' or reply to your outline email.');
   else box.append('Reply to your outline email and we\'ll find a time.');
 }
@@ -561,13 +648,14 @@ async function loadTimes() {
     timesUnavailable('Open times couldn\'t be loaded just now.');
     return;
   }
+  /** @type {Map<string, Date[]>} */
   const days = new Map();
   for (const time of times) {
     const date = new Date(time);
     if (Number.isNaN(date.getTime())) continue;
     const key = dayKey.format(date);
     if (!days.has(key)) days.set(key, []);
-    days.get(key).push(date);
+    /** @type {Date[]} */ (days.get(key)).push(date);
   }
   state.days = [...days.values()].slice(0, 10);
   if (!state.days.length) {
@@ -582,6 +670,7 @@ async function loadTimes() {
   $('bookForm').hidden = false;
 }
 
+/** @param {number} dayIndex */
 function renderTimes(dayIndex) {
   const slots = state.days[dayIndex];
   $('bookTimes').replaceChildren(...slots.map((slot, i) => chip('time', String(i), timeFormat.format(slot))));
@@ -601,15 +690,16 @@ function updateBookButton() {
 
 $('bookDays').addEventListener('change', e => {
   showError($('bookError'), null, '');
-  renderTimes(Number(e.target.value));
+  renderTimes(Number(/** @type {HTMLInputElement} */ (e.target).value));
 });
 
 $('bookTimes').addEventListener('change', e => {
   showError($('bookError'), null, '');
-  state.slot = state.slots[Number(e.target.value)];
+  state.slot = state.slots[Number(/** @type {HTMLInputElement} */ (e.target).value)];
   updateBookButton();
 });
 
+/** @param {string} sentMessage */
 function goToBooking(sentMessage) {
   $('sentNote').textContent = sentMessage;
   go('book');
@@ -642,7 +732,7 @@ $('bookForm').addEventListener('submit', async e => {
   }
   showError($('bookError'), $('name'), '');
   busy(button, true, 'Booking…');
-  let result = null;
+  let result;
   try {
     result = await postJson('/api/book', { lead: state.lead, start: state.slot.toISOString(), name, timeZone: visitorTimeZone }, 25000);
   } catch (err) {
@@ -668,7 +758,7 @@ $('bookForm').addEventListener('submit', async e => {
     await loadTimes();
     if (!$('bookForm').hidden) {
       showError($('bookError'), null, 'Someone just took that time. Pick another.');
-      $('bookDays').querySelector('input').focus();
+      /** @type {HTMLInputElement} */ ($('bookDays').querySelector('input')).focus();
     }
     return;
   }
@@ -692,6 +782,7 @@ $('bookAfterAll').addEventListener('click', () => {
   loadTimes();
 });
 
+/** @param {boolean} booked @param {string} [note] */
 function finish(booked, note = '') {
   state.done = true;
   $('bookAfterAll').hidden = booked || !(state.config.book && state.lead);
@@ -724,6 +815,11 @@ function finish(booked, note = '') {
 // A reload (or coming back with the browser's Back button) brings back the
 // outline this tab already had. Opening /start afresh, say from another ad,
 // starts a new one.
-const navigation = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
-const kept = ['reload', 'back_forward'].includes(navigation.type) ? keptOutline() : null;
+const navigation = /** @type {Partial<PerformanceNavigationTiming>} */ ((performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {});
+const kept = ['reload', 'back_forward'].includes(navigation.type ?? '') ? keptOutline() : null;
 if (kept) restoreOutline(kept, stepBeforeReload);
+else if (navigation.type === 'reload' || navigation.type === 'back_forward') {
+  const draft = keptDraft();
+  if (draft) $('problem').value = draft;
+}
+$('problem').addEventListener('input', keepDraft);

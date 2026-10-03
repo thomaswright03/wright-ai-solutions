@@ -68,7 +68,7 @@ export function addRows(existing, incoming) {
     const key = `${row.source} ${row.finished_at}`;
     if (!row.finished_at || seen.has(key)) continue;
     seen.add(key);
-    const before = [...all].reverse().find(r => r.source === row.source);
+    const before = [...all].reverse().find(r => r.source === row.source && (!row.model || !r.model || r.model === row.model));
     const rate = r => Number(r.passed) / Number(r.total);
     added.push({ row, dropped: Boolean(before && rate(row) < rate(before)), before });
     all.push(row);

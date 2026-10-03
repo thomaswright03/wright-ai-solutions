@@ -22,6 +22,10 @@ npm ci                                   # dev tooling only; the site has no run
 npx playwright install chromium          # once
 npm test                                 # every test in tests/ (Playwright starts the local server)
 npm run validate                         # html-validate on every page
+npm run lint                             # ESLint, strict, no warnings allowed
+npm run typecheck                        # strict type check of the Worker and the page scripts (JSDoc types)
+npm run deadcode                         # no unused files, exports or dependencies (knip)
+node scripts/mutation-check.mjs          # proves each risk's tests catch it (a few minutes)
 ```
 
 The tests need Node 22.13 or later too, for the local database.
@@ -41,11 +45,15 @@ node scripts/eval-outlines.mjs --dry-run                                        
 
 The site also runs the same cases on itself (`worker/eval.js`): a batch of 12 in each hourly run until all 38 are done, then again a week later, and straight away whenever the model, the prompt, the guard or the cases change. It counts toward the daily AI cap and only runs while fewer than 40 outlines have been written that day, so visitors keep most of the free allowance. The latest result and the last six runs are public at `https://wright-ai-solutions.com/api/eval` and on `/admin`. A phone alert goes out if a run falls below 90%, or scores lower than the run before it. No visitor's text is involved.
 
-`.github/workflows/eval-outlines.yml` runs the eval on GitHub whenever the prompt, checks or cases change on `main`, and on demand from the Actions tab. Its summary page shows both scores and every case. Every result is also committed, with its date, commit and the cases it missed, to `eval-history.csv` on the `eval-results` branch (`scripts/record-eval.mjs`, pushed by `scripts/push-eval-record.sh`), and `.github/workflows/eval-history.yml` adds the site's own runs there each day from `/api/eval`. That branch holds only the record, so it never deploys anything, and a run that scores lower than the one before is flagged on the run's summary page. It needs the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` repository secrets; until they're set, its "Run the eval" job shows as skipped and the run summary says "Not run", after checking the cases without calling the AI.
+`.github/workflows/eval-outlines.yml` runs the eval on GitHub on demand from the Actions tab (it no longer runs on every merge, because it spends the same free AI allowance visitors use; see [`docs/COST.md`](docs/COST.md)). Its "model" box tries another Workers AI model with the site's prompt and checks. Its summary page shows both scores and every case. Every result is also committed, with its date, commit and the cases it missed, to `eval-history.csv` on the `eval-results` branch (`scripts/record-eval.mjs`, pushed by `scripts/push-eval-record.sh`), and `.github/workflows/eval-history.yml` adds the site's own runs there each day from `/api/eval`. That branch holds only the record, so it never deploys anything, and a run that scores lower than the one before is flagged on the run's summary page. It needs the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` repository secrets; until they're set, its "Run the eval" job shows as skipped and the run summary says "Not run", after checking the cases without calling the AI.
 
 In production, `/admin` shows how every outline of the last 30 days was written: by the AI, or from a template and why (daily limit, timeout, a reply that broke a rule, or text that wasn't a business problem).
 
-CI runs them on every push and PR, alongside link, secret, HTML, header/footer-drift, cache-version and type/spacing-scale checks (`.github/workflows/ci.yml`).
+CI runs them on every push and PR, alongside link, secret, HTML, header/footer-drift, cache-version and type/spacing-scale checks, the lint, type and dead-code checks, and the mutation check (`.github/workflows/ci.yml`).
+
+**Proving the tests catch what matters.** `tests/rules.spec.mjs` checks each business rule exactly at its limit (one step inside and one past). `scripts/mutation-check.mjs` takes each of the 20 risks in `docs/RISKS.md`, breaks the code that guards it (the breaks are listed in `tests/mutations.mjs`) in a copy of the repo, and runs only the tests that risk names; it fails if any break goes unnoticed. `tests/risks.spec.mjs` keeps `docs/RISKS.md`, `docs/RULES.md`, `docs/FAILURES.md` and `tests/mutations.mjs` pointed at tests and code that exist.
+
+**Types.** The code stays plain JavaScript with no build step; types are JSDoc comments, checked by TypeScript in strict mode: `tsconfig.json` for the Worker (with Cloudflare's types; shared shapes such as `Env` are in `worker/types.d.ts`) and `tsconfig.browser.json` for the page scripts (`browser.d.ts` covers Turnstile, speech recognition and the versioned `outlines.js` import).
 
 ## Deploying
 
@@ -55,7 +63,7 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 
 **Secrets** (`RESEND_API_KEY`, `TURNSTILE_SECRET`, `ADMIN_PASSWORD`, `NTFY_TOPIC`, optionally `CAL_API_KEY`) are set as Cloudflare Worker secrets, never in this repo. Settings that aren't secret go in `wrangler.jsonc`. `docs/SIGNUP-SETUP.md` says which goes where.
 
-**Caching:** every page loads its CSS and JS with the same `?v=` number, and so do `start.js`'s import of `outlines.js` and the pages the Worker writes (`ASSET_VERSION` in `worker/pages.js`); CI enforces it. Bump it in all of them whenever `styles.css`, `script.js`, `theme-init.js`, `noscript.css`, `fonts/fonts.css`, `start.js`, `outlines.js` or `admin.css` changes. Files under `/fonts/` are cached for a year as immutable, so a changed font file needs a new file name; `/assets/` images are cached for 30 days.
+**Caching:** every page loads its CSS and JS with the same `?v=` number, and so do `start.js`'s import of `outlines.js` (typed for the type check in `browser.d.ts`) and the pages the Worker writes (`ASSET_VERSION` in `worker/pages.js`); CI enforces it. Bump it in all of them whenever `styles.css`, `script.js`, `theme-init.js`, `noscript.css`, `fonts/fonts.css`, `start.js`, `outlines.js` or `admin.css` changes. Files under `/fonts/` are cached for a year as immutable, so a changed font file needs a new file name; `/assets/` images are cached for 30 days.
 
 **Rollback:** in the Cloudflare dashboard, Workers & Pages → `wright-ai-solutions` → Deployments, pick the last good version and roll back to it. The leads database isn't rolled back with it.
 
@@ -78,6 +86,9 @@ The repo root is the assets directory. `.assetsignore` keeps repo-only files (`.
 - `docs/PRIVACY-ROUTINE.md`: how the privacy notice's promises (retention, requests, takedowns, the leads list) are kept
 - `docs/COMPLIANCE-NOTES.md`: dated list of laws and licences that may apply, with sources and open items
 - [`docs/RISKS.md`](docs/RISKS.md): the top 20 business risks, each with the tests that catch it (`tests/risks.spec.mjs` keeps the names in step)
+- [`docs/RULES.md`](docs/RULES.md): every business rule, where it was promised, the code that enforces it and the tests that check it
+- [`docs/FAILURES.md`](docs/FAILURES.md): every realistic failure, what the visitor sees, what's retried and logged, and its tests
+- [`docs/COST.md`](docs/COST.md): spend caps, model choice and how to test a cheaper model, and what is cached and why
 - [`docs/EVAL-CASES.md`](docs/EVAL-CASES.md): where each AI eval case came from, and the rule that new cases go in before the change they check
 - `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`: icons (the PNGs are rendered from the SVG)
 - `tests/`: Playwright tests (`site.spec.mjs` in a browser, `worker.spec.mjs` for the Worker, `ads.spec.mjs` for the ad pages and `docs/ADS.md`, `risks.spec.mjs` for `docs/RISKS.md`), the local server that mimics Cloudflare (`serve.mjs`) and its stand-in services (`fakes.mjs`)

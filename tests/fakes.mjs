@@ -14,7 +14,7 @@ const emitWarning = process.emitWarning;
 process.emitWarning = (warning, ...rest) => (/SQLite/.test(String(warning)) ? undefined : emitWarning.call(process, warning, ...rest));
 const sqlite = await import('node:sqlite').catch(() => null);
 process.emitWarning = emitWarning;
-export const hasDatabase = Boolean(sqlite);
+const hasDatabase = Boolean(sqlite);
 
 class FakeStatement {
   constructor(db, sql, params = []) {

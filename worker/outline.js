@@ -6,7 +6,7 @@
 // stored only if they choose to save the outline (see leads.js).
 import { KINDS, OUTLINES, adFor, kindScores, pickKind } from '../outlines.js';
 import { features, settings } from './config.js';
-import { count, countOutcome, ensureSchema, newId, sign } from './db.js';
+import { count, countOutcome, ensureSchema, hasDatabase, newId, sign } from './db.js';
 import { cameFrom } from './leads.js';
 import { clean, clientIp, json, overLimit, readJson, tooMany, withTimeout } from './http.js';
 import { passedBotCheck } from './services.js';
@@ -21,7 +21,7 @@ export const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 export { KINDS };
 export const MIN_PROBLEM = 10;
-export const MAX_PROBLEM = 1200;
+const MAX_PROBLEM = 1200;
 // Room for 1,200 characters of any script plus the bot-check token.
 const MAX_BODY = 10000;
 export const AI_TIMEOUT_MS = 25000;
@@ -78,15 +78,17 @@ const SCHEMA = {
   required: ['usable', 'title', 'build', 'kind', 'steps', 'needs', 'milestone', 'questions'],
 };
 
+/** @param {unknown} value @param {number} min @param {number} max @returns {string | null} */
 function text(value, min, max) {
   if (typeof value !== 'string') return null;
   const s = clean(value);
   return s.length >= min && s.length <= max ? s : null;
 }
 
+/** @param {unknown} value @param {number} min @param {number} max @param {number} maxLength @returns {string[] | null} */
 function list(value, min, max, maxLength) {
   if (!Array.isArray(value)) return null;
-  const items = value.map(v => text(v, 3, maxLength)).filter(Boolean).slice(0, max);
+  const items = /** @type {string[]} */ (value.map(v => text(v, 3, maxLength)).filter(Boolean)).slice(0, max);
   return items.length >= min ? items : null;
 }
 
@@ -106,14 +108,19 @@ const REJECT = [
 // also web address endings may appear that way ("report.csv", "Node.js").
 const DOTTED = /[\p{L}\p{N}_-][.\u3002\uFF0E\uFF61](\p{L}[\p{L}\p{N}-]+)/gu;
 const FILE_TYPES = new Set(['js', 'ts', 'jsx', 'tsx', 'csv', 'pdf', 'xls', 'xlsx', 'doc', 'docx', 'pptx', 'txt', 'json', 'xml', 'html', 'htm', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'mp3', 'mp4', 'wav', 'sql', 'yml', 'yaml', 'ics', 'vcf']);
+/** @param {string} s */
 const hasDomain = s => [...s.matchAll(DOTTED)].some(m => !FILE_TYPES.has(m[1].toLowerCase()));
 // A run of 9 or more digits, however it's punctuated, reads as a phone number
 // (a year range like "2025-2026" has only 8).
+/** @param {string} s */
 const hasPhoneNumber = s => (s.match(/\+?[\d(][\d\s().-]{7,}\d/g) || []).some(m => m.replace(/\D/g, '').length >= 9);
 
 // Checks the model's reply field by field. Anything off (missing, wrong type,
 // too long, a price, a promise or a link) means "use the template".
+/** @param {unknown} raw @returns {Outline | null} */
 export function validateOutline(raw) {
+  // The model's reply: JSON of any shape until it's checked below.
+  /** @type {any} */
   let data = raw;
   if (typeof data === 'string') {
     try {
@@ -135,10 +142,12 @@ export function validateOutline(raw) {
   if (Object.values(outline).some(v => v === null)) return null;
   const all = JSON.stringify(outline);
   if (REJECT.some(re => re.test(all)) || hasDomain(all) || hasPhoneNumber(all)) return null;
-  return outline;
+  // Every field was checked for null above.
+  return /** @type {Outline} */ (outline);
 }
 
 // The fixed outline for a kind of work: what visitors get when the AI can't answer.
+/** @param {string} kind @returns {Outline} */
 export function templateOutline(kind) {
   const key = KINDS.includes(kind) ? kind : 'general';
   const { title, build, steps, needs, milestone, questions } = OUTLINES[key];
@@ -149,6 +158,7 @@ export function templateOutline(kind) {
 // cap (settings().aiDailyLimit). The day is UTC, when the free allowance
 // resets. On the Paid plan the cap limits what a flood of requests could cost.
 // Without the database there's nothing to count in, so no cap.
+/** @param {Env} env */
 async function underDailyCap(env) {
   if (!env.DB) return true;
   await ensureSchema(env.DB);
@@ -187,7 +197,8 @@ const INJECTION = [
 ];
 // Names the guard, so changing it starts a new eval run (worker/eval.js).
 export const GUARD = INJECTION.map(String);
-export const looksLikeInjection = text => typeof text === 'string' && INJECTION.some(re => re.test(text));
+/** @param {unknown} input */
+export const looksLikeInjection = input => typeof input === 'string' && INJECTION.some(re => re.test(input));
 
 // The kind to show for the model's outline: the model's own, unless the
 // visitor's words clearly point elsewhere. "general" takes the kind their
@@ -195,6 +206,7 @@ export const looksLikeInjection = text => typeof text === 'string' && INJECTION.
 // two or more signals for one other kind and none for the model's. It keeps
 // the matching example project and the alert right when the model wavers
 // between close kinds, such as missed calls (leads) and repeat questions (support).
+/** @param {string} modelKind @param {string} problem @param {string | null} hint @returns {string} */
 export function settleKind(modelKind, problem, hint) {
   if (modelKind === 'general') return pickKind(problem, hint);
   const scores = kindScores(problem);
@@ -204,6 +216,7 @@ export function settleKind(modelKind, problem, hint) {
 
 // The model's reply as the site would show it: checked (validateOutline), with
 // its kind settled against the visitor's words. Null when it can't be used.
+/** @param {unknown} raw @param {string} problem @param {string | null} hint @returns {Outline | null} */
 export function finishOutline(raw, problem, hint) {
   const outline = validateOutline(raw);
   return outline && { ...outline, kind: settleKind(outline.kind, problem, hint) };
@@ -211,11 +224,13 @@ export function finishOutline(raw, problem, hint) {
 
 // The visitor's text as the AI sees it: plain, single-spaced, cut to length,
 // and without the markers, so it can't close the block the prompt puts it in.
+/** @param {unknown} value */
 export const cleanProblem = value => (typeof value === 'string' ? clean(value.replace(/<<<|>>>/g, ' ')).slice(0, MAX_PROBLEM) : '');
 
 // The request the AI gets for one visitor's problem. Shared with the eval
 // script (scripts/eval-outlines.mjs), so a prompt change is tested exactly as
 // the site sends it.
+/** @param {string} problem @param {string | null} hint */
 export function outlineRequest(problem, hint) {
   return {
     messages: [
@@ -234,8 +249,10 @@ export function outlineRequest(problem, hint) {
 // Why a reply wasn't used: 'unusable' when the model judged the text not a
 // real business problem, 'rejected' when the reply broke a rule (shape,
 // length, a price, a promise or a link). Null when the reply is fine.
+/** @param {unknown} raw @returns {'unusable' | 'rejected' | null} */
 export function rejectionReason(raw) {
   if (validateOutline(raw)) return null;
+  /** @type {any} */
   let data = raw;
   if (typeof data === 'string') {
     try {
@@ -251,6 +268,10 @@ export function rejectionReason(raw) {
 // and why the template is used instead. Text aimed at the AI is 'guarded' and
 // never sent; no AI binding (the local test server) is 'off'; past the daily
 // cap 'cap'; a timeout, quota error or outage 'error'.
+/**
+ * @param {Env} env @param {unknown} raw @param {string} problem @param {string | null} hint
+ * @returns {Promise<{ outline: Outline | null, outcome: string }>}
+ */
 async function writeWithAI(env, raw, problem, hint) {
   if (looksLikeInjection(raw)) return { outline: null, outcome: 'guarded' };
   if (!env.AI) return { outline: null, outcome: 'off' };
@@ -259,7 +280,7 @@ async function writeWithAI(env, raw, problem, hint) {
     const result = await withTimeout(env.AI.run(MODEL, outlineRequest(problem, hint)), AI_TIMEOUT_MS);
     const reply = result && result.response;
     const outline = finishOutline(reply, problem, hint);
-    return outline ? { outline, outcome: 'ai' } : { outline: null, outcome: rejectionReason(reply) };
+    return outline ? { outline, outcome: 'ai' } : { outline: null, outcome: /** @type {string} */ (rejectionReason(reply)) };
   } catch {
     return { outline: null, outcome: 'error' };
   }
@@ -269,6 +290,7 @@ async function writeWithAI(env, raw, problem, hint) {
 // { source: 'ai' | 'template', outline, token? }. The token (only once saving
 // is switched on) carries the outline, signed, to /api/save, with a random ID
 // that makes it one lead however many times it's saved.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function outlineRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, MAX_BODY);
   if (error) return error;
@@ -288,8 +310,9 @@ export async function outlineRoute(request, env, ctx, url) {
   const { outline: written, outcome } = await writeWithAI(env, body.problem, problem, hint);
   const outline = written || templateOutline(pickKind(problem, hint));
   const source = written ? 'ai' : 'template';
+  /** @type {{ source: string, outline: Outline, token?: string }} */
   const reply = { source, outline };
-  if (on.save) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, ...from });
+  if (on.save && hasDatabase(env)) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, ...from });
   const tz = settings(env).ownerTz;
   ctx.waitUntil(Promise.allSettled([count(env, tz, from, 'outline'), countOutcome(env, tz, outcome)]));
   return json(reply);

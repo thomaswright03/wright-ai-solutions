@@ -6,6 +6,7 @@
 // repeat (withRetries in http.js).
 import { retryAnyFailure, withRetries, withTimeout } from './http.js';
 
+/** @param {Env} env @param {EmailMessage} message @param {string} [idempotencyKey] @returns {Promise<boolean>} */
 export async function sendEmail(env, message, idempotencyKey) {
   if (!env.RESEND_API_KEY) return false;
   try {
@@ -27,6 +28,7 @@ export async function sendEmail(env, message, idempotencyKey) {
 
 // An instant push to Thomas's phone through the ntfy app. The topic name is
 // the only key, so it's a secret; alerts never name the visitor.
+/** @param {Env} env @param {{ title: string, body: string, click?: string }} alert @returns {Promise<boolean>} */
 export async function notify(env, { title, body, click }) {
   if (!env.NTFY_TOPIC) return false;
   try {
@@ -42,14 +44,15 @@ export async function notify(env, { title, body, click }) {
 }
 
 // True only when Cloudflare confirms the visitor passed the bot check.
+/** @param {Env} env @param {unknown} token @param {string} ip @returns {Promise<boolean | null>} */
 export async function passedBotCheck(env, token, ip) {
   if (typeof token !== 'string' || !token || token.length > 2048) return false;
   try {
     const response = await withTimeout(fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
-      body: new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token, ...(ip && ip !== 'unknown' ? { remoteip: ip } : {}) }),
+      body: new URLSearchParams({ secret: String(env.TURNSTILE_SECRET), response: token, ...(ip && ip !== 'unknown' ? { remoteip: ip } : {}) }),
     }), 5000);
-    const result = await response.json();
+    const result = /** @type {{ success?: unknown } | null} */ (await response.json());
     return result && result.success === true;
   } catch {
     return false;
@@ -58,6 +61,7 @@ export async function passedBotCheck(env, token, ip) {
 
 const CAL_API = 'https://api.cal.com/v2';
 
+/** @param {Env} env @param {string} version */
 function calHeaders(env, version) {
   return {
     'cal-api-version': version,
@@ -69,6 +73,7 @@ function calHeaders(env, version) {
 
 // Thomas's open start times between two dates, as sorted ISO strings (UTC),
 // or null if Cal.com couldn't be reached.
+/** @param {Env} env @param {CalEvent} cal @param {Date} from @param {Date} to @returns {Promise<string[] | null>} */
 export async function openTimes(env, cal, from, to) {
   const query = new URLSearchParams({
     username: cal.username,
@@ -79,8 +84,9 @@ export async function openTimes(env, cal, from, to) {
   try {
     const response = await withRetries(() => withTimeout(fetch(`${CAL_API}/slots?${query}`, { headers: calHeaders(env, '2024-09-04') }), 8000), retryAnyFailure);
     if (!response.ok) return null;
-    const days = (await response.json())?.data;
+    const days = /** @type {{ data?: unknown } | null} */ (await response.json())?.data;
     if (!days || typeof days !== 'object') return null;
+    /** @type {Set<string>} */
     const times = new Set();
     for (const list of Object.values(days)) {
       if (!Array.isArray(list)) continue;
@@ -102,6 +108,11 @@ export async function openTimes(env, cal, from, to) {
 // call may have been booked anyway; or null when Cal.com clearly turned it
 // down, including a 503, which means it took nothing in. Only a 429 or a 503
 // is tried again, since only those say nothing was booked.
+/**
+ * @param {Env} env @param {CalEvent} cal
+ * @param {{ start: string, name: string, email: string, timeZone: string, notes: string, metadata: Record<string, string> }} booking
+ * @returns {Promise<BookingResult | null>}
+ */
 export async function bookCall(env, cal, { start, name, email, timeZone, notes, metadata }) {
   let response;
   try {
@@ -121,6 +132,8 @@ export async function bookCall(env, cal, { start, name, email, timeZone, notes, 
     return { uncertain: true };
   }
   if (response.status >= 500 && response.status !== 503) return { uncertain: true };
+  // Cal.com's reply, whatever shape it came in.
+  /** @type {any} */
   const result = await response.json().catch(() => null);
   if (response.ok) {
     const booking = result && result.data && (Array.isArray(result.data) ? result.data[0] : result.data);
@@ -137,17 +150,18 @@ export async function bookCall(env, cal, { start, name, email, timeZone, notes, 
 // time, if it did. Listing bookings needs the optional CAL_API_KEY. Returns
 // { uid, start } when found, null when Cal.com confirms there's none, and
 // undefined when it can't tell (no key, or no clear answer).
+/** @param {Env} env @param {{ email: string, start: string }} booking @returns {Promise<{ uid: string, start: string } | null | undefined>} */
 export async function findBooking(env, { email, start }) {
   if (!env.CAL_API_KEY) return undefined;
   const query = new URLSearchParams({ attendeeEmail: email, status: 'upcoming,unconfirmed', take: '100' });
   try {
     const response = await withRetries(() => withTimeout(fetch(`${CAL_API}/bookings?${query}`, { headers: calHeaders(env, '2024-08-13') }), 8000), retryAnyFailure);
     if (!response.ok) return undefined;
-    const list = (await response.json())?.data;
+    const list = /** @type {{ data?: unknown } | null} */ (await response.json())?.data;
     if (!Array.isArray(list)) return undefined;
     const wanted = Date.parse(start);
     const match = list.find(b => Date.parse(b?.start) === wanted && !/cancel|reject/i.test(String(b?.status || ''))
-      && (b.attendees || []).some(a => String(a?.email || '').toLowerCase() === email.toLowerCase()));
+      && (b.attendees || []).some(/** @param {{ email?: unknown } | null} a */ a => String(a?.email || '').toLowerCase() === email.toLowerCase()));
     return match ? { uid: String(match.uid || ''), start: match.start } : null;
   } catch {
     return undefined;

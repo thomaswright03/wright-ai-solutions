@@ -68,6 +68,38 @@ jobs:
           fi
           exit "$status"
 
+  mutation-check:
+    # Breaks the behaviour behind each of the 20 risks in docs/RISKS.md, one at
+    # a time, and fails unless that risk's own tests catch it
+    # (scripts/mutation-check.mjs). The summary page lists each break.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/mutation-check.mjs
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ESLint, strict, no warnings allowed
+        run: npm run lint
+      - name: Type check (strict)
+        run: npm run typecheck
+      - name: No unused files, exports or dependencies
+        run: npm run deadcode
+
   html-validate:
     runs-on: ubuntu-latest
     steps:
@@ -151,9 +183,10 @@ jobs:
 
       - name: One cache-busting version for every page's CSS and JS
         run: |
-          # start.js imports outlines.js with the same ?v=, and the pages the
-          # Worker writes (worker/pages.js) link the stylesheets with ASSET_VERSION.
-          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html start.html start.js | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
+          # start.js imports outlines.js with the same ?v= (and browser.d.ts
+          # types that import for the type check), and the pages the Worker
+          # writes (worker/pages.js) link the stylesheets with ASSET_VERSION.
+          versions=$( { grep -ohE '\.(css|js)\?v=[0-9]+' index.html 404.html privacy.html start.html start.js browser.d.ts | sed 's/.*?v=//'; grep -oE 'ASSET_VERSION = [0-9]+' worker/pages.js | sed 's/.* = //'; } | sort -u)
           if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
             echo "::error::Pages reference different ?v= versions: $(echo $versions)"
             exit 1

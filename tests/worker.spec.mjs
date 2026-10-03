@@ -14,70 +14,7 @@ import { checkCases } from '../scripts/eval-outlines.mjs';
 import { addRows, parseCsv, siteRows } from '../scripts/record-eval.mjs';
 import { FakeD1, FakeServices, fakeContext, withFakes } from './fakes.mjs';
 
-const ORIGIN = 'https://wright-ai-solutions.com';
-const IP = '203.0.113.7';
-const GOOD = {
-  usable: true,
-  kind: 'leads',
-  title: 'A missed-call text-back agent',
-  build: 'I\'d build an agent that texts back every caller you miss and offers them a time to come in.',
-  steps: ['A call goes unanswered.', 'The agent texts the caller back.', 'It offers open times.', 'Your team takes over when they reply.'],
-  needs: ['Access to your phone system', 'Your booking rules', 'How you greet customers'],
-  milestone: 'Texting back missed calls from one line while you watch every message.',
-  questions: ['How many calls do you miss?', 'Who books appointments today?', 'What should it never say?'],
-};
-const { usable, ...GOOD_OUTLINE } = GOOD;
-const problem = 'We miss calls at lunch and those people book somewhere else.';
-
-function request(path, { method = 'POST', body, headers = {} } = {}) {
-  return new Request(`${ORIGIN}${path}`, {
-    method,
-    headers: { Origin: ORIGIN, 'Content-Type': 'application/json', 'CF-Connecting-IP': IP, ...headers },
-    body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
-  });
-}
-const post = (path, body, headers) => request(path, { body, headers });
-const get = (path, headers) => request(path, { method: 'GET', headers });
-
-// Runs one request through the Worker with these stand-ins, including the work
-// it hands to waitUntil.
-async function send(fakes, req) {
-  return withFakes(fakes, async () => {
-    const ctx = fakeContext();
-    const res = await worker.fetch(req, fakes.env, ctx);
-    await ctx.settle();
-    return res;
-  });
-}
-
-// A stand-in for env.AI that records what it was asked and replies with `reply`.
-function fakeAI(reply) {
-  const calls = [];
-  return {
-    calls,
-    async run(model, input) {
-      calls.push({ model, input });
-      if (reply instanceof Error) throw reply;
-      return { response: reply };
-    },
-  };
-}
-
-const fakesWith = (env = {}, options = {}) => {
-  const fakes = new FakeServices(options);
-  Object.assign(fakes.env, env);
-  return fakes;
-};
-
-// Gets an outline and saves it, the way the page does.
-async function saveLead(fakes, { email = 'pat@example.com', followUp = false, text = problem, ad = 'leads', src = 'google', timeZone = 'America/New_York' } = {}) {
-  const outline = await (await send(fakes, post('/api/outline', { problem: text, ad, src }))).json();
-  const res = await send(fakes, post('/api/save', { token: outline.token, email, followUp, timeZone }));
-  return { outline, res, saved: await res.json() };
-}
-
-const rows = async (fakes, sql, ...params) => (await fakes.env.DB.prepare(sql).bind(...params).all()).results;
-const basic = password => ({ Authorization: `Basic ${btoa(`thomas:${password}`)}` });
+import { GOOD, GOOD_OUTLINE, IP, ORIGIN, basic, fakeAI, fakesWith, get, post, problem, rows, saveLead, send } from './helpers.mjs';
 
 test.describe('outline', () => {
   test('returns the AI outline when the model replies with a valid one', async () => {
@@ -95,7 +32,7 @@ test.describe('outline', () => {
   });
 
   test('accepts a reply that arrives as a JSON string, even wrapped in a code fence', async () => {
-    const fakes = fakesWith({ AI: fakeAI('```json\n' + JSON.stringify(GOOD) + '\n```') }, { bare: true });
+    const fakes = fakesWith({ AI: fakeAI(`\`\`\`json\n${JSON.stringify(GOOD)}\n\`\`\``) }, { bare: true });
     expect((await (await send(fakes, post('/api/outline', { problem }))).json()).source).toBe('ai');
   });
 
@@ -903,6 +840,36 @@ test.describe('leads list', () => {
     expect(csv).toContain('"\'=HYPERLINK(""http://evil.example"",""click"") we miss calls"');
   });
 
+  test('every change on the leads list is recorded, with when, but never the lead\'s details', async () => {
+    const fakes = new FakeServices();
+    const admin = basic('local-demo-password');
+    const form = (path, fields) => new Request(`${ORIGIN}${path}`, { method: 'POST', headers: { ...admin, Origin: ORIGIN }, body: new URLSearchParams(fields) });
+    await saveLead(fakes, { email: 'first@example.com', text: `${problem} first` });
+    await saveLead(fakes, { email: 'second@example.com', text: `${problem} second` });
+    await saveLead(fakes, { email: 'third@example.com', text: `${problem} third` });
+    const ids = Object.fromEntries((await rows(fakes, 'SELECT id, email FROM leads')).map(r => [r.email.split('@')[0], r.id]));
+    await fakes.env.DB.prepare("UPDATE leads SET booked_at = 'pending', booking_start = ? WHERE id = ?").bind(new Date(Date.now() + 86400000).toISOString(), ids.second).run();
+
+    expect((await send(fakes, form('/admin/booking', { id: ids.second, booked: 'yes' }))).status).toBe(303);
+    expect((await send(fakes, get('/admin/leads.csv', admin))).status).toBe(200);
+    expect((await send(fakes, form('/admin/delete', { id: ids.first }))).status).toBe(303);
+    const link = new URL(fakes.emails.find(e => e.to[0] === 'third@example.com').text.match(/Delete my details: (\S+)/)[1]);
+    await send(fakes, new Request(`${ORIGIN}/forget`, { method: 'POST', body: new URLSearchParams({ t: link.searchParams.get('t') }) }));
+
+    const log = await rows(fakes, 'SELECT at, action, lead FROM admin_log ORDER BY id');
+    expect(log.map(r => [r.action, r.lead])).toEqual([
+      ['marked booked', ids.second],
+      ['downloaded the list', null],
+      ['deleted', ids.first],
+      ['deleted by the visitor', ids.third],
+    ]);
+    expect(log.every(r => Math.abs(Date.parse(r.at) - Date.now()) < 60000)).toBe(true);
+    expect(JSON.stringify(await rows(fakes, 'SELECT * FROM admin_log'))).not.toMatch(/example\.com|lunch/);
+    const page = await (await send(fakes, get('/admin', admin))).text();
+    expect(page).toContain('Changes');
+    expect(page).toContain('deleted by the visitor');
+  });
+
   test('slows down password guessing', async () => {
     const fakes = fakesWith({ ADMIN_LIMIT: { async limit() { return { success: false }; } } });
     expect((await send(fakes, get('/admin', basic('local-demo-password')))).status).toBe(429);
@@ -1100,8 +1067,8 @@ test.describe('AI outline eval on the site', () => {
         ai.inputs.push(input);
         if (failOn.includes(ai.inputs.length)) throw new Error('quota');
         const c = CASES.find(k => input.messages[1].content.includes(cleanProblem(k.problem)));
-        const usable = (c.expect === 'usable') !== wrong.includes(c.id);
-        return { response: usable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
+        const answerable = (c.expect === 'usable') !== wrong.includes(c.id);
+        return { response: answerable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
       },
     };
     return ai;
@@ -1269,7 +1236,7 @@ test.describe('outside services', () => {
   const cal = { username: 'demo', slug: 'intro-call' };
   const message = { from: 'site@example.com', to: ['pat@example.com'], subject: 'Your outline', text: 'Hello' };
   const call = start => ({ start, name: 'Pat', email: 'pat@example.com', timeZone: 'America/New_York', notes: '', metadata: {} });
-  const count = (fakes, request) => fakes.requests.filter(r => r === request).length;
+  const count = (fakes, sent) => fakes.requests.filter(r => r === sent).length;
 
   test('a quick failure at Resend is tried again, and the email still goes once', async () => {
     const fakes = new FakeServices({ emailFlaky: 2 });
@@ -1367,13 +1334,13 @@ test.describe('eval history in the repository', () => {
       history: [run('2026-10-16T03:17:00.000Z', 36), run('2026-10-09T03:17:00.000Z', 38)],
       latest: { finishedAt: '2026-10-16T03:17:00.000Z', results: [{ id: 'spam-seo', pass: false }, { id: 'abuse', pass: false }, { id: 'gibberish', pass: true }] },
     };
-    const rows = siteRows(report);
-    expect(rows.map(r => [r.finished_at, r.passed, r.failed])).toEqual([['2026-10-09T03:17:00.000Z', 38, ''], ['2026-10-16T03:17:00.000Z', 36, 'spam-seo abuse']]);
-    const added = addRows([], rows);
+    const recorded = siteRows(report);
+    expect(recorded.map(r => [r.finished_at, r.passed, r.failed])).toEqual([['2026-10-09T03:17:00.000Z', 38, ''], ['2026-10-16T03:17:00.000Z', 36, 'spam-seo abuse']]);
+    const added = addRows([], recorded);
     expect(added.map(a => a.dropped)).toEqual([false, true]);
     // Already recorded: nothing is added the next day.
     const existing = parseCsv('finished_at,source,passed,total\n2026-10-09T03:17:00.000Z,site,38,38\n2026-10-16T03:17:00.000Z,site,36,38\n');
-    expect(addRows(existing, rows)).toEqual([]);
+    expect(addRows(existing, recorded)).toEqual([]);
     // A GitHub run is compared only with earlier GitHub runs.
     const github = { finished_at: '2026-10-17T10:00:00.000Z', source: 'github', passed: 37, total: 38 };
     expect(addRows(existing, [github])).toEqual([{ row: github, dropped: false, before: undefined }]);
@@ -1381,5 +1348,37 @@ test.describe('eval history in the repository', () => {
 
   test('reads back quoted fields', () => {
     expect(parseCsv('a,b\n"x, ""y""",2\n')).toEqual([{ a: 'x, "y"', b: '2' }]);
+  });
+});
+
+test.describe('unexpected errors', () => {
+  test('an unexpected error answers 500 with a reference, and logs it with the same reference', async () => {
+    const fakes = new FakeServices();
+    fakes.env.DB = { prepare() { throw new Error('database unreachable'); }, batch() { throw new Error('database unreachable'); } };
+    const logged = [];
+    const realError = console.error;
+    console.error = line => logged.push(line);
+    let res;
+    try {
+      res = await send(fakes, get('/admin', { ...basic('local-demo-password'), 'CF-Ray': '8c1f2e3d4a5b6c7d-DEN' }));
+    } finally {
+      console.error = realError;
+    }
+    expect(res.status).toBe(500);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ error: 'server_error', ref: '8c1f2e3d4a5b6c7d' });
+    expect(logged).toHaveLength(1);
+    const entry = JSON.parse(logged[0]);
+    expect(entry).toMatchObject({ level: 'error', ref: '8c1f2e3d4a5b6c7d', method: 'GET', path: '/admin', error: 'database unreachable' });
+    expect(logged[0]).not.toContain('local-demo-password');
+
+    // Without a Ray ID, the Worker makes up a short reference.
+    console.error = () => {};
+    try {
+      res = await send(fakes, get('/admin', basic('local-demo-password')));
+    } finally {
+      console.error = realError;
+    }
+    expect((await res.json()).ref).toMatch(/^[0-9a-f]{12}$/);
   });
 });

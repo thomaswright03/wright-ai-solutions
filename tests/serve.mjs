@@ -55,12 +55,12 @@ function readJsonc(file) {
   return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
 }
 
-const toPattern = glob => new RegExp('^' + glob.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+const toPattern = glob => new RegExp(`^${glob.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
 const workerFirst = readJsonc(join(root, 'wrangler.jsonc')).assets.run_worker_first.map(toPattern);
 
 const ignored = readFileSync(join(root, '.assetsignore'), 'utf8')
   .split('\n').map(l => l.trim()).filter(Boolean);
-const isIgnored = rel => rel === '_headers' || ignored.some(p => rel === p || rel.startsWith(p + '/'));
+const isIgnored = rel => rel === '_headers' || ignored.some(p => rel === p || rel.startsWith(`${p}/`));
 
 // _headers: blocks of "<path pattern>" followed by indented "Name: value" lines,
 // or "! Name" to drop a header an earlier rule set. "#" lines are comments.
@@ -68,7 +68,7 @@ const headerRules = [];
 for (const line of readFileSync(join(root, '_headers'), 'utf8').split('\n')) {
   if (!line.trim() || line.trim().startsWith('#')) continue;
   if (!/^\s/.test(line)) {
-    const pattern = new RegExp('^' + line.trim().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    const pattern = new RegExp(`^${line.trim().replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
     headerRules.push({ pattern, detach: [], headers: [] });
   } else if (line.trim().startsWith('!')) {
     headerRules.at(-1).detach.push(line.trim().slice(1).trim().toLowerCase());
@@ -96,7 +96,7 @@ function headersFor(pathname) {
 function resolve(pathname) {
   const rel = normalize(decodeURIComponent(pathname)).replace(/^[/\\]+/, '').split(sep).join('/');
   if (rel.startsWith('..') || isIgnored(rel)) return null;
-  const candidates = rel === '' ? ['index.html'] : [rel, rel + '.html', rel + '/index.html'];
+  const candidates = rel === '' ? ['index.html'] : [rel, `${rel}.html`, `${rel}/index.html`];
   for (const c of candidates) {
     const file = join(root, c);
     if (existsSync(file) && statSync(file).isFile()) return file;
