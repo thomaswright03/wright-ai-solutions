@@ -1,1 +1,2 @@
 finished_at,source,ref,model,version,passed,total,kind_right,kind_total,model_alone_passed,failed
+2026-10-03T18:16:57.826Z,github,main@e9a324a,@cf/meta/llama-3.1-8b-instruct-fast,b682f42fe51e,25,38,13,14,25,leads-after-hours leads-ad data-reports data-ad app-scheduling app-marketplace general-vague spanish short-typo leads-salon-phone nearmiss-assistant-title nearmiss-ignore-emails nearmiss-developer
