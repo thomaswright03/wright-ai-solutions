@@ -968,8 +968,8 @@ test.describe('leads list', () => {
 
     const down = new FakeServices({ ntfyDown: true });
     await press(down, ORIGIN);
-    expect(down.emails.map(e => [e.to, e.subject])).toEqual([[['t@thomasewright.com'], 'Alert: Test alert']]);
-    expect(await rows(down, 'SELECT action FROM admin_log')).toEqual([{ action: 'sent a test alert (by email, the phone alert failed)' }]);
+    expect(down.emails.map(e => [e.to, e.subject])).toEqual([[['ntfy-demo-topic@ntfy.sh'], 'Test alert'], [['t@thomasewright.com'], 'Alert: Test alert']]);
+    expect(await rows(down, 'SELECT action FROM admin_log')).toEqual([{ action: 'sent a test alert (by email to ntfy and your inbox; ntfy directly: ntfy answered 429)' }]);
   });
 });
 
@@ -1003,13 +1003,23 @@ test.describe('rate limits', () => {
 
 test.describe('phone alerts', () => {
   test('go by email when ntfy doesn\'t take them, and use the ntfy access token when there is one', async () => {
-    const down = new FakeServices({ ntfyDown: true });
-    const how = await withFakes(down, () => notify(down.env, { title: 'Call booked', body: 'Tuesday at 10am.', click: `${ORIGIN}/admin` }));
+    const down = fakesWith({ NTFY_TOKEN: 'tk_example' }, { ntfyDown: true });
+    const logged = [];
+    const realWarn = console.warn;
+    console.warn = line => logged.push(line);
+    let how;
+    try {
+      how = await withFakes(down, () => notify(down.env, { title: 'Call booked', body: 'Tuesday at 10am.', click: `${ORIGIN}/admin` }));
+    } finally {
+      console.warn = realWarn;
+    }
     expect(how).toBe('email');
-    expect(down.emails).toHaveLength(1);
-    expect(down.emails[0]).toMatchObject({ to: ['t@thomasewright.com'], subject: 'Alert: Call booked' });
-    expect(down.emails[0].text).toContain('Tuesday at 10am.');
-    expect(down.emails[0].text).toContain('the phone alert didn\'t go through');
+    // To ntfy by email, which pushes to the phone without the Worker reaching ntfy, and to the inbox.
+    expect(down.emails.map(e => [e.to, e.subject])).toEqual([[['ntfy-demo-topic+tk_example@ntfy.sh'], 'Call booked'], [['t@thomasewright.com'], 'Alert: Call booked']]);
+    expect(down.emails[0].text).toBe(`Tuesday at 10am.\n\n${ORIGIN}/admin`);
+    expect(down.emails[1].text).toContain('Tuesday at 10am.');
+    expect(down.emails[1].text).toContain('ntfy didn\'t take the phone alert directly (ntfy answered 429); it was also sent to ntfy by email');
+    expect(logged.map(line => JSON.parse(line))).toEqual([{ level: 'warn', event: 'alert_ntfy_failed', reason: 'ntfy answered 429' }]);
 
     const up = fakesWith({ NTFY_TOKEN: 'tk_example' });
     expect(await withFakes(up, () => notify(up.env, { title: 'Call booked', body: 'Tuesday at 10am.' }))).toBe('phone');
@@ -1023,7 +1033,24 @@ test.describe('phone alerts', () => {
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
     expect(html).toContain('Phone alerts (ntfy), ntfy answered 429 (ntfy may limit Cloudflare&#39;s shared addresses; an NTFY_TOKEN fixes that); alerts go to your email instead');
     // The failing-service alert itself came by email.
-    expect(fakes.emails.map(e => e.subject)).toEqual(['Alert: A service /start needs is failing']);
+    expect(fakes.emails.map(e => e.subject)).toEqual(['A service /start needs is failing', 'Alert: A service /start needs is failing']);
+  });
+
+  test('says why ntfy couldn\'t be reached, and an alert that went by email counts as working', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const fakes = new FakeServices({ ntfyUnreachable: true });
+    await send(fakes, get('/admin', basic('local-demo-password')));
+    const realWarn = console.warn;
+    console.warn = () => {};
+    try {
+      expect(await withFakes(fakes, () => notify(fakes.env, { title: 'New lead', body: 'A lead' }))).toBe('email');
+    } finally {
+      console.warn = realWarn;
+    }
+    await withFakes(fakes, () => runHealthChecks(fakes.env, Date.now() + DAY));
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain(`OK: Phone alerts (ntfy), an alert went out by email on ${new Date().toISOString().slice(0, 10)} (ntfy directly: couldn&#39;t reach ntfy (Network connection lost.))`);
+    expect(fakes.requests).not.toContain('GET ntfy.sh/v1/health');
   });
 
   test('an alert ntfy took in the last week counts as working, even when its health page doesn\'t answer', async () => {

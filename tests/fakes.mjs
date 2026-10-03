@@ -100,13 +100,13 @@ const OPEN_UTC = [[15, 0], [15, 30], [16, 30], [17, 0], [19, 0], [20, 0], [21, 3
 
 export class FakeServices {
   // options: { turnstile, calDown, calLost, calSilent, calFlaky, emailDown,
-  // emailFlaky, ntfyFlaky, ntfyDown, limits, resendSendOnly, domainStatus, bare }. calLost: Cal.com books the first call but the reply
+  // emailFlaky, ntfyFlaky, ntfyDown, ntfyUnreachable, limits, resendSendOnly, domainStatus, bare }. calLost: Cal.com books the first call but the reply
   // never arrives, the way a dropped connection or a timeout looks. calSilent:
   // the first booking request is lost the same way, but before Cal.com booked
   // anything. calFlaky / emailFlaky: the next n requests to Cal.com / Resend
   // get a 503 (briefly unavailable, nothing done). ntfyFlaky: ntfy's health
   // check answers 503 the next n times. ntfyDown: ntfy refuses every alert and
-  // health check. limits: the rate limits count as in production.
+  // health check. ntfyUnreachable: every request to ntfy fails to connect. limits: the rate limits count as in production.
   // turnstileHost: the site the bot check says a pass came from.
   constructor(options = {}) {
     this.options = options;
@@ -171,6 +171,7 @@ export class FakeServices {
     }
 
     if (url.host === 'ntfy.sh' && this.options.ntfyDown) return reply(429, { error: 'limit reached' });
+    if (url.host === 'ntfy.sh' && this.options.ntfyUnreachable) throw new TypeError('Network connection lost.');
     if (url.host === 'ntfy.sh' && url.pathname === '/v1/health') return flaky('ntfyFlaky') ? reply(503, { healthy: false }) : reply(200, { healthy: true });
     if (url.host === 'ntfy.sh') {
       this.alerts.push({ topic: decodeURIComponent(url.pathname.slice(1)), title: headers.get('Title'), click: headers.get('Click'), auth: headers.get('Authorization'), body });
