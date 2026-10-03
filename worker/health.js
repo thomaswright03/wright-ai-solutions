@@ -84,11 +84,15 @@ const CHECKS = {
   },
   async alerts(env, now) {
     if (!env.NTFY_TOPIC) return null;
-    // ntfy's own health page often doesn't answer Cloudflare's servers while
-    // alerts still arrive, so an alert ntfy took in the last week is the proof.
-    const delivered = env.DB ? await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('alert_delivered_at').first('value') : null;
-    if (typeof delivered === 'string' && now - Date.parse(delivered) < ALERT_PROOF_AGE && Date.parse(delivered) <= now) {
-      return { ok: true, note: `ntfy took an alert on ${delivered.slice(0, 10)}` };
+    // ntfy's own health page often doesn't answer Cloudflare's servers, so an
+    // alert that went out in the last week, to the phone directly or by email,
+    // is the proof. Why ntfy didn't take the last one directly is shown too.
+    const raw = env.DB ? await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('last_alert').first('value') : null;
+    /** @type {{ at: string, how: string, reason?: string } | null} */
+    const last = typeof raw === 'string' ? JSON.parse(raw) : null;
+    if (last && Date.parse(last.at) <= now && now - Date.parse(last.at) < ALERT_PROOF_AGE) {
+      const day = last.at.slice(0, 10);
+      return { ok: true, note: last.how === 'phone' ? `ntfy took an alert on ${day}` : `an alert went out by email on ${day} (ntfy directly: ${last.reason})` };
     }
     const response = await ntfyFetch(env, '/v1/health');
     const body = /** @type {{ healthy?: unknown } | null} */ (await response.json().catch(() => null));

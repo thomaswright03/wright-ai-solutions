@@ -209,7 +209,7 @@ function healthPanel(report, timeZone) {
 <h2 id="health-title">Outside services</h2>
 ${report ? `<p>Checked ${esc(when(report.checkedAt))}.</p>` : ''}
 ${body}
-<p class="admin-muted">Checked once a day, and again every hour while one is failing; a phone alert goes out when one fails (by email if the phone alert doesn't go through). Public summary: <a href="/api/health">/api/health</a></p>
+<p class="admin-muted">Checked once a day, and again every hour while one is failing; a phone alert goes out when one fails (by email, to ntfy and your inbox, when ntfy doesn't take it directly). Public summary: <a href="/api/health">/api/health</a></p>
 <form method="post" action="/admin/test-alert"><button type="submit" class="btn btn-ghost">Send a test alert</button></form>
 </section>`;
 }
@@ -351,7 +351,8 @@ export async function adminRoute(request, env, url) {
     const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
     if (url.pathname === '/admin/test-alert') {
       const how = await notify(env, { title: 'Test alert', body: 'You asked for this from your leads list. Alerts are reaching you.', click: `${url.origin}/admin#health-title` });
-      await audit(env.DB, how ? `sent a test alert (by ${how === 'phone' ? 'phone' : 'email, the phone alert failed'})` : 'sent a test alert, which failed (no phone alert and no email)');
+      const last = how === 'email' ? JSON.parse(String(await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('last_alert').first('value'))) : null;
+      await audit(env.DB, how === 'phone' ? 'sent a test alert (by phone)' : how ? `sent a test alert (by email to ntfy and your inbox; ntfy directly: ${last ? last.reason : 'failed'})` : 'sent a test alert, which failed (no phone alert and no email)');
       return back('/admin#changes-title');
     }
     const form = await request.formData().catch(() => null);

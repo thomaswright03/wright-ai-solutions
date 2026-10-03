@@ -77,7 +77,7 @@ You'll already get the lead email and Cal.com's booking email on your phone. Thi
 1. Install the **ntfy** app (App Store or Google Play).
 2. Tap **+** and subscribe to a topic with a long, random name nobody could guess, like `wright-leads-` followed by 20 random letters. Anyone who knows the name can read or send these alerts, so treat it like a password.
 3. Add that exact topic name as a secret named `NTFY_TOPIC`.
-4. Optional but recommended: ntfy.sh may limit requests from Cloudflare's shared addresses, so alerts sent from the Worker can be refused. Make a free account at ntfy.sh, create an access token (**Account** → **Access tokens**), and add it as a secret named `NTFY_TOKEN`; requests then count against your own account. Without it, an alert ntfy refuses is sent to your `LEADS_TO` email instead.
+4. Nothing else is needed. ntfy.sh often doesn't answer the Worker directly; when that happens the alert goes through Resend to ntfy's email address for your topic (`ntfy-<topic>@ntfy.sh`), which ntfy turns into the same phone push, and a copy goes to your `LEADS_TO` inbox. An `NTFY_TOKEN` (an ntfy account's access token) is optional; when set, it's used both ways.
 5. On `/admin`, press **Send a test alert**. The changes log says whether it went by phone or by email.
 
 ## 6. Optional: the next-day reminder email

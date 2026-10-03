@@ -39,13 +39,17 @@ export function ntfyFetch(env, path, init = {}) {
 }
 
 // An instant push to Thomas's phone through the ntfy app. The topic name is
-// the only key, so it's a secret; alerts never name the visitor. When ntfy
-// doesn't take it, the alert goes to Thomas by email instead, so a broken
-// alert channel can't hide the alert. Answers how it went: 'phone', 'email',
-// or false when neither worked (or alerts aren't switched on).
+// the only key, so it's a secret; alerts never name the visitor. ntfy.sh often
+// doesn't answer a Worker directly, so when it doesn't take the alert, the
+// alert goes by email instead, through Resend: to ntfy's email address for the
+// topic (ntfy turns it into the same phone push) and to Thomas's inbox, so a
+// broken alert channel can't hide the alert. Why ntfy failed is logged and
+// kept for /admin. Answers how it went: 'phone', 'email', or false when
+// neither worked (or alerts aren't switched on).
 /** @param {Env} env @param {{ title: string, body: string, click?: string }} alert @returns {Promise<'phone' | 'email' | false>} */
 export async function notify(env, { title, body, click }) {
   if (!env.NTFY_TOPIC) return false;
+  let reason;
   try {
     const response = await ntfyFetch(env, `/${encodeURIComponent(env.NTFY_TOPIC)}`, {
       method: 'POST',
@@ -53,16 +57,27 @@ export async function notify(env, { title, body, click }) {
       body,
     });
     if (response.ok) {
-      // The proof the daily check uses that alerts get through (health.js).
-      if (env.DB) await env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind('alert_delivered_at', new Date().toISOString()).run().catch(() => {});
+      await noteAlert(env, { how: 'phone' });
       return 'phone';
     }
-  } catch {
-    // Falls through to the email.
+    reason = `ntfy answered ${response.status}`;
+  } catch (err) {
+    const message = String(err && /** @type {Error} */ (err).message);
+    reason = message === 'timeout' ? 'ntfy didn\'t answer within 5 seconds' : `couldn't reach ntfy (${message.slice(0, 120)})`;
   }
+  console.warn(JSON.stringify({ level: 'warn', event: 'alert_ntfy_failed', reason }));
   const cfg = settings(env);
-  const note = 'Sent by email because the phone alert didn\'t go through.';
-  const sent = await sendEmail(env, {
+  const link = click ? `\n\n${click}` : '';
+  const pushed = await sendEmail(env, {
+    from: cfg.from,
+    to: [`ntfy-${env.NTFY_TOPIC}${env.NTFY_TOKEN ? `+${env.NTFY_TOKEN}` : ''}@ntfy.sh`],
+    reply_to: cfg.replyTo,
+    subject: title,
+    text: `${body}${link}`,
+    html: `<p>${escapeHtml(body)}</p>`,
+  });
+  const note = `Sent by email because ntfy didn't take the phone alert directly (${reason})${pushed ? '; it was also sent to ntfy by email, which should reach your phone' : ''}.`;
+  const mailed = await sendEmail(env, {
     from: cfg.from,
     to: [cfg.leadsTo],
     reply_to: cfg.replyTo,
@@ -70,7 +85,18 @@ export async function notify(env, { title, body, click }) {
     text: `${body}\n\n${click ? `${click}\n\n` : ''}${note}`,
     html: `<p>${escapeHtml(body)}</p>${click ? `<p><a href="${escapeHtml(click)}">${escapeHtml(click)}</a></p>` : ''}<p>${escapeHtml(note)}</p>`,
   });
-  return sent ? 'email' : false;
+  if (!pushed && !mailed) return false;
+  await noteAlert(env, { how: 'email', reason });
+  return 'email';
+}
+
+// The last alert that went out, for the daily check (health.js lastAlert):
+// when, how, and why ntfy didn't take it directly.
+/** @param {Env} env @param {{ how: 'phone' | 'email', reason?: string }} alert */
+async function noteAlert(env, alert) {
+  if (!env.DB) return;
+  const value = JSON.stringify({ at: new Date().toISOString(), ...alert });
+  await env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind('last_alert', value).run().catch(() => {});
 }
 
 // True only when Cloudflare confirms the visitor passed the bot check on this
