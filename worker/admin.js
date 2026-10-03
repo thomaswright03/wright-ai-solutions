@@ -3,19 +3,22 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { count, dayIn, ensureSchema, formatIn } from './db.js';
+import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
 import { evalReport } from './eval.js';
+import { SERVICES, healthReport } from './health.js';
 import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
 import { page } from './pages.js';
 
 const LIST_LIMIT = 200;
 
+/** @param {string | undefined} text */
 async function sha256(text) {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
 }
 
 // Compares hashes byte by byte without stopping early, so response time
 // doesn't hint at how much of a guess was right.
+/** @param {Request} request @param {Env} env */
 async function signedIn(request, env) {
   const header = request.headers.get('Authorization') || '';
   if (!header.startsWith('Basic ')) return false;
@@ -35,18 +38,25 @@ async function signedIn(request, env) {
 // The Worker's pages send no referrer at all, which makes browsers label a
 // form's POST as coming from nowhere (Origin: null). The leads list sends it
 // within this site only, so its delete button's POST says where it came from.
+/** @param {string} body @param {number} [status] @param {Record<string, string>} [extra] */
 const adminPage = (body, status = 200, extra = {}) => htmlResponse(body, status, { 'Referrer-Policy': 'same-origin', ...extra });
 
 const notFound = () => adminPage(page({ title: 'Page not found', body: '<h1>Page not found</h1>' }), 404);
 
+/** @type {[CountStep, string][]} */
 const STEPS = [['view', 'Visits'], ['outline', 'Outlines'], ['save', 'Saved'], ['book', 'Booked']];
 
+/** @typedef {{ ad: string, src: string, view: number, outline: number, save: number, book: number }} CountLine */
+
+/** @param {{ ad: string, src: string, step: CountStep, n: number }[]} rows */
 function countsTable(rows) {
+  /** @type {Map<string, CountLine>} */
   const byAd = new Map();
   for (const { ad, src, step, n } of rows) {
     const key = `${ad}|${src}`;
     if (!byAd.has(key)) byAd.set(key, { ad, src, view: 0, outline: 0, save: 0, book: 0 });
-    if (byAd.get(key)[step] !== undefined) byAd.get(key)[step] += Number(n) || 0;
+    const line = /** @type {CountLine} */ (byAd.get(key));
+    if (line[step] !== undefined) line[step] += Number(n) || 0;
   }
   if (!byAd.size) return '<p>No visits counted yet.</p>';
   const lines = [...byAd.values()].sort((a, b) => b.view - a.view || b.save - a.save);
@@ -54,6 +64,7 @@ function countsTable(rows) {
     for (const [step] of STEPS) sum[step] += line[step];
     return sum;
   }, { ad: 'All', src: '', view: 0, outline: 0, save: 0, book: 0 });
+  /** @param {CountLine} line @param {string} [tag] */
   const row = (line, tag = 'td') => `<tr><${tag} scope="row">${esc(line.ad === 'none' ? 'No ad' : line.ad)}${line.src && line.src !== 'direct' ? ` <span class="admin-muted">(${esc(line.src)})</span>` : ''}</${tag}>${STEPS.map(([step]) => `<td>${line[step]}</td>`).join('')}</tr>`;
   return `<div class="admin-scroll"><table class="admin-table">
 <caption>Last 30 days, by ad</caption>
@@ -75,16 +86,18 @@ const OUTCOMES = [
   ['off', 'Template: AI not connected'],
 ];
 
+/** @param {{ outcome: string, n: number }[]} rows */
 function outcomesTable(rows) {
   const byOutcome = new Map(rows.map(({ outcome, n }) => [outcome, Number(n) || 0]));
   const total = [...byOutcome.values()].reduce((sum, n) => sum + n, 0);
   if (!total) return '<p>No outlines written yet.</p>';
+  /** @param {number} n */
   const share = n => `${Math.round((n / total) * 100)}%`;
   const lines = OUTCOMES.filter(([key]) => byOutcome.get(key));
   return `<div class="admin-scroll"><table class="admin-table">
 <caption>Last 30 days, how each outline was written</caption>
 <thead><tr><th scope="col">Outline</th><th scope="col">Count</th><th scope="col">Share</th></tr></thead>
-<tbody>${lines.map(([key, label]) => `<tr><th scope="row">${esc(label)}</th><td>${byOutcome.get(key)}</td><td>${share(byOutcome.get(key))}</td></tr>`).join('')}</tbody>
+<tbody>${lines.map(([key, label]) => `<tr><th scope="row">${esc(label)}</th><td>${byOutcome.get(key)}</td><td>${share(/** @type {number} */ (byOutcome.get(key)))}</td></tr>`).join('')}</tbody>
 <tfoot><tr><th scope="row">All</th><td>${total}</td><td>100%</td></tr></tfoot>
 </table></div>`;
 }
@@ -92,7 +105,11 @@ function outcomesTable(rows) {
 // Where a lead's call stands: 'booked', 'unconfirmed' (Cal.com never clearly
 // answered, so the lead is held until Thomas checks) or 'none'; and the time
 // booked or asked for.
-export function callOf(lead) {
+/**
+ * @param {Pick<LeadRow, 'booked_at' | 'booking_start'>} lead
+ * @returns {{ status: 'unconfirmed', at: string | null } | { status: 'booked', at: string } | { status: 'none', at: null }}
+ */
+function callOf(lead) {
   if (lead.booked_at === 'pending') return { status: 'unconfirmed', at: lead.booking_start || null };
   return lead.booked_at ? { status: 'booked', at: lead.booked_at } : { status: 'none', at: null };
 }
@@ -100,6 +117,7 @@ export function callOf(lead) {
 // For a call Cal.com didn't confirm: what was asked for, and two buttons to
 // say what the calendar shows. "Booked" keeps the time; "not booked" lets the
 // visitor pick a time again from the page.
+/** @param {LeadRow} lead @param {(iso: string) => string} when */
 function unconfirmedForm(lead, when) {
   const { at } = callOf(lead);
   const ask = at
@@ -114,8 +132,11 @@ function unconfirmedForm(lead, when) {
 }
 
 // The AI outline eval the site runs on itself (eval.js): the latest result,
-// what it got wrong, and any run under way.
+// what it got wrong, any run under way, and the last few runs, so a slow slide
+// shows before it reaches the bar.
+/** @param {EvalReport} report @param {string} timeZone */
 function evalPanel(report, timeZone) {
+  /** @param {string} iso */
   const day = iso => formatIn(timeZone, { month: 'short', day: 'numeric' }).format(new Date(iso));
   const bar = `${Math.round(report.bar * 100)}%`;
   const lines = [];
@@ -128,6 +149,15 @@ function evalPanel(report, timeZone) {
   }
   if (running) lines.push(`<p>Run under way: ${running.done} of ${running.total} done.</p>`);
   if (!latest && !running) lines.push(`<p>${report.on ? 'Not run yet. It runs a few sample problems each hour' : 'Off until Workers AI and the database are connected'}.</p>`);
+  if (report.history.length > 1) {
+    /** @param {number} n @param {number} of */
+    const share = (n, of) => (of ? `${n} of ${of} (${Math.round((n / of) * 100)}%)` : '–');
+    lines.push(`<div class="admin-scroll"><table class="admin-table">
+<caption>Recent runs, newest first</caption>
+<thead><tr><th scope="col">Finished</th><th scope="col">Right</th><th scope="col">Right kind of work</th><th scope="col">Prompt and cases</th></tr></thead>
+<tbody>${report.history.map(run => `<tr><th scope="row">${esc(day(run.finishedAt))}</th><td>${share(run.passed, run.total)}</td><td>${share(run.kindRight, run.kindTotal)}</td><td>${run.current ? 'Current' : 'Earlier'}</td></tr>`).join('')}</tbody>
+</table></div>`);
+  }
   return `<section class="admin-eval" aria-labelledby="eval-title">
 <h2 id="eval-title">AI outline eval</h2>
 ${lines.join('\n')}
@@ -135,8 +165,48 @@ ${lines.join('\n')}
 </section>`;
 }
 
+// Today's check of each outside service (health.js).
+/** @param {HealthReport | null} report @param {string} timeZone */
+function healthPanel(report, timeZone) {
+  /** @param {string} iso */
+  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  const rows = report ? Object.entries(report.services) : [];
+  const body = !report
+    ? '<p>Not checked yet. It runs once a day, in the hourly job.</p>'
+    : rows.length
+      ? `<ul class="admin-health">${rows.map(([name, r]) => `<li>${r.ok ? 'OK' : '<strong>Failing</strong>'}: ${esc(SERVICES[name] || name)}, ${esc(r.note)}</li>`).join('')}</ul>`
+      : '<p>No outside services are switched on yet.</p>';
+  return `<section class="admin-eval" aria-labelledby="health-title">
+<h2 id="health-title">Outside services</h2>
+${report ? `<p>Checked ${esc(when(report.checkedAt))}.</p>` : ''}
+${body}
+<p class="admin-muted">Checked once a day; a phone alert goes out when one fails. Public summary: <a href="/api/health">/api/health</a></p>
+</section>`;
+}
+
+// The latest changes to the list (admin_log): who did what isn't recorded
+// beyond "you" (the list has one password) or "the visitor" (their delete link).
+const CHANGES_SHOWN = 30;
+
+/** @param {AuditRow[]} rows @param {string} timeZone */
+function changesPanel(rows, timeZone) {
+  /** @param {string} iso */
+  const when = iso => formatIn(timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  const body = rows.length
+    ? `<ul class="admin-health">${rows.map(r => `<li>${esc(when(r.at))}: ${esc(r.action)}${r.lead ? ` <span class="admin-muted">(lead ${esc(r.lead.slice(0, 8))})</span>` : ''}</li>`).join('')}</ul>`
+    : '<p>No changes yet.</p>';
+  return `<section class="admin-eval" aria-labelledby="changes-title">
+<h2 id="changes-title">Changes</h2>
+${body}
+<p class="admin-muted">Every delete, booking you settled and download, newest first (the latest ${CHANGES_SHOWN}). Kept about 13 months.</p>
+</section>`;
+}
+
+/** @param {LeadRow} lead @param {string} timeZone */
 function leadCard(lead, timeZone) {
+  /** @param {string} iso */
   const when = iso => formatIn(timeZone, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
+  /** @type {Outline | null} */
   let outline = null;
   try { outline = JSON.parse(lead.outline); } catch { /* shown without it */ }
   const call = callOf(lead);
@@ -170,13 +240,16 @@ function leadCard(lead, timeZone) {
 
 // A spreadsheet cell: quoted, and never starting with a character a
 // spreadsheet would run as a formula.
+/** @param {unknown} value */
 function csvCell(value) {
   let text = value === null || value === undefined ? '' : String(value);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/** @param {EnvWithDB} env */
 async function csv(env) {
+  /** @type {D1Result<LeadRow>} */
   const { results } = await env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 5000').all();
   // call: booked, unconfirmed (check Cal.com) or none; call_at: the time
   // booked, or asked for while unconfirmed.
@@ -186,10 +259,11 @@ async function csv(env) {
     let title = '';
     try { title = JSON.parse(lead.outline).title; } catch { /* left blank */ }
     const { status, at } = callOf(lead);
+    /** @type {Record<string, unknown>} */
     const row = { ...lead, title, call: status, call_at: at };
     lines.push(columns.map(c => csvCell(row[c])).join(','));
   }
-  return new Response(lines.join('\r\n') + '\r\n', {
+  return new Response(`${lines.join('\r\n')}\r\n`, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="leads-${new Date().toISOString().slice(0, 10)}.csv"`,
@@ -204,19 +278,23 @@ async function csv(env) {
 // Thomas's answer for a call Cal.com didn't confirm. 'yes' records the call at
 // the time asked for (and counts it as booked); 'no' frees the lead, so the
 // visitor can pick a time again from the page. Only an unconfirmed lead changes.
+/** @param {EnvWithDB} env @param {string} timeZone @param {string} id @param {unknown} booked */
 async function settleBooking(env, timeZone, id, booked) {
   if (booked === 'yes') {
+    /** @type {CameFrom | null} */
     const lead = await env.DB.prepare(
       "UPDATE leads SET booked_at = booking_start WHERE id = ? AND booked_at = 'pending' AND booking_start IS NOT NULL RETURNING ad, src",
     ).bind(id).first();
-    if (lead) await count(env, timeZone, lead, 'book');
+    if (lead) await Promise.all([count(env, timeZone, lead, 'book'), audit(env.DB, 'marked booked', id)]);
   } else if (booked === 'no') {
-    await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(id).run();
+    const freed = await env.DB.prepare("UPDATE leads SET booked_at = NULL, booking_start = NULL WHERE id = ? AND booked_at = 'pending'").bind(id).run();
+    if (freed.meta && freed.meta.changes) await audit(env.DB, 'marked not booked', id);
   }
 }
 
+/** @param {Request} request @param {Env} env @param {URL} url */
 export async function adminRoute(request, env, url) {
-  if (!features(env).admin) return notFound();
+  if (!features(env).admin || !hasDatabase(env)) return notFound();
   if (await overLimit(env.ADMIN_LIMIT, request)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
   if (!(await signedIn(request, env))) {
     return adminPage(page({ title: 'Sign in', body: '<h1>Sign in to see your leads</h1><p>Use the ADMIN_PASSWORD you set in Cloudflare. Any username works.</p>' }), 401, {
@@ -235,26 +313,33 @@ export async function adminRoute(request, env, url) {
     if (!fromThisSite) return adminPage('Forbidden', 403);
     const form = await request.formData().catch(() => null);
     const id = form ? form.get('id') : null;
+    /** @param {string} location */
     const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,40}$/.test(id)) return back('/admin');
     if (url.pathname === '/admin/delete') {
-      await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+      const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+      if (deleted.meta && deleted.meta.changes) await audit(env.DB, 'deleted', id);
       return back('/admin');
     }
-    await settleBooking(env, timeZone, id, form.get('booked'));
+    await settleBooking(env, timeZone, id, /** @type {FormData} */ (form).get('booked'));
     return back(`/admin#lead-${id}`);
   }
   if (request.method !== 'GET') return adminPage('Method not allowed', 405, { Allow: 'GET' });
-  if (url.pathname === '/admin/leads.csv') return csv(env);
+  if (url.pathname === '/admin/leads.csv') {
+    await audit(env.DB, 'downloaded the list');
+    return csv(env);
+  }
   if (url.pathname !== '/admin') return notFound();
 
   const since = dayIn(timeZone, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
-  const [counts, outcomes, leads, total, evaluation] = await Promise.all([
-    env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all(),
-    env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all(),
-    env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all(),
+  const [counts, outcomes, leads, total, evaluation, health, changes] = await Promise.all([
+    /** @type {Promise<D1Result<{ ad: string, src: string, step: CountStep, n: number }>>} */ (env.DB.prepare('SELECT ad, src, step, SUM(n) AS n FROM counts WHERE day >= ? GROUP BY ad, src, step').bind(since).all()),
+    /** @type {Promise<D1Result<{ outcome: string, n: number }>>} */ (env.DB.prepare('SELECT outcome, SUM(n) AS n FROM outline_outcomes WHERE day >= ? GROUP BY outcome').bind(since).all()),
+    /** @type {Promise<D1Result<LeadRow>>} */ (env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT ?').bind(LIST_LIMIT).all()),
     env.DB.prepare('SELECT COUNT(*) AS n FROM leads').first('n'),
     evalReport(env),
+    healthReport(env),
+    /** @type {Promise<D1Result<AuditRow>>} */ (env.DB.prepare('SELECT at, action, lead FROM admin_log ORDER BY id DESC LIMIT ?').bind(CHANGES_SHOWN).all()),
   ]);
   const list = leads.results || [];
   const body = `<p class="eyebrow">Private</p>
@@ -263,6 +348,8 @@ export async function adminRoute(request, env, url) {
 ${countsTable(counts.results || [])}
 ${outcomesTable(outcomes.results || [])}
 ${evalPanel(evaluation, timeZone)}
+${healthPanel(health, timeZone)}
+${changesPanel(changes.results || [], timeZone)}
 ${list.length ? list.map(lead => leadCard(lead, timeZone)).join('\n') : '<p>No leads yet.</p>'}`;
   return adminPage(page({ title: 'Leads', body, wide: true, extraCss: '/admin.css' }));
 }

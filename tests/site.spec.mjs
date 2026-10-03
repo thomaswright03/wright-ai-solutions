@@ -768,6 +768,21 @@ test.describe('signup flow on /start', () => {
     await expect(page).toHaveURL(/\/privacy$/);
   });
 
+  test('a reload keeps what the visitor was typing, until they build the outline', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await useServices(page);
+    await page.goto('/start?for=leads');
+    await page.fill('#problem', 'Half typed: we lose the calls that come in at lunch');
+    await page.reload();
+    await expect(page.locator('#problem')).toHaveValue('Half typed: we lose the calls that come in at lunch');
+    await buildOutline(page);
+    await expect(page.locator('#outline')).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('start-draft'))).toBeNull();
+    // Opening /start afresh starts with an empty box.
+    await page.goto('/start');
+    await expect(page.locator('#problem')).toHaveValue('');
+  });
+
   test('a reload on the question keeps the answer there, with Forward still going to the outline', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await useServices(page);
@@ -1154,7 +1169,7 @@ test('Our Services lists each product by name, presented by Wright AI Solutions,
   const section = page.locator('#our-services');
   await expect(section.locator('.eyebrow')).toHaveText('Our Services');
   const expected = {
-    'AI Waste Bot': '/start?for=leads',
+    'AI Waste Bot': 'https://hauler-signup.vercel.app/',
     'Data→Lead→Sell': 'https://dataleadsell.com',
     'ParkLess': 'https://park-less.vercel.app/signup',
   };

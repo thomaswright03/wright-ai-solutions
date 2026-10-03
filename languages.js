@@ -21,12 +21,17 @@ export const LANGUAGES = [
 export const CODES = LANGUAGES.map(l => l.code);
 
 // The language for a code, or English for anything unknown.
+/** @param {string | null | undefined} code */
 export function languageFor(code) {
   return LANGUAGES.find(l => l.code === code) || LANGUAGES[0];
 }
 
 // A translated string: the English text looked up in a language's strings,
 // falling back to the English. {name} placeholders are filled from vars.
+/**
+ * @param {Record<string, string> | null | undefined} strings @param {string} text
+ * @param {Record<string, string | number>} [vars] @returns {string}
+ */
 export function translate(strings, text, vars = {}) {
   const found = strings && Object.hasOwn(strings, text) ? strings[text] : text;
   return found.replace(/\{(\w+)\}/g, (all, name) => (Object.hasOwn(vars, name) ? String(vars[name]) : all));

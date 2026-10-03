@@ -19,3 +19,8 @@ playwright-report
 SECURITY.md
 worker
 i18n
+eslint.config.js
+tsconfig.json
+knip.json
+tsconfig.browser.json
+browser.d.ts

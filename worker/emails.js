@@ -10,7 +10,8 @@ import { escapeHtml as esc } from './http.js';
 import { STRINGS } from './strings.js';
 
 // The words of an email in one language: t(english, vars) looks the English up.
-const wordsFor = lang => (text, vars) => translate(STRINGS[languageFor(lang).code], text, vars);
+/** @param {string} lang */
+const wordsFor = lang => /** @param {string} text @param {Record<string, string | number>} [vars] */ (text, vars) => translate(STRINGS[languageFor(lang).code], text, vars);
 const ENGLISH = wordsFor('en');
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -18,13 +19,18 @@ const INK = '#1a1a24';
 const MUTED = '#5a5a6e';
 const ACCENT = '#5b4bdb';
 
+/** @param {string} text */
 const h2 = text => `<h2 style="margin:24px 0 8px;font-size:16px;line-height:1.3;color:${INK};">${esc(text)}</h2>`;
+/** @param {string} content @param {string} [style] */
 const para = (content, style = '') => `<p style="margin:0 0 12px;${style}">${content}</p>`;
+/** @param {string[]} items @param {'ol' | 'ul'} tag */
 const list = (items, tag) =>
   `<${tag} style="margin:0 0 12px;padding-left:22px;">${items.map(i => `<li style="margin:0 0 6px;">${esc(i)}</li>`).join('')}</${tag}>`;
+/** @param {string} href @param {string} label */
 const button = (href, label) =>
   `<p style="margin:24px 0;"><a href="${esc(href)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px;">${esc(label)}</a></p>`;
 
+/** @param {{ title: string, preheader: string, body: string, footer: string, lang?: string }} parts */
 function layout({ title, preheader, body, footer, lang = 'en' }) {
   const { tag, dir } = languageFor(lang);
   return `<!DOCTYPE html>
@@ -43,9 +49,10 @@ ${footer}
 </body></html>`;
 }
 
-const SIGNATURE_HTML = para('Thomas Wright<br>Wright AI Solutions LLC<br><a href="https://wright-ai-solutions.com" style="color:' + ACCENT + ';">wright-ai-solutions.com</a> · (801) 580-8630', 'margin-top:24px;');
+const SIGNATURE_HTML = para(`Thomas Wright<br>Wright AI Solutions LLC<br><a href="https://wright-ai-solutions.com" style="color:${ACCENT};">wright-ai-solutions.com</a> · (801) 580-8630`, 'margin-top:24px;');
 const SIGNATURE_TEXT = 'Thomas Wright\nWright AI Solutions LLC\nwright-ai-solutions.com · (801) 580-8630';
 
+/** @param {Outline} outline @param {(text: string, vars?: Record<string, string | number>) => string} [t] */
 function outlineHtml(outline, t = ENGLISH) {
   return [
     `<h1 style="margin:8px 0 4px;font-size:22px;line-height:1.3;color:${INK};">${esc(outline.title)}</h1>`,
@@ -57,6 +64,7 @@ function outlineHtml(outline, t = ENGLISH) {
   ].join('\n');
 }
 
+/** @param {Outline} outline @param {(text: string, vars?: Record<string, string | number>) => string} [t] */
 function outlineText(outline, t = ENGLISH) {
   return [
     outline.title.toUpperCase(),
@@ -78,11 +86,16 @@ function outlineText(outline, t = ENGLISH) {
   ].join('\n');
 }
 
+/** @param {string} source @param {(text: string) => string} t */
 const draftNote = (source, t) => (source === 'ai'
   ? t('It\'s a first draft that AI wrote from what you typed. I read every outline, and we\'d sharpen it together on a call.')
   : t('It\'s a first draft based on what you typed. We\'d sharpen it together on a call.'));
 
 // To the visitor: the outline they asked for, in the language of the page they used.
+/**
+ * @param {{ outline: Outline, source: string, bookLink: string | null, forgetLink: string, followUp: boolean, postalAddress?: string, lang?: string }} parts
+ * @returns {EmailContent}
+ */
 export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, postalAddress = '', lang = 'en' }) {
   const t = wordsFor(lang);
   const subject = t('Your project outline: {title}', { title: outline.title });
@@ -126,12 +139,18 @@ export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, 
   };
 }
 
+/** @param {string} ad */
 const AD_WORDS = ad => (ad === 'none' ? 'no ad' : `the "${ad}" ad`);
 
 // To Thomas: everything about a new lead, with Reply-To set to the visitor.
 // Sent again when they correct their address, so a reply reaches the right one.
+/**
+ * @param {{ lead: SavedLead, outline: Outline, adminLink: string, correctedFrom?: string | null }} parts
+ * @returns {EmailContent}
+ */
 export function leadEmail({ lead, outline, adminLink, correctedFrom = null }) {
   const subject = `${correctedFrom ? 'Corrected address' : 'New lead'}: ${outline.title}`;
+  /** @param {string} email @param {string | null} oldEmail */
   const intro = (email, oldEmail) => (correctedFrom
     ? `${email} saved an outline on /start, then corrected their address (it was ${oldEmail}). Reply to this email to answer them directly.`
     : `${email} saved an outline on /start. Reply to this email to answer them directly.`);
@@ -175,6 +194,10 @@ export function leadEmail({ lead, outline, adminLink, correctedFrom = null }) {
 
 // To the visitor, once, the day after they saved, only if they ticked the box
 // and haven't booked. It carries the postal address US law (CAN-SPAM) asks for.
+/**
+ * @param {{ outline: Outline, bookLink: string | null, forgetLink: string, postalAddress: string, lang?: string }} parts
+ * @returns {EmailContent}
+ */
 export function followUpEmail({ outline, bookLink, forgetLink, postalAddress, lang = 'en' }) {
   const t = wordsFor(lang);
   const subject = t('Following up on your outline: {title}', { title: outline.title });

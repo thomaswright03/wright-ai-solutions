@@ -5,11 +5,13 @@ import { escapeHtml as esc } from './http.js';
 import { STRINGS } from './strings.js';
 
 // Matches the ?v= the static pages use, so the stylesheet isn't served stale.
-export const ASSET_VERSION = 15;
+const ASSET_VERSION = 15;
 
 // The /forget pages are in the language of the visitor's emails (lang); /admin is English.
+/** @param {{ title: string, body: string, wide?: boolean, extraCss?: string, lang?: string }} parts */
 export function page({ title, body, wide = false, extraCss = '', lang = 'en' }) {
   const language = languageFor(lang);
+  /** @param {string} text */
   const t = text => translate(STRINGS[language.code], text);
   const home = language.code === 'en' ? '/' : `/${language.code}/`;
   return `<!DOCTYPE html>
@@ -40,7 +42,7 @@ ${body}
 </main>
 <footer class="site-footer">
   <div class="wrap footer-inner">
-    <span>${t('© {year} Wright AI Solutions LLC. All rights reserved.').replace('{year}', new Date().getUTCFullYear())}</span>
+    <span>${t('© {year} Wright AI Solutions LLC. All rights reserved.').replace('{year}', String(new Date().getUTCFullYear()))}</span>
     <div class="footer-contact">
       <a href="${home}privacy">${esc(t('Privacy'))}</a>
       <a href="mailto:t@thomasewright.com">t@thomasewright.com</a>

@@ -4,7 +4,7 @@
 // the one next-day reminder and deletes old leads.
 import { adFor } from '../outlines.js';
 import { calEvent, features, settings } from './config.js';
-import { count, dayIn, ensureSchema, formatIn, hourIn, inboxTag, newId, sign, verify } from './db.js';
+import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase, hourIn, inboxTag, newId, sign, verify } from './db.js';
 import { followUpEmail, leadEmail, outlineEmail } from './emails.js';
 import { clean, escapeHtml as esc, htmlResponse, json, overLimit, readJson, timeZoneOrNull, tooMany } from './http.js';
 import { page } from './pages.js';
@@ -34,13 +34,15 @@ const REMINDERS_PER_RUN = 50;
 // unchanged.
 const PLATFORMS = ['google', 'bing', 'meta', 'facebook', 'instagram', 'linkedin', 'tiktok', 'x', 'reddit', 'youtube', 'nextdoor', 'yelp', 'email', 'qr'];
 
+/** @param {Record<string, unknown> | null | undefined} body @returns {CameFrom} */
 export function cameFrom(body) {
-  const ad = adFor(body?.ad) ? body.ad : 'none';
+  const ad = typeof body?.ad === 'string' && adFor(body.ad) ? body.ad : 'none';
   const raw = typeof body?.src === 'string' ? body.src.trim().toLowerCase() : '';
   const src = !raw || raw === 'direct' ? 'direct' : PLATFORMS.includes(raw) || raw === 'other' ? raw : 'other';
   return { ad, src };
 }
 
+/** @type {Record<string, string>} */
 const KIND_WORDS = {
   leads: 'answering leads',
   data: 'moving data',
@@ -50,9 +52,11 @@ const KIND_WORDS = {
   general: 'something custom',
 };
 
+/** @param {CameFrom} from */
 const fromWords = ({ ad, src }) => `${ad === 'none' ? 'no ad' : `the ${ad} ad`}${src === 'direct' ? '' : ` on ${src}`}`;
 
-export function normalizeEmail(value) {
+/** @param {unknown} value @returns {string | null} */
+function normalizeEmail(value) {
   if (typeof value !== 'string') return null;
   const email = value.trim();
   if (email.length > 254 || /[\s<>()[\]\\,;:"]/.test(email)) return null;
@@ -65,7 +69,8 @@ export function normalizeEmail(value) {
 
 // The mailbox an address reaches, for the daily cap: changing the case, adding
 // a +tag or (for Gmail) moving the dots still reaches the same person.
-export function inboxKey(email) {
+/** @param {string} email */
+function inboxKey(email) {
   const at = email.lastIndexOf('@');
   const local = email.slice(0, at).toLowerCase().replace(/\+.*$/, '');
   const domain = email.slice(at + 1).toLowerCase();
@@ -75,6 +80,7 @@ export function inboxKey(email) {
 // Uses up one of the inbox's outline emails for today, if it has one left.
 // Counted per email sent, so moving a saved outline to another address
 // doesn't give the first one its turn back.
+/** @param {EnvWithDB} env @param {string} email */
 async function takeInboxSend(env, email) {
   const tag = await inboxTag(env, inboxKey(email));
   const now = Date.now();
@@ -87,14 +93,17 @@ async function takeInboxSend(env, email) {
 // The delete link for a lead. It's the same link every time (it's signed as of
 // when the lead was saved), so a retried email is identical to the first try.
 // It carries the language of the visitor's emails, so the page it opens is in it too.
+/** @param {EnvWithDB} env @param {string} origin @param {{ id: string, created_at: string, lang?: string | null }} lead */
 const forgetLinkFor = async (env, origin, lead) => {
   const payload = lead.lang && lead.lang !== 'en' ? { id: lead.id, l: lead.lang } : { id: lead.id };
   return `${origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', payload, Math.floor(Date.parse(lead.created_at) / 1000)))}`;
 };
 
 // A language code a visitor's page sent, or English.
-export const langOrEnglish = value => (CODES.includes(value) ? value : 'en');
+/** @param {unknown} value @returns {string} */
+export const langOrEnglish = value => (typeof value === 'string' && CODES.includes(value) ? value : 'en');
 
+/** @param {Request} request @param {Env} env */
 export function configRoute(request, env) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
   const on = features(env);
@@ -103,6 +112,7 @@ export function configRoute(request, env) {
 
 // POST /api/event: one page view, counted by ad. No cookies, IP or anything
 // else that could tell one visitor from another.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function eventRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 1000);
   if (error) return error;
@@ -114,24 +124,28 @@ export async function eventRoute(request, env, ctx, url) {
 // POST /api/save: { token, email, followUp, timeZone }. The token is the one
 // /api/outline signed, so the outline emailed out is exactly the one this
 // site wrote, never text someone posted.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function saveRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 24000);
   if (error) return error;
   if (await overLimit(env.SAVE_LIMIT, request)) return tooMany();
   const on = features(env);
-  if (!on.save) return json({ error: 'not_configured' }, 503);
+  if (!on.save || !hasDatabase(env)) return json({ error: 'not_configured' }, 503);
   const email = normalizeEmail(body.email);
   if (!email) return json({ error: 'bad_email' }, 400);
   const data = await verify(env, 'outline', body.token, OUTLINE_TOKEN_AGE);
   if (!data || typeof data.n !== 'string') return json({ error: 'expired' }, 400);
 
   const cfg = settings(env);
-  const outline = data.outline;
+  // Signed by /api/outline, so it's an outline this site wrote.
+  const outline = /** @type {Outline} */ (data.outline);
   const followUp = on.followUp && body.followUp === true ? 1 : 0;
   const from = cameFrom(data);
   await ensureSchema(env.DB);
+  /** @returns {Promise<LeadRow | null>} */
   const find = () => env.DB.prepare('SELECT * FROM leads WHERE outline_id = ?').bind(data.n).first();
 
+  /** @type {SavedLead | null} */
   let lead = await find();
   let isNew = false;
   if (!lead) {
@@ -154,6 +168,7 @@ export async function saveRoute(request, env, ctx, url) {
   }
 
   let send = isNew;
+  /** @type {string | null} */
   let correctedFrom = null;
   if (!isNew && lead.email !== email) {
     // Fixing a typo in the address: sent again to the new one, a few times at most.
@@ -182,6 +197,7 @@ export async function saveRoute(request, env, ctx, url) {
   if (isNew || correctedFrom) {
     // Thomas's copy, with Reply-To set to the visitor, again after a corrected address.
     const copy = leadEmail({ lead, outline, adminLink: `${url.origin}/admin`, correctedFrom });
+    /** @type {Promise<unknown>[]} */
     const tasks = [sendEmail(env, { from: cfg.from, to: [cfg.leadsTo], reply_to: lead.email, ...copy }, `lead-${lead.id}-${lead.sends}`)];
     if (isNew) {
       tasks.push(
@@ -192,26 +208,32 @@ export async function saveRoute(request, env, ctx, url) {
     ctx.waitUntil(Promise.allSettled(tasks));
   }
 
+  /** @type {{ ok: boolean, emailed: boolean, lead?: string }} */
   const reply = { ok: true, emailed };
   if (on.book) reply.lead = await sign(env, 'book', { id: lead.id });
   return json(reply);
 }
 
 // GET /api/slots: Thomas's open times for the next three weeks, from Cal.com.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function slotsRoute(request, env, ctx, url) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
   if (await overLimit(env.API_LIMIT, request)) return tooMany();
   const on = features(env);
-  if (!on.book) return json({ error: 'not_configured' }, 503);
+  if (!on.book || !on.cal) return json({ error: 'not_configured' }, 503);
 
   const now = Date.now();
   // Asking from the top of the hour lets a minute's worth of visitors share one answer.
   const from = new Date(Math.floor(now / HOUR) * HOUR);
   const to = new Date(from.getTime() + 21 * DAY);
-  const cache = globalThis.caches ? globalThis.caches.default : null;
+  // No Cache API on the local test server.
+  const storage = /** @type {{ caches?: CacheStorage }} */ (globalThis).caches;
+  const cache = storage ? storage.default : null;
   const key = new Request(`${url.origin}/api/slots/cache/${on.cal.username}/${on.cal.slug}/${from.getTime()}`);
+  /** @type {string[] | null} */
   let times = null;
   const hit = cache ? await cache.match(key) : null;
+  // What this route cached a moment ago (checked to be a list below).
   if (hit) times = await hit.json();
   if (!Array.isArray(times)) {
     times = await openTimes(env, on.cal, from, to);
@@ -222,26 +244,29 @@ export async function slotsRoute(request, env, ctx, url) {
   return json({ times: times.filter(t => Date.parse(t) >= soonest).slice(0, 400) });
 }
 
+/** @param {string} timeZone @param {string} iso */
 const ownerTime = (timeZone, iso) => formatIn(timeZone, {
   weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
 }).format(new Date(iso));
 
 // POST /api/book: { lead, start, name, timeZone }.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function bookRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 4000);
   if (error) return error;
   if (await overLimit(env.SAVE_LIMIT, request)) return tooMany();
   const on = features(env);
-  if (!on.book) return json({ error: 'not_configured' }, 503);
+  if (!on.book || !on.cal || !hasDatabase(env)) return json({ error: 'not_configured' }, 503);
   const data = await verify(env, 'book', body.lead, BOOK_TOKEN_AGE);
   if (!data) return json({ error: 'expired' }, 400);
   const name = typeof body.name === 'string' ? clean(body.name).slice(0, 100) : '';
   if (!name) return json({ error: 'bad_name' }, 400);
-  const start = Date.parse(body.start);
+  const start = Date.parse(String(body.start));
   if (!Number.isFinite(start) || start < Date.now() || start > Date.now() + 60 * DAY) return json({ error: 'bad_time' }, 400);
   const timeZone = timeZoneOrNull(body.timeZone) || 'UTC';
 
   await ensureSchema(env.DB);
+  /** @type {Pick<LeadRow, 'id' | 'email' | 'ad' | 'src' | 'kind' | 'outline' | 'booked_at' | 'lang'> | null} */
   const lead = await env.DB.prepare('SELECT id, email, ad, src, kind, outline, booked_at, lang FROM leads WHERE id = ?').bind(data.id).first();
   if (!lead) return json({ error: 'gone' }, 410);
   // Claim the lead first, so two tabs can't book two calls for it. A lead
@@ -252,6 +277,7 @@ export async function bookRoute(request, env, ctx, url) {
   const claim = await env.DB.prepare("UPDATE leads SET booked_at = 'pending', booking_start = ?, name = ? WHERE id = ? AND booked_at IS NULL").bind(startIso, name, lead.id).run();
   if (!claim.meta || !claim.meta.changes) return json({ error: lead.booked_at === 'pending' ? 'unconfirmed' : 'already_booked' }, 409);
 
+  /** @type {BookingResult | null} */
   let booking = null;
   try {
     booking = await bookCall(env, on.cal, {
@@ -298,6 +324,7 @@ export async function bookRoute(request, env, ctx, url) {
 }
 
 // The pages for the delete link, in the visitor's language. text is HTML.
+/** @param {string} lang @param {string} title @param {string} text @param {string} [extra] */
 function forgetPage(lang, title, text, extra = '') {
   return page({ lang, title, body: `<p class="eyebrow">${esc(translate(STRINGS[lang], 'Your details'))}</p>\n<h1>${esc(title)}</h1>\n<p>${text}</p>${extra}` });
 }
@@ -305,16 +332,18 @@ function forgetPage(lang, title, text, extra = '') {
 // /forget?t=<token>: the "delete my details" link in every email. GET only
 // asks (so a mail scanner opening the link deletes nothing); POST deletes,
 // including a mail app's one-click unsubscribe.
+/** @param {Request} request @param {Env} env @param {URL} url */
 export async function forgetRoute(request, env, url) {
   // English until the link's token says otherwise.
   let lang = 'en';
+  /** @param {string} words */
   const t = words => translate(STRINGS[lang], words);
   if (!['GET', 'POST'].includes(request.method)) return htmlResponse('Method not allowed', 405, { Allow: 'GET, POST' });
   if (await overLimit(env.SAVE_LIMIT, request)) {
     return htmlResponse(forgetPage(lang, t('Too many tries'), t('Wait a minute, then try the link again.')), 429, { 'Retry-After': '60' });
   }
   const contact = t('Email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> and your details will be deleted by hand.');
-  if (!env.DB) return htmlResponse(forgetPage(lang, t('This link doesn\'t work'), contact), 404);
+  if (!hasDatabase(env)) return htmlResponse(forgetPage(lang, t('This link doesn\'t work'), contact), 404);
 
   let token = url.searchParams.get('t');
   if (request.method === 'POST') {
@@ -328,7 +357,8 @@ export async function forgetRoute(request, env, url) {
   lang = langOrEnglish(data.l);
 
   if (request.method === 'POST') {
-    await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();
+    const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();
+    if (deleted.meta && deleted.meta.changes) await audit(env.DB, 'deleted by the visitor', String(data.id));
     return htmlResponse(forgetPage(lang, t('Your details are deleted'), t('Nothing more will be sent to you from this site. If you booked a call, it stays on the calendar until you cancel it with the link in your invite.')));
   }
   const lead = await env.DB.prepare('SELECT id FROM leads WHERE id = ?').bind(data.id).first();
@@ -344,18 +374,23 @@ export async function forgetRoute(request, env, url) {
 
 // Hourly (see wrangler.jsonc): delete old leads and counts, then send any
 // next-day reminders that are due.
+/** @param {Env} env @param {number} [now] */
 export async function runSchedule(env, now = Date.now()) {
-  if (!env.DB) return;
+  if (!hasDatabase(env)) return;
   await ensureSchema(env.DB);
   const cfg = settings(env);
+  /** @param {number} ms */
   const iso = ms => new Date(ms).toISOString();
-  await env.DB.batch([
+  const [expired] = await env.DB.batch([
     env.DB.prepare('DELETE FROM leads WHERE created_at < ?').bind(iso(now - RETENTION_DAYS * DAY)),
     env.DB.prepare('DELETE FROM counts WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM outline_outcomes WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM ai_daily WHERE day < ?').bind(iso(now - 2 * DAY).slice(0, 10)),
     env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
+    env.DB.prepare('DELETE FROM admin_log WHERE at < ?').bind(iso(now - 400 * DAY)),
   ]);
+  const removed = Number(expired && expired.meta && expired.meta.changes) || 0;
+  if (removed) await audit(env.DB, `deleted ${removed} lead${removed === 1 ? '' : 's'} saved over a year ago`);
 
   const on = features(env);
   if (!on.followUp) return;
@@ -364,6 +399,7 @@ export async function runSchedule(env, now = Date.now()) {
   // With the mid-morning window below, anything saved before about 10pm goes
   // out the next morning, matching the "tomorrow" on the page. All of them are
   // checked, so people it isn't morning for yet can't hold up those it is.
+  /** @type {D1Result<Pick<LeadRow, 'id' | 'email' | 'tz' | 'outline' | 'created_at' | 'lang'>>} */
   const { results } = await env.DB.prepare(
     'SELECT id, email, tz, outline, created_at, lang FROM leads WHERE follow_up = 1 AND booked_at IS NULL AND follow_up_sent_at IS NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at',
   ).bind(iso(now - 12 * HOUR), iso(now - 72 * HOUR)).all();

@@ -10,7 +10,7 @@
 import { languageFor } from '../languages.js';
 import { KINDS, OUTLINES, adFor, kindScores, localize, pickKind } from '../outlines.js';
 import { features, settings } from './config.js';
-import { count, countOutcome, ensureSchema, newId, sign } from './db.js';
+import { count, countOutcome, ensureSchema, hasDatabase, newId, sign } from './db.js';
 import { cameFrom, langOrEnglish } from './leads.js';
 import { clean, clientIp, json, overLimit, readJson, tooMany, withTimeout } from './http.js';
 import { passedBotCheck } from './services.js';
@@ -26,7 +26,7 @@ export const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 export { KINDS };
 export const MIN_PROBLEM = 10;
-export const MAX_PROBLEM = 1200;
+const MAX_PROBLEM = 1200;
 // Room for 1,200 characters of any script plus the bot-check token.
 const MAX_BODY = 10000;
 export const AI_TIMEOUT_MS = 25000;
@@ -83,15 +83,17 @@ const SCHEMA = {
   required: ['usable', 'title', 'build', 'kind', 'steps', 'needs', 'milestone', 'questions'],
 };
 
+/** @param {unknown} value @param {number} min @param {number} max @returns {string | null} */
 function text(value, min, max) {
   if (typeof value !== 'string') return null;
   const s = clean(value);
   return s.length >= min && s.length <= max ? s : null;
 }
 
+/** @param {unknown} value @param {number} min @param {number} max @param {number} maxLength @returns {string[] | null} */
 function list(value, min, max, maxLength) {
   if (!Array.isArray(value)) return null;
-  const items = value.map(v => text(v, 3, maxLength)).filter(Boolean).slice(0, max);
+  const items = /** @type {string[]} */ (value.map(v => text(v, 3, maxLength)).filter(Boolean)).slice(0, max);
   return items.length >= min ? items : null;
 }
 
@@ -113,18 +115,24 @@ const REJECT = [
 // look-alike only Latin letters count as a web address ending.
 const DOTTED = /[\p{L}\p{N}_-](?:\.(\p{L}[\p{L}\p{N}-]+)|[\u3002\uFF0E\uFF61](\p{Script=Latin}[\p{Script=Latin}\p{N}-]+))/gu;
 const FILE_TYPES = new Set(['js', 'ts', 'jsx', 'tsx', 'csv', 'pdf', 'xls', 'xlsx', 'doc', 'docx', 'pptx', 'txt', 'json', 'xml', 'html', 'htm', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'mp3', 'mp4', 'wav', 'sql', 'yml', 'yaml', 'ics', 'vcf']);
+/** @param {string} s */
 const hasDomain = s => [...s.matchAll(DOTTED)].some(m => !FILE_TYPES.has((m[1] || m[2]).toLowerCase()));
 // A run of 9 or more digits, however it's punctuated, reads as a phone number
 // (a year range like "2025-2026" has only 8).
+/** @param {string} s */
 const hasPhoneNumber = s => (s.match(/\+?[\d(][\d\s().-]{7,}\d/g) || []).some(m => m.replace(/\D/g, '').length >= 9);
 
 // Checks the model's reply field by field. Anything off (missing, wrong type,
 // too long, a price, a promise or a link) means "use the template". Most
 // languages take more letters than English to say the same thing, so they get
 // more room.
+/** @param {unknown} raw @param {string} [lang] @returns {Outline | null} */
 export function validateOutline(raw, lang = 'en') {
   const room = lang === 'en' ? 1 : 1.5;
+  /** @param {number} n */
   const max = n => Math.round(n * room);
+  // The model's reply: JSON of any shape until it's checked below.
+  /** @type {any} */
   let data = raw;
   if (typeof data === 'string') {
     try {
@@ -146,11 +154,13 @@ export function validateOutline(raw, lang = 'en') {
   if (Object.values(outline).some(v => v === null)) return null;
   const all = JSON.stringify(outline);
   if (REJECT.some(re => re.test(all)) || hasDomain(all) || hasPhoneNumber(all)) return null;
-  return outline;
+  // Every field was checked for null above.
+  return /** @type {Outline} */ (outline);
 }
 
 // The fixed outline for a kind of work, in the visitor's language: what
 // visitors get when the AI can't answer.
+/** @param {string} kind @param {string} [lang] @returns {Outline} */
 export function templateOutline(kind, lang = 'en') {
   const key = KINDS.includes(kind) ? kind : 'general';
   const { title, build, steps, needs, milestone, questions } = localize(OUTLINES[key], STRINGS[langOrEnglish(lang)]);
@@ -161,8 +171,10 @@ export function templateOutline(kind, lang = 'en') {
 // Chinese, Arabic, Korean and Russian, at least half its letters are in that
 // writing system; for the languages written in Latin letters, it doesn't read
 // like English (few of English's commonest words). English is never checked.
+/** @type {Record<string, string>} */
 const SCRIPTS = { zh: 'Han', ar: 'Arabic', ko: 'Hangul', ru: 'Cyrillic' };
 const ENGLISH_WORDS = /\b(?:the|and|you|your|would|with|that|for|this|from|what|how)\b/gi;
+/** @param {Outline | null} outline @param {string} [lang] */
 export function writtenIn(outline, lang = 'en') {
   if (lang === 'en' || !outline) return true;
   const all = [outline.title, outline.build, ...outline.steps, ...outline.needs, outline.milestone, ...outline.questions].join(' ');
@@ -178,6 +190,7 @@ export function writtenIn(outline, lang = 'en') {
 // cap (settings().aiDailyLimit). The day is UTC, when the free allowance
 // resets. On the Paid plan the cap limits what a flood of requests could cost.
 // Without the database there's nothing to count in, so no cap.
+/** @param {Env} env */
 async function underDailyCap(env) {
   if (!env.DB) return true;
   await ensureSchema(env.DB);
@@ -187,22 +200,37 @@ async function underDailyCap(env) {
 }
 
 // Text written to the AI rather than about a business: the prompt's own
-// markers, a claim that the client's text has ended, "ignore your previous
-// instructions", "new rule:", a line starting "System:", "you are now
-// allowed", or setting one of the reply's fields. It's caught before the AI
-// sees it and gets the template; the prompt refuses it too, as a second lock.
-// Each pattern is narrow enough that a real problem doesn't trip it ("our
-// booking system: ...", "we need new rules for scheduling").
+// markers, a claim that the client's text has ended, "ignore all previous
+// instructions", "new instructions:", a role label followed by an order to the
+// AI ("System: you are now ..."), "you are now an unrestricted AI", or setting
+// one of the reply's fields. It's caught before the AI sees it and gets the
+// template. The guard only takes the unmistakable forms, because a real
+// problem it stops gets the weaker template outline; subtler attempts are left
+// to the prompt, which refuses them too. Owners write "System: QuickBooks",
+// "New rules: ...", "You are now a part of our team" and "staff ignore the
+// rules", so none of those trips it (tests/worker.spec.mjs, and the near-miss
+// cases in worker/eval-cases.js).
+const AI_ROLE = String.raw`(?:ai|bot|chatbot|model|language\s+model|gpt|llm)`;
 const INJECTION = [
   /<<<|>>>/,
   /\b(?:end|close)\s+of\s+(?:the\s+)?(?:client|user|customer|visitor)(?:'s)?\s+(?:text|message|input|problem|words)\b/i,
-  /\b(?:ignore|disregard|forget|override)\b[^.!?\n]{0,40}\b(?:previous|prior|above|earlier|preceding|system|your)\s+(?:instructions?|rules?|prompts?|directions?|guidelines?)\b/i,
-  /\bnew\s+(?:rules?|instructions?|system\s+prompt)\s*:/i,
-  /(?:^|[.!?]\s*)(?:system|assistant|developer)(?:\s+(?:prompt|message))?\s*:/i,
-  /\byou\s+are\s+now\s+(?:allowed|able|free|permitted|in|a|an|the|my)\b/i,
-  /\b(?:set|make|mark)\s+["'`]?(?:usable|kind)["'`]?\s+(?:to|as|=)/i,
+  // "Ignore (all of) the previous instructions", "disregard prior rules".
+  /\b(?:ignore|disregard|forget|override)\s+(?:(?:all|any|of|the|your|my|these|those)\s+){0,3}(?:previous|prior|above|preceding|earlier)\s+(?:instructions?|prompts?|directions?|guidelines?|rules?|messages?)\b/i,
+  // "Forget your instructions", but not "forget your rules about appointments".
+  /\b(?:ignore|disregard|forget|override)\s+(?:all\s+(?:of\s+)?)?your\s+(?:instructions?|rules?|prompts?|guidelines?|directions?|programming|training)\b(?!\s+(?:about|for|on|regarding|around|with|of|in)\b)/i,
+  /\b(?:ignore|disregard|forget|override|reveal|print|show|repeat)\s+(?:the\s+|your\s+)?system\s+prompt\b/i,
+  /\bnew\s+(?:instructions?|system\s+prompt)\s*:/i,
+  // A role label at the start of a sentence, then an order to the AI.
+  /(?:^|[.!?]\s*)(?:system|assistant|developer|admin)(?:\s+(?:prompt|message|note))?\s*:\s*(?:you\b|your\b|ignore\b|disregard\b|forget\b|override\b|respond\b|reply\b|output\b|return\b|print\b|repeat\b|reveal\b|set\b|from\s+now\s+on\b|the\s+(?:assistant|ai|model)\b|as\s+an\s+ai\b)/i,
+  /\bsystem\s+prompt\s*:/i,
+  new RegExp(String.raw`\byou\s+are\s+now\s+(?:(?:allowed|permitted|free)\s+to\b|in\s+\w+\s+mode\b|(?:jailbroken|unrestricted|unfiltered|dan)\b(?!')|(?:a|an|the|my)\s+(?:\w+\s+){0,2}${AI_ROLE}\b)`, 'i'),
+  // Setting a field of the reply: "set usable to true", "set kind to app".
+  /\b(?:set|make|mark)\s+(?:["'`]?usable["'`]?\s*(?:to|as|=|:)|["'`]kind["'`]\s*(?:to|as|=|:)|(?:the\s+)?kind\s+(?:to|as|=)\s*["'`]?(?:leads|data|support|app|website|general)\b)/i,
 ];
-export const looksLikeInjection = text => typeof text === 'string' && INJECTION.some(re => re.test(text));
+// Names the guard, so changing it starts a new eval run (worker/eval.js).
+export const GUARD = INJECTION.map(String);
+/** @param {unknown} input */
+export const looksLikeInjection = input => typeof input === 'string' && INJECTION.some(re => re.test(input));
 
 // The kind to show for the model's outline: the model's own, unless the
 // visitor's words clearly point elsewhere. "general" takes the kind their
@@ -210,6 +238,7 @@ export const looksLikeInjection = text => typeof text === 'string' && INJECTION.
 // two or more signals for one other kind and none for the model's. It keeps
 // the matching example project and the alert right when the model wavers
 // between close kinds, such as missed calls (leads) and repeat questions (support).
+/** @param {string} modelKind @param {string} problem @param {string | null} hint @returns {string} */
 export function settleKind(modelKind, problem, hint) {
   if (modelKind === 'general') return pickKind(problem, hint);
   const scores = kindScores(problem);
@@ -220,6 +249,7 @@ export function settleKind(modelKind, problem, hint) {
 // The model's reply as the site would show it: checked (validateOutline) and in
 // the page's language, with its kind settled against the visitor's words.
 // Null when it can't be used.
+/** @param {unknown} raw @param {string} problem @param {string | null} hint @param {string} [lang] @returns {Outline | null} */
 export function finishOutline(raw, problem, hint, lang = 'en') {
   const outline = validateOutline(raw, lang);
   if (!outline || !writtenIn(outline, lang)) return null;
@@ -228,11 +258,13 @@ export function finishOutline(raw, problem, hint, lang = 'en') {
 
 // The visitor's text as the AI sees it: plain, single-spaced, cut to length,
 // and without the markers, so it can't close the block the prompt puts it in.
+/** @param {unknown} value */
 export const cleanProblem = value => (typeof value === 'string' ? clean(value.replace(/<<<|>>>/g, ' ')).slice(0, MAX_PROBLEM) : '');
 
 // The request the AI gets for one visitor's problem. Shared with the eval
 // script (scripts/eval-outlines.mjs), so a prompt change is tested exactly as
 // the site sends it.
+/** @param {string} problem @param {string | null} hint @param {string} [lang] */
 export function outlineRequest(problem, hint, lang = 'en') {
   const { english } = languageFor(lang);
   return {
@@ -252,10 +284,12 @@ export function outlineRequest(problem, hint, lang = 'en') {
 // Why a reply wasn't used: 'unusable' when the model judged the text not a
 // real business problem, 'rejected' when the reply broke a rule (shape,
 // length, a price, a promise, a link or the wrong language). Null when the reply is fine.
+/** @param {unknown} raw @param {string} [lang] @returns {'unusable' | 'rejected' | null} */
 export function rejectionReason(raw, lang = 'en') {
   const outline = validateOutline(raw, lang);
   if (outline && writtenIn(outline, lang)) return null;
   if (outline) return 'rejected';
+  /** @type {any} */
   let data = raw;
   if (typeof data === 'string') {
     try {
@@ -271,6 +305,10 @@ export function rejectionReason(raw, lang = 'en') {
 // and why the template is used instead. Text aimed at the AI is 'guarded' and
 // never sent; no AI binding (the local test server) is 'off'; past the daily
 // cap 'cap'; a timeout, quota error or outage 'error'.
+/**
+ * @param {Env} env @param {unknown} raw @param {string} problem @param {string | null} hint @param {string} lang
+ * @returns {Promise<{ outline: Outline | null, outcome: string }>}
+ */
 async function writeWithAI(env, raw, problem, hint, lang) {
   if (looksLikeInjection(raw)) return { outline: null, outcome: 'guarded' };
   if (!env.AI) return { outline: null, outcome: 'off' };
@@ -279,7 +317,7 @@ async function writeWithAI(env, raw, problem, hint, lang) {
     const result = await withTimeout(env.AI.run(MODEL, outlineRequest(problem, hint, lang)), AI_TIMEOUT_MS);
     const reply = result && result.response;
     const outline = finishOutline(reply, problem, hint, lang);
-    return outline ? { outline, outcome: 'ai' } : { outline: null, outcome: rejectionReason(reply, lang) };
+    return outline ? { outline, outcome: 'ai' } : { outline: null, outcome: /** @type {string} */ (rejectionReason(reply, lang)) };
   } catch {
     return { outline: null, outcome: 'error' };
   }
@@ -289,6 +327,7 @@ async function writeWithAI(env, raw, problem, hint, lang) {
 // { source: 'ai' | 'template', outline, token? }. The token (only once saving
 // is switched on) carries the outline, signed, to /api/save, with a random ID
 // that makes it one lead however many times it's saved.
+/** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function outlineRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, MAX_BODY);
   if (error) return error;
@@ -309,8 +348,9 @@ export async function outlineRoute(request, env, ctx, url) {
   const { outline: written, outcome } = await writeWithAI(env, body.problem, problem, hint, lang);
   const outline = written || templateOutline(pickKind(problem, hint), lang);
   const source = written ? 'ai' : 'template';
+  /** @type {{ source: string, outline: Outline, token?: string }} */
   const reply = { source, outline };
-  if (on.save) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, lang, ...from });
+  if (on.save && hasDatabase(env)) reply.token = await sign(env, 'outline', { n: newId(), problem, outline, source, lang, ...from });
   const tz = settings(env).ownerTz;
   ctx.waitUntil(Promise.allSettled([count(env, tz, from, 'outline'), countOutcome(env, tz, outcome)]));
   return json(reply);

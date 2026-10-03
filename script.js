@@ -1,28 +1,30 @@
 // On a translated page, the words this script shows come from the strings the
 // page carries (scripts/i18n.mjs writes them in); English is the fallback.
+/** @type {Record<string, string>} */
 const siteStrings = (() => {
-  try { return JSON.parse(document.getElementById('siteStrings')?.textContent || '{}'); } catch (e) { return {}; }
+  try { return JSON.parse(document.getElementById('siteStrings')?.textContent || '{}'); } catch { return {}; }
 })();
+/** @param {string} text @param {Record<string, string>} [vars] @returns {string} */
 const t = (text, vars = {}) => (Object.hasOwn(siteStrings, text) ? siteStrings[text] : text)
   .replace(/\{(\w+)\}/g, (all, name) => (Object.hasOwn(vars, name) ? vars[name] : all));
 
 const copyrightYear = document.getElementById('copyright-year');
-if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
+if (copyrightYear) copyrightYear.textContent = String(new Date().getFullYear());
 
 const navToggle = document.getElementById('navToggle');
 const navMobile = document.getElementById('navMobile');
 
 // The /start landing page has no section nav, so it has no menu to wire up.
 if (navToggle && navMobile) {
-  function closeMobileNav() {
+  const closeMobileNav = () => {
     navMobile.classList.remove('open');
     navToggle.setAttribute('aria-expanded', 'false');
-  }
+  };
 
-  function openMobileNav() {
+  const openMobileNav = () => {
     navMobile.classList.add('open');
     navToggle.setAttribute('aria-expanded', 'true');
-  }
+  };
 
   navToggle.addEventListener('click', () => {
     const isOpen = navMobile.classList.contains('open');
@@ -42,7 +44,8 @@ if (navToggle && navMobile) {
 
   document.addEventListener('click', (e) => {
     if (!navMobile.classList.contains('open')) return;
-    if (navMobile.contains(e.target) || navToggle.contains(e.target)) return;
+    const target = /** @type {Node | null} */ (e.target);
+    if (navMobile.contains(target) || navToggle.contains(target)) return;
     closeMobileNav();
   });
 
@@ -53,24 +56,24 @@ if (navToggle && navMobile) {
 
 // Language menu: a <details> that opens and works without this script; this
 // closes it on Escape or a click anywhere else, like the mobile menu.
-const langMenu = document.querySelector('.lang-menu');
+const langMenu = /** @type {HTMLDetailsElement | null} */ (document.querySelector('.lang-menu'));
 if (langMenu) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && langMenu.open) {
       langMenu.open = false;
-      langMenu.querySelector('summary').focus();
+      /** @type {HTMLElement} */ (langMenu.querySelector('summary')).focus();
     }
   });
   document.addEventListener('click', (e) => {
-    if (langMenu.open && !langMenu.contains(e.target)) langMenu.open = false;
+    if (langMenu.open && !langMenu.contains(/** @type {Node | null} */ (e.target))) langMenu.open = false;
   });
 }
 
 const contactHint = document.getElementById('contactHint');
 if (contactHint) {
-  document.querySelectorAll('[data-copy]').forEach(el => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-copy]')).forEach(el => {
     el.addEventListener('click', () => {
-      const value = el.dataset.copy;
+      const value = /** @type {string} */ (el.dataset.copy);
       const showManual = () => {
         contactHint.textContent = t('Copy this: {value}', { value });
       };
@@ -87,6 +90,7 @@ if (contactHint) {
 const themeToggle = document.getElementById('themeToggle');
 if (themeToggle) {
   const themeOrder = ['system', 'light', 'dark'];
+  /** @type {Record<string, string>} */
   const themeLabels = { system: t('match system'), light: t('light'), dark: t('dark') };
 
   const readTheme = () => {
@@ -94,6 +98,7 @@ if (themeToggle) {
     return current === 'light' || current === 'dark' ? current : 'system';
   };
 
+  /** @param {string} choice */
   const showTheme = (choice) => {
     const next = themeOrder[(themeOrder.indexOf(choice) + 1) % themeOrder.length];
     themeToggle.dataset.choice = choice;

@@ -9,16 +9,19 @@
 //   GET  /api/slots    open times from Cal.com
 //   POST /api/book     books the call through Cal.com
 //   GET  /api/eval     the latest result of the AI outline eval (eval.js)
+//   GET  /api/health   which outside services passed today's check (health.js)
 //   /forget            the "delete my details" link in every email
 //   /admin             Thomas's private leads list (admin.js)
 import { adminRoute } from './admin.js';
 import { evalRoute, runEvalBatch } from './eval.js';
-import { json } from './http.js';
+import { healthRoute, runHealthChecks } from './health.js';
+import { json, logError } from './http.js';
 import { bookRoute, configRoute, eventRoute, forgetRoute, runSchedule, saveRoute, slotsRoute } from './leads.js';
 import { outlineRoute } from './outline.js';
 
 export { MODEL, KINDS, SYSTEM_PROMPT, validateOutline, templateOutline } from './outline.js';
 
+/** @type {Record<string, Route>} */
 const ROUTES = {
   '/api/outline': outlineRoute,
   '/api/config': configRoute,
@@ -27,9 +30,10 @@ const ROUTES = {
   '/api/slots': slotsRoute,
   '/api/book': bookRoute,
   '/api/eval': evalRoute,
+  '/api/health': healthRoute,
 };
 
-export default {
+export default /** @satisfies {ExportedHandler<Env>} */ ({
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const context = ctx || { waitUntil() {} };
@@ -38,15 +42,20 @@ export default {
       if (url.pathname === '/forget') return await forgetRoute(request, env, url);
       if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return await adminRoute(request, env, url);
       return json({ error: 'not_found' }, 404);
-    } catch {
-      // Never show the visitor (or an attacker) the details.
-      return json({ error: 'server_error' }, 500);
+    } catch (err) {
+      // Never show the visitor (or an attacker) the details: only a reference
+      // to the log line, for them to quote (docs/FAILURES.md).
+      return json({ error: 'server_error', ref: logError(err, { request }) }, 500);
     }
   },
 
   // Hourly: the leads list's upkeep and reminders, then the next few cases of
-  // the AI outline eval (which runs even if the first part failed).
+  // the AI outline eval (which runs even if the first part failed); and once
+  // a day, the check of each outside service.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runSchedule(env, event.scheduledTime).finally(() => runEvalBatch(env, event.scheduledTime)));
+    /** @param {string} where @returns {(err: unknown) => void} */
+    const logged = where => err => { logError(err, { where }); };
+    ctx.waitUntil(runSchedule(env, event.scheduledTime).catch(logged('hourly upkeep')).then(() => runEvalBatch(env, event.scheduledTime)).catch(logged('AI eval')));
+    ctx.waitUntil(runHealthChecks(env, event.scheduledTime).catch(logged('service check')));
   },
-};
+});

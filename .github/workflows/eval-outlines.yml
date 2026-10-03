@@ -1,11 +1,23 @@
 name: AI outline eval
 
-# Runs scripts/eval-outlines.mjs against the live Workers AI model whenever the
-# prompt, the checks or the cases change on main, and on demand (Actions → AI
-# outline eval → Run workflow). Each case is scored as the site runs it (the
-# injection guard first) and by the model alone, and both must reach 90%. The
-# result is on the run's summary page. The site also runs the same cases on
-# itself every week; see /api/eval.
+# Runs scripts/eval-outlines.mjs against the live Workers AI model, on demand
+# only (Actions → AI outline eval → Run workflow). Run it before and after
+# changing the prompt, the checks, the guard or the cases. Each case is scored
+# as the site runs it (the injection guard first) and by the model alone, and
+# both must reach 90%. The result is on the run's summary page, and is added to
+# eval-history.csv on the `eval-results` branch (scripts/push-eval-record.sh)
+# with its date, commit and model. The site also runs the same cases on itself
+# every week and whenever the prompt, guard, model or cases change; see
+# /api/eval.
+#
+# It used to run on every merge that touched the prompt. Each run spends about
+# 40 outlines of the same free daily Workers AI allowance visitors use, outside
+# the site's own budget, and on 2026-10-02 two runs used it all up, so visitors
+# got template outlines for the rest of the day. The site's own eval stays
+# inside its budget, so merges now rely on that (docs/COST.md).
+#
+# "model" asks another Workers AI model with the site's prompt and checks, to
+# see whether a cheaper one is good enough. Leave it empty for the site's.
 #
 # Needs two repository secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_ACCOUNT_ID   the account the site's Worker runs in
@@ -14,14 +26,11 @@ name: AI outline eval
 # "Not run", so a green run always means the model was actually asked.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - worker/outline.js
-      - worker/eval.js
-      - worker/eval-cases.js
-      - outlines.js
-      - scripts/eval-outlines.mjs
+    inputs:
+      model:
+        description: 'A Workers AI model ID to try instead of the site''s (empty for the site''s own)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -62,6 +71,12 @@ jobs:
     needs: cases
     if: needs.cases.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    # To push the result to the eval-results branch, one run at a time.
+    permissions:
+      contents: write
+    concurrency:
+      group: eval-results
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -71,4 +86,8 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node scripts/eval-outlines.mjs
+          MODEL: ${{ inputs.model }}
+        run: node scripts/eval-outlines.mjs --json=eval-result.json ${MODEL:+--model="$MODEL"}
+      - name: Record the result on the eval-results branch
+        if: always() && hashFiles('eval-result.json') != ''
+        run: sh scripts/push-eval-record.sh --result=eval-result.json

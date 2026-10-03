@@ -1,6 +1,6 @@
 # Site brief
 
-> **Draft, written 2026-09-23 and updated 2026-09-30 for `/start`, from the site as it stands. Thomas to confirm or correct.** Once confirmed, replace this line with "Confirmed by Thomas Wright on <date>".
+> **Confirmed by Thomas Wright on 2026-10-02.** Written 2026-09-23 and updated 2026-09-30 for `/start`, from the site as it stands.
 
 ## Who it's for
 
@@ -52,8 +52,11 @@ The site itself must also:
 - pass the CI checks on every change
 - serve the latest `main` commit in production (checked by `.github/workflows/deploy-check.yml`)
 
+## Answered by Thomas (2026-10-02)
+
+- **Reply time:** two business days at most, as the contact section and `SECURITY.md` promise.
+- **Languages:** the site is to be offered in Spanish, French, Portuguese, Mandarin Chinese, Tagalog, Vietnamese, Arabic, Korean, Russian and Haitian Creole, as well as English.
+
 ## Open questions for Thomas
 
-- Is "within two business days" the reply time you actually keep? The contact section promises it.
 - Is there a real, client-approved result for the AI Lead Response Agent that can replace the description of how it works?
-- Is the audience English-speaking only, or are Spanish- or French-speaking clients worth a translated site?
