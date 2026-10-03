@@ -171,6 +171,8 @@ interface CaseOutcome {
 interface CheckResult {
   ok: boolean;
   note: string;
+  // Failed only because a free allowance is used up (Workers AI error 4006).
+  limited?: boolean;
 }
 
 // The latest daily check (health.js healthReport).

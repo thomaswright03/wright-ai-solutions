@@ -50,8 +50,12 @@ const SCHEMA = [
     n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, outcome)
   )`,
-  // How many outlines the AI was asked for each day (UTC), for the daily cap.
-  'CREATE TABLE IF NOT EXISTS ai_daily (day TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  // How many outlines the AI was asked for in each hour ('2026-10-03T19', UTC),
+  // so the cap and the eval's budget can count the last 24 hours, the window
+  // Workers AI's free allowance counts (docs/COST.md). Kept two days.
+  'CREATE TABLE IF NOT EXISTS ai_usage (hour TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  // Replaced by ai_usage, which counts by the hour rather than the UTC day.
+  'DROP TABLE IF EXISTS ai_daily',
   // One row per outline email, for the daily cap per inbox. `tag` stands in for
   // the address (see inboxTag), and rows are deleted after two days.
   'CREATE TABLE IF NOT EXISTS outline_sends (tag TEXT NOT NULL, sent_at TEXT NOT NULL)',
@@ -101,6 +105,31 @@ async function addColumns(DB) {
       if (!/duplicate column/i.test(String(err && err.message))) throw err;
     });
   }
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// The hour an AI call is counted in (ai_usage).
+/** @param {number} ms */
+const aiHour = ms => new Date(ms).toISOString().slice(0, 13);
+
+const AI_CALLS_IN_LAST_DAY = 'SELECT COALESCE(SUM(n), 0) AS used FROM ai_usage WHERE hour > ?';
+
+// How many AI calls there have been in the last 24 hours.
+/** @param {D1Database} DB @param {number} [now] @returns {Promise<number>} */
+export async function aiCallsInLastDay(DB, now = Date.now()) {
+  return Number(await DB.prepare(AI_CALLS_IN_LAST_DAY).bind(aiHour(now - DAY)).first('used')) || 0;
+}
+
+// Counts `n` more AI calls in this hour, and answers how many there have been
+// in the last 24 hours, these included.
+/** @param {D1Database} DB @param {number} n @param {number} [now] @returns {Promise<number>} */
+export async function countAiCalls(DB, n, now = Date.now()) {
+  const [, total] = await DB.batch([
+    DB.prepare('INSERT INTO ai_usage (hour, n) VALUES (?, ?) ON CONFLICT (hour) DO UPDATE SET n = n + excluded.n').bind(aiHour(now), n),
+    DB.prepare(AI_CALLS_IN_LAST_DAY).bind(aiHour(now - DAY)),
+  ]);
+  return Number(/** @type {{ used?: unknown }[]} */ (total.results || [])[0]?.used) || 0;
 }
 
 /** @type {WeakMap<D1Database, Promise<void>>} */

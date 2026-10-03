@@ -13,7 +13,8 @@
 //
 // A request header "x-test-env" picks a separate set of stand-ins, for tests:
 // "bare" (nothing connected), or any of "turnstile", "caldown", "callost", "calsilent", "emaildown",
-// "nobook" (no Cal.com link) and "noreminder" (no postal address) joined with
+// "nobook" (no Cal.com link), "noreminder" (no postal address) and "aiusedup"
+// (an AI whose free daily allowance is used up) joined with
 // "+". Any other word just names a fresh set, so tests don't share saved leads
 // or booked times. Without the header, everything is connected ("demo").
 import { createServer } from 'node:http';
@@ -122,6 +123,9 @@ function fakesFor(mode) {
     });
     if (flags.has('nobook')) delete fakes.env.CAL_LINK;
     if (flags.has('noreminder')) delete fakes.env.POSTAL_ADDRESS;
+    if (flags.has('aiusedup')) {
+      fakes.env.AI = { async run() { throw new Error('4006: you have used up your daily free allocation of 10,000 neurons'); } };
+    }
     modes.set(name, fakes);
   }
   return modes.get(name);

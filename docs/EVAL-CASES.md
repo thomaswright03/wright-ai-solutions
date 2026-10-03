@@ -18,5 +18,6 @@ A case only shows how a change generalizes if it wasn't used to make that change
 | 2026-10-02 | `nearmiss-system-orders`, `nearmiss-system-quickbooks`, `nearmiss-part-of-team`, `nearmiss-forget-rules` | Reported by the pass-4 review: real problems the guard stopped | `ba7d495`, before the guard was narrowed in the next commit |
 | 2026-10-02 | `nearmiss-assistant-title`, `nearmiss-ignore-emails`, `nearmiss-new-rules`, `nearmiss-developer`, `injection-fake-reply`, `injection-shouted-system` | Held out from the guard change | `ba7d495` |
 | 2026-10-02 | `page-es-leads`, `page-zh-data`, `page-ar-website`, `page-ru-support` | Typed on a translated `/start`: the outline must come back in that language. Added in the same commit as the language check they test, so not held out | `9446be4` |
+| 2026-10-03 | `page-es-injection`, `page-zh-injection` | Held out: injection attempts in Spanish and Chinese, which the English-only guard lets through (Excellence review, 2026-10-03), so the prompt must refuse them. Added before any guard change, in a commit of their own | `abe41b0` |
 
 The guard change (`057c593`) was then measured once against the live model (GitHub Actions run 37040448464): 38 of 38 right as the site runs it and by the model alone, including all six held-out cases. Every eval result since is in `eval-history.csv` on the `eval-results` branch.

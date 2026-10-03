@@ -49,6 +49,7 @@ Cal.com never clearly answers, and the visitor can neither book again nor be fol
 
 - `worker.spec.mjs: checks each service once a day, sends nothing, and publishes only which passed`
 - `worker.spec.mjs: a failing service is shown, alerted and published`
+- `worker.spec.mjs: a failed service is checked again each hour until it passes, without another alert`
 - `worker.spec.mjs: a sending-only Resend key passes, and services that are off are left out`
 
 ### 7. Made-up promises, prices or figures, from the AI or on the site
@@ -149,6 +150,5 @@ A real problem that happens to read like an instruction gets the weaker template
 ## Not caught by a test
 
 - **The leaked credential in git history.** `ci.yml: secret-scan` stays red until Thomas rotates it (`SECURITY.md`).
-- **An admin merging past red checks.** Branch protection allows it until "Do not allow bypassing" is on.
 - **Real devices and screen readers.** The browser tests use desktop Chromium at several widths; nobody has tested with VoiceOver, TalkBack or a real phone.
 - **Whether the outlines win work.** The counts on `/admin` show saves and bookings per ad, but not which calls became clients.

@@ -7,7 +7,7 @@
 // hand or on GitHub.
 import { adFor } from '../outlines.js';
 import { settings } from './config.js';
-import { ensureSchema } from './db.js';
+import { aiCallsInLastDay, countAiCalls, ensureSchema } from './db.js';
 import { CASES } from './eval-cases.js';
 import { json, overLimit, tooMany, withTimeout } from './http.js';
 import { AI_TIMEOUT_MS, GUARD, MODEL, cleanProblem, finishOutline, looksLikeInjection, outlineRequest, rejectionReason } from './outline.js';
@@ -20,10 +20,14 @@ const DAY = 24 * 60 * 60 * 1000;
 const EVERY = 7 * DAY;
 // Cases per hourly run, well inside the Free plan's 50 outside calls per run.
 export const EVAL_BATCH = 12;
-// A batch runs only while today's AI outlines (visitors' and the eval's
-// together) number fewer than this, so the eval never uses up the free daily
-// allowance of about 90 that visitors' outlines rely on.
-export const EVAL_ROOM = 40;
+// A batch runs only while the AI outlines of the last 24 hours (visitors' and
+// the eval's together) number fewer than this, so the eval never uses up the
+// free allowance of about 90 that visitors' outlines rely on: they keep at
+// least 40. A whole run asks the AI about 40 times, and its own calls count
+// here too, so this leaves it room to finish, with a retry or two, in a day.
+// The allowance counts the last 24 hours, not the UTC day (docs/COST.md), so
+// this does too.
+export const EVAL_ROOM = 50;
 
 /** @param {EvalCase} c */
 const hintFor = c => (c.ad ? /** @type {AdPage} */ (adFor(c.ad)).kind : null);
@@ -98,8 +102,7 @@ export async function runEvalBatch(env, now = Date.now()) {
   const due = !run || run.version !== version || (run.finished_at && Date.parse(run.finished_at) <= now - EVERY);
   if (run && !due && run.finished_at) return;
 
-  const today = iso(now).slice(0, 10);
-  const used = Number(await env.DB.prepare('SELECT n FROM ai_daily WHERE day = ?').bind(today).first('n')) || 0;
+  const used = await aiCallsInLastDay(env.DB, now);
   const size = Math.min(EVAL_BATCH, EVAL_ROOM - used);
   if (size <= 0) return;
 
@@ -131,11 +134,9 @@ export async function runEvalBatch(env, now = Date.now()) {
   }
 
   const finished = results.length >= CASES.length;
-  await env.DB.batch([
-    env.DB.prepare('UPDATE eval_runs SET results = ?, finished_at = ? WHERE id = ?').bind(JSON.stringify(results), finished ? iso(now) : null, run.id),
-    // Counted with visitors' outlines, so the daily cap covers the eval too.
-    env.DB.prepare('INSERT INTO ai_daily (day, n) VALUES (?, ?) ON CONFLICT (day) DO UPDATE SET n = n + excluded.n').bind(today, asked),
-  ]);
+  await env.DB.prepare('UPDATE eval_runs SET results = ?, finished_at = ? WHERE id = ?').bind(JSON.stringify(results), finished ? iso(now) : null, run.id).run();
+  // Counted with visitors' outlines, so the cap covers the eval too.
+  if (asked) await countAiCalls(env.DB, asked, now);
   if (!finished) return;
   const { passed, total, rate } = summarize(results);
   /** @type {{ results: string } | null} */

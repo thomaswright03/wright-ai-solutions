@@ -19,6 +19,7 @@
   "I build the AI systems your business <span class=\"grad-text\">actually runs on.</span>": "비즈니스가 <span class=\"grad-text\">실제로 의지해 돌아가는</span> AI 시스템을 만들어요.",
   "See the work": "작업 보기",
   "Start a project →": "프로젝트 시작하기 →",
+  "$11,760": "$11,760",
   "in client revenue from leads my AI agent texted": "제 AI 에이전트가 문자를 보낸 리드에서 나온 클라이언트 매출",
   "companies worked with": "곳의 회사와 협업",
   "industries, listed below": "개 업종 (아래 목록 참고)",
@@ -97,7 +98,7 @@
   "Privacy Notice — Wright AI Solutions LLC": "개인정보 처리 안내 — Wright AI Solutions LLC",
   "What wright-ai-solutions.com collects, what our host logs, how inquiry emails and calls are handled and kept, and how to ask for anything to be removed.": "wright-ai-solutions.com이 수집하는 정보, 호스팅 업체가 기록하는 정보, 문의 이메일과 전화의 처리 및 보관 방식, 그리고 삭제를 요청하는 방법.",
   "Privacy notice": "개인정보 처리 안내",
-  "Last updated 2 October 2026": "최종 업데이트: 2026년 10월 2일",
+  "Last updated 3 October 2026": "최종 업데이트: 2026년 10월 3일",
   "This notice covers wright-ai-solutions.com, run by Wright AI Solutions LLC (Thomas Wright), and what happens when you email or call us from it. Questions or requests go to <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>.": "이 안내는 Wright AI Solutions LLC(Thomas Wright)가 운영하는 wright-ai-solutions.com과, 이 사이트를 통해 저희에게 이메일을 보내거나 전화할 때 일어나는 일을 다룹니다. 질문이나 요청은 <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>으로 보내 주십시오.",
   "What this site collects": "이 사이트가 수집하는 정보",
   "The Start a project page": "‘프로젝트 시작하기’ 페이지",
@@ -437,6 +438,6 @@
   "Parking · Beta": "주차 · 베타",
   "A daily parking marketplace in beta. Property owners list open spots, and drivers find and book them nearby on a live map.": "베타 단계의 일일 주차 마켓플레이스입니다. 건물주는 빈 주차 공간을 등록하고, 운전자는 실시간 지도에서 근처 공간을 찾아 예약합니다.",
   "Sign up for ParkLess<span class=\"visually-hidden\"> (opens in a new tab)</span>": "ParkLess 가입하기<span class=\"visually-hidden\"> (새 탭에서 열림)</span>",
-  "Apart from the Start a project page, described in the next section, nothing directly. The rest of the site has no forms, accounts, analytics or advertising trackers, and the site's own code sets no cookies anywhere. The only things it saves in your browser are your light or dark theme choice, if you pick one, and, on the Start a project page, what you type and your outline, until you close the tab. The site sends a security policy that only lets scripts load from this site itself (plus Cloudflare's bot check, on the Start a project page), so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.": "다음 섹션에서 설명하는 ‘프로젝트 시작하기’ 페이지를 제외하면, 직접 수집하는 정보는 없습니다. 사이트의 나머지 부분에는 양식, 계정, 분석 도구, 광고 추적기가 없으며, 사이트 자체 코드는 어디에서도 쿠키를 설정하지 않습니다. 브라우저에 저장하는 것은 라이트 또는 다크 테마를 선택한 경우 그 선택과, ‘프로젝트 시작하기’ 페이지에서 탭을 닫을 때까지 입력한 내용과 개요뿐입니다. 사이트는 이 사이트 자체에서만 스크립트를 불러올 수 있도록 하는 보안 정책을 보내므로(‘프로젝트 시작하기’ 페이지의 Cloudflare 봇 확인은 예외), 제3자 추적기가 여기서 실행될 수 없습니다. 사이트의 스크립트는 모바일 메뉴를 열고, 라이트 테마와 다크 테마를 전환하고, 현재 연도를 표시하고, 스크롤할 때 섹션에 애니메이션을 주고, 이메일 주소나 전화번호를 클릭하면 클립보드에 복사합니다. 이 중 어느 것도 브라우저 밖으로 나가지 않습니다.",
+  "Apart from the Start a project page, described in the next section, nothing directly. The rest of the site has no forms, accounts, analytics or advertising trackers, and the site's own code sets no cookies anywhere. The only things it saves in your browser are your light or dark theme choice, if you pick one, the language you pick from the language menu, so the English pages can offer it next time, and, on the Start a project page, what you type and your outline, until you close the tab. The site sends a security policy that only lets scripts load from this site itself (plus Cloudflare's bot check, on the Start a project page), so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.": "다음 섹션에서 설명하는 ‘프로젝트 시작하기’ 페이지를 제외하면, 직접 수집하는 정보는 없습니다. 사이트의 나머지 부분에는 양식, 계정, 분석 도구, 광고 추적기가 없으며, 사이트 자체 코드는 어디에서도 쿠키를 설정하지 않습니다. 브라우저에 저장하는 것은 라이트 또는 다크 테마를 선택한 경우 그 선택, 다음 방문 때 영어 페이지가 제안할 수 있도록 언어 메뉴에서 고른 언어, 그리고 ‘프로젝트 시작하기’ 페이지에서 탭을 닫을 때까지 입력한 내용과 개요뿐입니다. 사이트는 이 사이트 자체에서만 스크립트를 불러올 수 있도록 하는 보안 정책을 보내므로(‘프로젝트 시작하기’ 페이지의 Cloudflare 봇 확인은 예외), 제3자 추적기가 여기서 실행될 수 없습니다. 사이트의 스크립트는 모바일 메뉴를 열고, 라이트 테마와 다크 테마를 전환하고, 현재 연도를 표시하고, 스크롤할 때 섹션에 애니메이션을 주고, 이메일 주소나 전화번호를 클릭하면 클립보드에 복사합니다. 이 중 어느 것도 브라우저 밖으로 나가지 않습니다.",
   "Sign up for AI Waste Bot<span class=\"visually-hidden\"> (opens in a new tab)</span>": "AI Waste Bot 가입하기<span class=\"visually-hidden\"> (새 탭에서 열림)</span>"
 }

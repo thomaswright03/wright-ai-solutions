@@ -227,6 +227,13 @@ img{max-width:100%; display:block;}
 .lang-list a:hover, .lang-list a:focus-visible{background:var(--surface-2); color:var(--text);}
 .lang-list a[aria-current]{color:var(--text); font-weight:600;}
 .lang-list a[aria-current]::after{content:'✓' / ''; margin-inline-start:auto; padding-inline-start:var(--space-3); color:var(--accent-3);}
+/* the offer of a returning visitor's language, on English pages (script.js) */
+.lang-offer{
+  position:relative; z-index:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--space-2) var(--space-4);
+  max-width:var(--maxw); margin:var(--space-4) auto 0; padding:0 var(--space-5);
+}
+.lang-offer-keep{min-height:44px; padding:0 var(--space-3); background:none; border:none; color:var(--text-dim); font:inherit; font-size:var(--fs-sm); text-decoration:underline; cursor:pointer;}
+.lang-offer-keep:hover{color:var(--text);}
 .nav-toggle{display:none; flex-direction:column; align-items:center; justify-content:center; gap:var(--space-1); width:44px; height:44px; background:none; border:none; cursor:pointer;}
 .nav-toggle span{width:22px; height:2px; background:var(--text); border-radius:2px;}
 .nav-mobile{display:none; flex-direction:column; padding:var(--space-2) var(--space-5) var(--space-5); gap:var(--space-1); border-top:1px solid var(--border);}

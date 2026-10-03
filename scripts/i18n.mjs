@@ -95,6 +95,9 @@ export function parse(html) {
 }
 
 const hasWords = s => /\p{L}/u.test(s.replace(/<[^>]*>/g, '').replace(/&[a-z]+;|&#\d+;/gi, ''));
+// A figure on its own, such as the hero's "$11,760": no words, but each
+// language writes the separators and the dollar sign its own way ("11 760 $").
+const isFigure = s => /^\$\d{1,3}(?:,\d{3})+$/.test(s);
 const isBreaking = node => node.tag !== '#text' && (node.opaque || node.tag === '#comment' || !INLINE.has(node.tag) || node.children.some(isBreaking));
 export const normalize = s => s.replace(/\s+/g, ' ').trim();
 
@@ -135,7 +138,7 @@ export function textPieces(html) {
     if (run[first].tag === '#text') start += run[first].text.length - run[first].text.trimStart().length;
     if (run[last].tag === '#text') end -= run[last].text.length - run[last].text.trimEnd().length;
     const source = html.slice(start, end);
-    if (hasWords(source)) pieces.push({ start, end, key: normalize(source) });
+    if (hasWords(source) || isFigure(source)) pieces.push({ start, end, key: normalize(source) });
   }
 
   function visit(node) {
@@ -254,7 +257,9 @@ function switcher(lang, page, words) {
   const label = `${words('Language')}: ${lang.name}`;
   const items = LANGUAGES.map(l => {
     const current = l.code === lang.code ? ' aria-current="true"' : '';
-    return `      <li><a href="${pageUrl(l, page.path || '')}" hreflang="${l.tag}" lang="${l.tag}"${current}>${l.name}</a></li>`;
+    // English pages offer a returning visitor the language they picked before.
+    const offer = lang.code === 'en' && l.code !== 'en' ? ` data-offer="${l.offer}"` : '';
+    return `      <li><a href="${pageUrl(l, page.path || '')}" hreflang="${l.tag}" lang="${l.tag}"${current}${offer}>${l.name}</a></li>`;
   });
   return `<!-- i18n:switcher -->
       <details class="lang-menu">

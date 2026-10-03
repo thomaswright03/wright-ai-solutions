@@ -2,7 +2,7 @@
 
 Every realistic failure on `/start` and the leads list: what the visitor (or Thomas) sees, whether their work is kept, what is retried, what is logged, and the way forward. Each names the tests that check it, as `file: test title` in `tests/`; `tests/risks.spec.mjs` fails if one is renamed or removed.
 
-**Logging.** An unexpected error on the server is logged as one JSON line (`level`, `ref`, `method`, `path`, `error`) in the Worker's logs (Cloudflare dashboard → Workers & Pages → `wright-ai-solutions` → Logs), and the visitor's error message shows the same short reference, so a visitor's report can be matched to the log line. The reference is Cloudflare's own Ray ID for the request when there is one. Failures the site expects (a service down, a bad request) aren't errors: they show the visitor what to do, and outside services are checked daily (`worker/health.js`).
+**Logging.** An unexpected error on the server is logged as one JSON line (`level`, `ref`, `method`, `path`, `error`) in the Worker's logs (Cloudflare dashboard → Workers & Pages → `wright-ai-solutions` → Logs), and the visitor's error message shows the same short reference, so a visitor's report can be matched to the log line. The reference is Cloudflare's own Ray ID for the request when there is one. Failures the site expects (a service down, a bad request) aren't errors: they show the visitor what to do, and outside services are checked daily, and hourly while one is failing (`worker/health.js`).
 
 Last reviewed 2026-10-02.
 
@@ -21,11 +21,12 @@ Replaced by the template before the visitor sees it.
 - `worker.spec.mjs: an outline with a percentage is replaced, like a price`
 - `worker.spec.mjs: an outline carrying any web address, handle or spelled-out domain is replaced; file names and libraries are fine`
 
-### 3. The site's daily AI cap is reached
+### 3. The site's daily AI cap is reached, or Workers AI's free allowance is used up
 
-Template outlines until midnight UTC; the visitor's flow is otherwise unchanged.
+Template outlines until the outlines of the last 24 hours fall back under the cap (both the cap and Workers AI's free allowance count the last 24 hours, not the UTC day; `docs/COST.md`); the visitor's flow is otherwise unchanged.
 
 - `worker.spec.mjs: past the daily cap, outlines come from the templates without asking the AI`
+- `worker.spec.mjs: the cap counts the last 24 hours, the way the free allowance does, not the calendar day`
 
 ### 4. The visitor sends too many requests in a minute
 
@@ -132,10 +133,13 @@ The address is shown to copy by hand.
 
 ### 19. A service key expires, or a service stops answering
 
-The daily check shows it on `/admin`, sends Thomas a phone alert, and the live check after each deploy and every morning fails.
+The daily check shows it on `/admin`, sends Thomas a phone alert, and the live check after each deploy and every morning fails. The failed service is checked again every hour, so once it answers again the live check passes the same day. When the only failure is the AI's free allowance being used up, `/admin` says so, no alert goes out, and the live check warns rather than fails.
 
 - `worker.spec.mjs: a failing service is shown, alerted and published`
+- `worker.spec.mjs: a failed service is checked again each hour until it passes, without another alert`
+- `worker.spec.mjs: a used-up AI allowance is reported as that, not as an outage, and clears when the allowance frees up`
 - `site.spec.mjs: passes with nothing connected, and fails when the calendar is down`
+- `site.spec.mjs: a used-up AI allowance is a warning, not a failure`
 
 ### 20. An unexpected error on the server
 

@@ -19,7 +19,7 @@ export const settings = env => ({
   // Thomas's own time zone, for phone alerts and the daily counts.
   ownerTz: timeZoneOrNull(env.OWNER_TZ) || 'America/Denver',
   postalAddress: clean(env.POSTAL_ADDRESS || ''),
-  // AI outlines a day (UTC) before visitors get the templates instead.
+  // AI outlines in any 24 hours before visitors get the templates instead.
   aiDailyLimit: /^\d+$/.test(String(env.AI_DAILY_LIMIT ?? '')) ? Number(env.AI_DAILY_LIMIT) : 300,
 });
 

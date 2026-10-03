@@ -67,6 +67,44 @@ if (langMenu) {
   document.addEventListener('click', (e) => {
     if (langMenu.open && !langMenu.contains(/** @type {Node | null} */ (e.target))) langMenu.open = false;
   });
+
+  // The language picked from the menu is remembered in this browser. English
+  // pages don't redirect; they offer the same page in that language, in a line
+  // written in it, until the visitor takes it or chooses to keep English.
+  /** @param {string} tag */
+  const rememberLanguage = (tag) => {
+    try { localStorage.setItem('lang', tag); } catch (e) { /* storage blocked: nothing remembered */ }
+  };
+  /** @type {NodeListOf<HTMLAnchorElement>} */ (langMenu.querySelectorAll('.lang-list a')).forEach(link => {
+    link.addEventListener('click', () => rememberLanguage(link.hreflang));
+  });
+  let picked = null;
+  try { picked = localStorage.getItem('lang'); } catch (e) { /* storage blocked */ }
+  const offered = picked && document.documentElement.lang === 'en'
+    ? /** @type {HTMLAnchorElement | null} */ (Array.from(langMenu.querySelectorAll('.lang-list a[data-offer]')).find(a => /** @type {HTMLAnchorElement} */ (a).hreflang === picked) || null)
+    : null;
+  const main = document.querySelector('main');
+  if (offered && main) {
+    const bar = document.createElement('div');
+    bar.className = 'lang-offer';
+    const link = document.createElement('a');
+    link.setAttribute('href', /** @type {string} */ (offered.getAttribute('href')));
+    link.hreflang = offered.hreflang;
+    link.lang = offered.lang;
+    link.className = 'btn btn-ghost';
+    link.textContent = /** @type {string} */ (offered.dataset.offer);
+    // Only shown on English pages, so it stays in English.
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.className = 'lang-offer-keep';
+    keep.textContent = 'Keep English';
+    keep.addEventListener('click', () => {
+      rememberLanguage('en');
+      bar.remove();
+    });
+    bar.append(link, keep);
+    main.prepend(bar);
+  }
 }
 
 const contactHint = document.getElementById('contactHint');

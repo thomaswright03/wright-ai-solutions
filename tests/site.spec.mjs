@@ -1209,5 +1209,14 @@ test.describe('live check', () => {
     // The local server has no /version.txt, so no commit can match.
     expect(failures(await smokeTest(baseURL, { sha: 'not-this-commit', headers: { 'x-test-env': 'smokesha' } }))).toEqual(['deployed commit: answered 404, expected 200']);
   });
+
+  test('a used-up AI allowance is a warning, not a failure', async ({ baseURL, request }) => {
+    const mode = 'smokelimited+aiusedup';
+    await request.post(`/__test/cron?mode=${encodeURIComponent(mode)}`);
+    const results = await smokeTest(baseURL, { headers: { 'x-test-env': mode } });
+    expect(failures(results)).toEqual([]);
+    expect(results.filter(r => r.warn).map(r => r.name)).toEqual(['outside services']);
+    expect(results.find(r => r.warn).note).toMatch(/^free daily allowance used up at .*: ai \(visitors get template outlines until it frees up\)$/);
+  });
 });
 

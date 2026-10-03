@@ -74,11 +74,12 @@ Last reviewed 2026-10-02.
 - `worker.spec.mjs: an outline carrying any web address, handle or spelled-out domain is replaced; file names and libraries are fine`
 - `worker.spec.mjs: a year range is not mistaken for a phone number`
 
-### 10. The AI writes at most 300 outlines a day, and the site's own eval leaves visitors their share
+### 10. The AI writes at most 300 outlines in any 24 hours, and the site's own eval leaves visitors their share
 
 - **Stated in:** `docs/SIGNUP-SETUP.md` (`AI_DAILY_LIMIT`), `docs/COST.md`.
 - **Enforced in:** `worker/outline.js` (`underDailyCap`), `worker/eval.js` (`EVAL_ROOM`).
 - `worker.spec.mjs: past the daily cap, outlines come from the templates without asking the AI`
+- `worker.spec.mjs: the cap counts the last 24 hours, the way the free allowance does, not the calendar day`
 - `worker.spec.mjs: leaves visitors their share of the daily AI allowance`
 
 ### 11. Only Thomas sees the leads list, with a password of 16 characters or more, and every change on it is recorded
