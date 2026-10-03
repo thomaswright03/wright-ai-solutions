@@ -4,7 +4,8 @@
 // null and the caller decides what the visitor sees. Calls to Resend and
 // Cal.com are tried up to three times after a quick failure that is safe to
 // repeat (withRetries in http.js).
-import { retryAnyFailure, withRetries, withTimeout } from './http.js';
+import { settings } from './config.js';
+import { escapeHtml, retryAnyFailure, withRetries, withTimeout } from './http.js';
 
 /** @param {Env} env @param {EmailMessage} message @param {string} [idempotencyKey] @returns {Promise<boolean>} */
 export async function sendEmail(env, message, idempotencyKey) {
@@ -26,34 +27,60 @@ export async function sendEmail(env, message, idempotencyKey) {
   }
 }
 
+// ntfy's answer to a request, with the access token when there is one. ntfy.sh
+// limits requests per sending address, and a Worker shares its address with
+// other Cloudflare customers, so a token (NTFY_TOKEN, from a free ntfy
+// account) counts them against Thomas's own account instead.
+/** @param {Env} env @param {string} path @param {RequestInit} [init] */
+export function ntfyFetch(env, path, init = {}) {
+  const headers = new Headers(init.headers);
+  if (env.NTFY_TOKEN) headers.set('Authorization', `Bearer ${env.NTFY_TOKEN}`);
+  return withTimeout(fetch(`https://ntfy.sh${path}`, { ...init, headers }), 5000);
+}
+
 // An instant push to Thomas's phone through the ntfy app. The topic name is
-// the only key, so it's a secret; alerts never name the visitor.
-/** @param {Env} env @param {{ title: string, body: string, click?: string }} alert @returns {Promise<boolean>} */
+// the only key, so it's a secret; alerts never name the visitor. When ntfy
+// doesn't take it, the alert goes to Thomas by email instead, so a broken
+// alert channel can't hide the alert. Answers how it went: 'phone', 'email',
+// or false when neither worked (or alerts aren't switched on).
+/** @param {Env} env @param {{ title: string, body: string, click?: string }} alert @returns {Promise<'phone' | 'email' | false>} */
 export async function notify(env, { title, body, click }) {
   if (!env.NTFY_TOPIC) return false;
   try {
-    const response = await withTimeout(fetch(`https://ntfy.sh/${encodeURIComponent(env.NTFY_TOPIC)}`, {
+    const response = await ntfyFetch(env, `/${encodeURIComponent(env.NTFY_TOPIC)}`, {
       method: 'POST',
       headers: { Title: title, Tags: 'bell', ...(click ? { Click: click } : {}) },
       body,
-    }), 5000);
-    return response.ok;
+    });
+    if (response.ok) return 'phone';
   } catch {
-    return false;
+    // Falls through to the email.
   }
+  const cfg = settings(env);
+  const note = 'Sent by email because the phone alert didn\'t go through.';
+  const sent = await sendEmail(env, {
+    from: cfg.from,
+    to: [cfg.leadsTo],
+    reply_to: cfg.replyTo,
+    subject: `Alert: ${title}`,
+    text: `${body}\n\n${click ? `${click}\n\n` : ''}${note}`,
+    html: `<p>${escapeHtml(body)}</p>${click ? `<p><a href="${escapeHtml(click)}">${escapeHtml(click)}</a></p>` : ''}<p>${escapeHtml(note)}</p>`,
+  });
+  return sent ? 'email' : false;
 }
 
-// True only when Cloudflare confirms the visitor passed the bot check.
-/** @param {Env} env @param {unknown} token @param {string} ip @returns {Promise<boolean | null>} */
-export async function passedBotCheck(env, token, ip) {
+// True only when Cloudflare confirms the visitor passed the bot check on this
+// site: a token solved on another site that uses the same key is refused.
+/** @param {Env} env @param {unknown} token @param {string} ip @param {string} hostname @returns {Promise<boolean | null>} */
+export async function passedBotCheck(env, token, ip, hostname) {
   if (typeof token !== 'string' || !token || token.length > 2048) return false;
   try {
     const response = await withTimeout(fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       body: new URLSearchParams({ secret: String(env.TURNSTILE_SECRET), response: token, ...(ip && ip !== 'unknown' ? { remoteip: ip } : {}) }),
     }), 5000);
-    const result = /** @type {{ success?: unknown } | null} */ (await response.json());
-    return result && result.success === true;
+    const result = /** @type {{ success?: unknown, hostname?: unknown } | null} */ (await response.json());
+    return Boolean(result && result.success === true && result.hostname === hostname);
   } catch {
     return false;
   }

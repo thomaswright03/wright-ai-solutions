@@ -25,6 +25,7 @@ interface Env {
   TURNSTILE_SECRET?: string;
   ADMIN_PASSWORD?: string;
   NTFY_TOPIC?: string;
+  NTFY_TOKEN?: string;
   CAL_API_KEY?: string;
   // Settings.
   TURNSTILE_SITE_KEY?: string;

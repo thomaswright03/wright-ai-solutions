@@ -34,6 +34,8 @@ They're told to wait a minute; what they typed stays in the box.
 
 - `worker.spec.mjs: a visitor over the rate limit gets 429 and the model is not called`
 - `worker.spec.mjs: saving is rate limited per visitor`
+- `worker.spec.mjs: a missing rate limit binding refuses requests instead of allowing them all, and is logged`
+- `worker.spec.mjs: the counting stand-in refuses past the limit in wrangler.jsonc`
 
 ### 5. The bot check fails, or wants a tick
 
@@ -133,9 +135,11 @@ The address is shown to copy by hand.
 
 ### 19. A service key expires, or a service stops answering
 
-The daily check shows it on `/admin`, sends Thomas a phone alert, and the live check after each deploy and every morning fails. The failed service is checked again every hour, so once it answers again the live check passes the same day. When the only failure is the AI's free allowance being used up, `/admin` says so, no alert goes out, and the live check warns rather than fails.
+The daily check shows it on `/admin`, sends Thomas a phone alert, and the live check after each deploy and every morning fails. The failed service is checked again every hour, so once it answers again the live check passes the same day. When the only failure is the AI's free allowance being used up, `/admin` says so, no alert goes out, and the live check warns rather than fails. If the phone alert service itself refuses, the alert goes to Thomas's email instead, and `/admin` says so next to the check.
 
 - `worker.spec.mjs: a failing service is shown, alerted and published`
+- `worker.spec.mjs: go by email when ntfy doesn't take them, and use the ntfy access token when there is one`
+- `worker.spec.mjs: the daily check says when ntfy refuses and that alerts go by email instead`
 - `worker.spec.mjs: a failed service is checked again each hour until it passes, without another alert`
 - `worker.spec.mjs: a used-up AI allowance is reported as that, not as an outage, and clears when the allowance frees up`
 - `site.spec.mjs: passes with nothing connected, and fails when the calendar is down`

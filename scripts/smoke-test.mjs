@@ -2,7 +2,8 @@
 // meet it: the pages load with their security headers, the API answers, the
 // calendar (Cal.com) gives open times, the AI eval result is published, the
 // Worker's own daily check of each outside service passed, and the private
-// pages stay private. It only reads: nothing is saved, emailed or
+// pages stay private. Last, it checks the per-address rate limit refuses a
+// burst of requests. It only reads: nothing is saved, emailed or
 // booked. Run by .github/workflows/deploy-check.yml after every deploy and
 // each morning, and by tests/site.spec.mjs against the local server.
 //
@@ -19,7 +20,7 @@ const DAY = 24 * 60 * 60 * 1000;
 class Warning extends Error {}
 
 // Every check, in order. Each returns a short note for the log, or throws.
-export function checks(base, { sha = null, headers = {} } = {}) {
+export function checks(base, { sha = null, headers = {}, burst = true } = {}) {
   const get = (path, init = {}) => fetch(new URL(path, base), { redirect: 'manual', ...init, headers: { ...headers, ...init.headers }, signal: AbortSignal.timeout(20000) });
   const expectStatus = (res, status) => {
     if (res.status !== status) throw new Error(`answered ${res.status}, expected ${status}`);
@@ -112,6 +113,18 @@ export function checks(base, { sha = null, headers = {} } = {}) {
       const live = (await res.text()).trim();
       if (live !== sha) throw new Error(`serves ${live || 'nothing'}, expected ${sha}`);
       return live.slice(0, 7);
+    }],
+    // Last, since it uses up this address's API allowance for a minute.
+    ['rate limit', async () => {
+      if (!burst) return 'skipped';
+      // Up to 60 quick requests from one address to an API limited to 30 a minute
+      // (Cloudflare counts per location and catches up within a few requests).
+      for (let i = 1; i <= 60; i++) {
+        const res = await get(`/api/health?burst=${i}`);
+        if (res.status === 429) return `request ${i} was refused (429)`;
+        expectStatus(res, 200);
+      }
+      throw new Error('60 requests in a row from one address were all answered; the per-minute limit isn\'t working');
     }],
   ];
 }

@@ -13,7 +13,8 @@
 //
 // A request header "x-test-env" picks a separate set of stand-ins, for tests:
 // "bare" (nothing connected), or any of "turnstile", "caldown", "callost", "calsilent", "emaildown",
-// "nobook" (no Cal.com link), "noreminder" (no postal address) and "aiusedup"
+// "nobook" (no Cal.com link), "noreminder" (no postal address), "limits" (rate
+// limits counted as in production) and "aiusedup"
 // (an AI whose free daily allowance is used up) joined with
 // "+". Any other word just names a fresh set, so tests don't share saved leads
 // or booked times. Without the header, everything is connected ("demo").
@@ -116,10 +117,12 @@ function fakesFor(mode) {
     const fakes = new FakeServices({
       bare: flags.has('bare'),
       turnstile: flags.has('turnstile'),
+      turnstileHost: 'localhost',
       calDown: flags.has('caldown'),
       calLost: flags.has('callost'),
       calSilent: flags.has('calsilent'),
       emailDown: flags.has('emaildown'),
+      limits: flags.has('limits'),
     });
     if (flags.has('nobook')) delete fakes.env.CAL_LINK;
     if (flags.has('noreminder')) delete fakes.env.POSTAL_ADDRESS;

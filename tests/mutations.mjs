@@ -89,7 +89,7 @@ export const MUTATIONS = [
     risk: 12,
     why: 'the bot check is skipped',
     file: 'worker/outline.js',
-    find: 'if (on.turnstile && !(await passedBotCheck(env, body.turnstile, clientIp(request)))) {',
+    find: 'if (on.turnstile && !(await passedBotCheck(env, body.turnstile, clientIp(request), url.hostname))) {',
     replace: 'if (false) {',
   },
   {

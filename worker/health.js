@@ -12,7 +12,7 @@ import { calEvent, settings } from './config.js';
 import { ensureSchema } from './db.js';
 import { json, overLimit, tooMany, withTimeout } from './http.js';
 import { MODEL } from './outline.js';
-import { notify, openTimes } from './services.js';
+import { notify, ntfyFetch, openTimes } from './services.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -81,9 +81,12 @@ const CHECKS = {
   },
   async alerts(env) {
     if (!env.NTFY_TOPIC) return null;
-    const response = await withTimeout(fetch('https://ntfy.sh/v1/health'), 8000);
+    const response = await ntfyFetch(env, '/v1/health');
     const body = /** @type {{ healthy?: unknown } | null} */ (await response.json().catch(() => null));
-    return body && body.healthy === true ? { ok: true, note: 'ntfy is up' } : { ok: false, note: `ntfy answered ${response.status}` };
+    if (body && body.healthy === true) return { ok: true, note: 'ntfy is up' };
+    const fallback = env.RESEND_API_KEY ? '; alerts go to your email instead' : '';
+    const hint = response.status === 429 && !env.NTFY_TOKEN ? ' (ntfy limits Cloudflare\'s shared addresses; an NTFY_TOKEN fixes it)' : '';
+    return { ok: false, note: `ntfy answered ${response.status}${hint}${fallback}` };
   },
 };
 
@@ -144,7 +147,7 @@ export async function healthReport(env) {
 /** @param {Request} request @param {Env} env */
 export async function healthRoute(request, env) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
-  if (await overLimit(env.API_LIMIT, request)) return tooMany();
+  if (await overLimit(env.API_LIMIT, request, env)) return tooMany();
   const report = await healthReport(env);
   const services = report ? Object.entries(report.services) : [];
   return json({

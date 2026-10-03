@@ -6,6 +6,28 @@
 // Each FakeServices has its own database and outbox. withFakes() picks which
 // one the Worker's outgoing requests go to, for everything the call awaits.
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { readFileSync } from 'node:fs';
+
+// The per-minute limits in wrangler.jsonc, by binding name.
+const wrangler = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+const RATE_LIMITS = Object.fromEntries(wrangler.ratelimits.map(r => [r.name, r.simple.limit]));
+
+// A stand-in for Cloudflare's rate limiting binding: `limit` requests per key
+// in any minute, or no limit at all (null), so tests that load many pages from
+// one address aren't slowed by it.
+/** @param {number | null} limit */
+function fakeLimiter(limit) {
+  const hits = new Map();
+  return {
+    async limit({ key }) {
+      const now = Date.now();
+      const recent = (hits.get(key) || []).filter(t => t > now - 60000);
+      recent.push(now);
+      hits.set(key, recent);
+      return { success: limit === null || recent.length <= limit };
+    },
+  };
+}
 
 // Node 22.13 and later have SQLite built in. On an older Node the stand-ins
 // run without a database, so the page behaves as if saving isn't set up yet.
@@ -78,12 +100,14 @@ const OPEN_UTC = [[15, 0], [15, 30], [16, 30], [17, 0], [19, 0], [20, 0], [21, 3
 
 export class FakeServices {
   // options: { turnstile, calDown, calLost, calSilent, calFlaky, emailDown,
-  // emailFlaky, ntfyFlaky, resendSendOnly, domainStatus, bare }. calLost: Cal.com books the first call but the reply
+  // emailFlaky, ntfyFlaky, ntfyDown, limits, resendSendOnly, domainStatus, bare }. calLost: Cal.com books the first call but the reply
   // never arrives, the way a dropped connection or a timeout looks. calSilent:
   // the first booking request is lost the same way, but before Cal.com booked
   // anything. calFlaky / emailFlaky: the next n requests to Cal.com / Resend
   // get a 503 (briefly unavailable, nothing done). ntfyFlaky: ntfy's health
-  // check answers 503 the next n times.
+  // check answers 503 the next n times. ntfyDown: ntfy refuses every alert and
+  // health check. limits: the rate limits count as in production.
+  // turnstileHost: the site the bot check says a pass came from.
   constructor(options = {}) {
     this.options = options;
     this.requests = [];
@@ -98,6 +122,8 @@ export class FakeServices {
       NTFY_TOPIC: 'demo-topic',
       POSTAL_ADDRESS: '123 Example Street, Salt Lake City, UT 84101',
       ADMIN_PASSWORD: 'local-demo-password',
+      // Bound as in wrangler.jsonc; with `limits` they count as Cloudflare's do.
+      ...Object.fromEntries(Object.entries(RATE_LIMITS).map(([name, limit]) => [name, fakeLimiter(options.limits ? limit : null)])),
       ...(options.turnstile ? { TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET: 'test-turnstile-secret' } : {}),
     };
   }
@@ -144,9 +170,10 @@ export class FakeServices {
       return reply(200, { id: email.id });
     }
 
+    if (url.host === 'ntfy.sh' && this.options.ntfyDown) return reply(429, { error: 'limit reached' });
     if (url.host === 'ntfy.sh' && url.pathname === '/v1/health') return flaky('ntfyFlaky') ? reply(503, { healthy: false }) : reply(200, { healthy: true });
     if (url.host === 'ntfy.sh') {
-      this.alerts.push({ topic: decodeURIComponent(url.pathname.slice(1)), title: headers.get('Title'), click: headers.get('Click'), body });
+      this.alerts.push({ topic: decodeURIComponent(url.pathname.slice(1)), title: headers.get('Title'), click: headers.get('Click'), auth: headers.get('Authorization'), body });
       return reply(200, { id: 'alert' });
     }
 
@@ -154,8 +181,10 @@ export class FakeServices {
       const form = new URLSearchParams(body);
       this.botChecks.push({ response: form.get('response'), secret: form.get('secret'), remoteip: form.get('remoteip') });
       const secretOk = form.get('secret') === this.env.TURNSTILE_SECRET;
-      const success = form.get('response') === 'pass-token' && secretOk;
-      return reply(200, { success, 'error-codes': success ? [] : [secretOk ? 'invalid-input-response' : 'invalid-input-secret'] });
+      // 'other-site-token' is a real pass, but on another site using the same key.
+      const success = ['pass-token', 'other-site-token'].includes(form.get('response')) && secretOk;
+      const hostname = form.get('response') === 'other-site-token' ? 'other-site.example' : this.options.turnstileHost || 'wright-ai-solutions.com';
+      return reply(200, { success, ...(success ? { hostname } : {}), 'error-codes': success ? [] : [secretOk ? 'invalid-input-response' : 'invalid-input-secret'] });
     }
 
     if (url.host === 'api.cal.com') {

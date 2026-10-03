@@ -116,7 +116,7 @@ export function configRoute(request, env) {
 export async function eventRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 1000);
   if (error) return error;
-  if (await overLimit(env.API_LIMIT, request)) return tooMany();
+  if (await overLimit(env.API_LIMIT, request, env)) return tooMany();
   ctx.waitUntil(count(env, settings(env).ownerTz, cameFrom(body), 'view').catch(() => {}));
   return json({ ok: true });
 }
@@ -128,7 +128,7 @@ export async function eventRoute(request, env, ctx, url) {
 export async function saveRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 24000);
   if (error) return error;
-  if (await overLimit(env.SAVE_LIMIT, request)) return tooMany();
+  if (await overLimit(env.SAVE_LIMIT, request, env)) return tooMany();
   const on = features(env);
   if (!on.save || !hasDatabase(env)) return json({ error: 'not_configured' }, 503);
   const email = normalizeEmail(body.email);
@@ -218,7 +218,7 @@ export async function saveRoute(request, env, ctx, url) {
 /** @param {Request} request @param {Env} env @param {WaitUntil} ctx @param {URL} url */
 export async function slotsRoute(request, env, ctx, url) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
-  if (await overLimit(env.API_LIMIT, request)) return tooMany();
+  if (await overLimit(env.API_LIMIT, request, env)) return tooMany();
   const on = features(env);
   if (!on.book || !on.cal) return json({ error: 'not_configured' }, 503);
 
@@ -254,7 +254,7 @@ const ownerTime = (timeZone, iso) => formatIn(timeZone, {
 export async function bookRoute(request, env, ctx, url) {
   const { body, error } = await readJson(request, url, 4000);
   if (error) return error;
-  if (await overLimit(env.SAVE_LIMIT, request)) return tooMany();
+  if (await overLimit(env.SAVE_LIMIT, request, env)) return tooMany();
   const on = features(env);
   if (!on.book || !on.cal || !hasDatabase(env)) return json({ error: 'not_configured' }, 503);
   const data = await verify(env, 'book', body.lead, BOOK_TOKEN_AGE);
@@ -339,7 +339,7 @@ export async function forgetRoute(request, env, url) {
   /** @param {string} words */
   const t = words => translate(STRINGS[lang], words);
   if (!['GET', 'POST'].includes(request.method)) return htmlResponse('Method not allowed', 405, { Allow: 'GET, POST' });
-  if (await overLimit(env.SAVE_LIMIT, request)) {
+  if (await overLimit(env.SAVE_LIMIT, request, env)) {
     return htmlResponse(forgetPage(lang, t('Too many tries'), t('Wait a minute, then try the link again.')), 429, { 'Retry-After': '60' });
   }
   const contact = t('Email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> and your details will be deleted by hand.');
@@ -387,6 +387,7 @@ export async function runSchedule(env, now = Date.now()) {
     env.DB.prepare('DELETE FROM outline_outcomes WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM ai_usage WHERE hour < ?').bind(iso(now - 2 * DAY).slice(0, 13)),
     env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
+    env.DB.prepare('DELETE FROM admin_failures WHERE at < ?').bind(iso(now - 2 * DAY)),
     env.DB.prepare('DELETE FROM admin_log WHERE at < ?').bind(iso(now - 400 * DAY)),
   ]);
   const removed = Number(expired && expired.meta && expired.meta.changes) || 0;

@@ -7,7 +7,8 @@ import worker, { MODEL, SYSTEM_PROMPT, validateOutline, templateOutline } from '
 import { ensureSchema } from '../worker/db.js';
 import { CASES, EVAL_BAR, EVAL_BATCH, EVAL_HISTORY, EVAL_ROOM, evalVersion, judge, requestFor } from '../worker/eval.js';
 import { cleanProblem, looksLikeInjection, rejectionReason, settleKind, writtenIn } from '../worker/outline.js';
-import { bookCall, openTimes, sendEmail } from '../worker/services.js';
+import { bookCall, notify, openTimes, sendEmail } from '../worker/services.js';
+import { ADMIN_FAILURES_PER_HOUR, ADMIN_FAILURE_ALERT } from '../worker/admin.js';
 import { runHealthChecks } from '../worker/health.js';
 import { STRINGS } from '../worker/strings.js';
 import { translate } from '../languages.js';
@@ -274,7 +275,8 @@ test.describe('outline', () => {
 
   test('with the bot check on, only a visitor Cloudflare vouches for gets an outline', async () => {
     const fakes = fakesWith({ AI: fakeAI(GOOD) }, { turnstile: true });
-    for (const token of [undefined, '', 'fail-token', 'x'.repeat(3000)]) {
+    // 'other-site-token' passed the check, but on another site using the same key.
+    for (const token of [undefined, '', 'fail-token', 'x'.repeat(3000), 'other-site-token']) {
       const res = await send(fakes, post('/api/outline', { problem, turnstile: token }));
       expect(res.status, String(token)).toBe(403);
       expect(await res.json()).toEqual({ error: 'bot_check' });
@@ -896,6 +898,122 @@ test.describe('leads list', () => {
   test('slows down password guessing', async () => {
     const fakes = fakesWith({ ADMIN_LIMIT: { async limit() { return { success: false }; } } });
     expect((await send(fakes, get('/admin', basic('local-demo-password')))).status).toBe(429);
+  });
+
+  test('wrong passwords shut out an address for an hour, even without the rate limit binding\'s help, and are logged without the password', async () => {
+    const fakes = new FakeServices();
+    const from = (ip, password) => get('/admin', { 'CF-Connecting-IP': ip, ...(password ? basic(password) : {}) });
+    const logged = [];
+    const realWarn = console.warn;
+    console.warn = line => logged.push(line);
+    try {
+      // Asking without a password (what a browser does first) doesn't count.
+      for (let i = 0; i < 3; i++) expect((await send(fakes, from('198.51.100.1'))).status).toBe(401);
+      for (let i = 0; i < ADMIN_FAILURES_PER_HOUR; i++) expect((await send(fakes, from('198.51.100.1', 'wrong-guess-12345'))).status).toBe(401);
+    } finally {
+      console.warn = realWarn;
+    }
+    expect(logged).toHaveLength(ADMIN_FAILURES_PER_HOUR);
+    expect(JSON.parse(logged[0])).toMatchObject({ level: 'warn', event: 'admin_sign_in_failed', path: '/admin' });
+    expect(logged.join('')).not.toContain('wrong-guess');
+    // Even the right password is refused from that address now; another address is fine.
+    const shut = await send(fakes, from('198.51.100.1', 'local-demo-password'));
+    expect(shut.status).toBe(429);
+    expect(shut.headers.get('retry-after')).toBe('3600');
+    expect((await send(fakes, from('198.51.100.2', 'local-demo-password'))).status).toBe(200);
+    // The address itself isn't stored, only a keyed hash of it.
+    const stored = await rows(fakes, 'SELECT tag FROM admin_failures');
+    expect(stored).toHaveLength(ADMIN_FAILURES_PER_HOUR);
+    expect(JSON.stringify(stored)).not.toContain('198.51.100.1');
+    // An hour later the address can try again.
+    await fakes.env.DB.prepare('UPDATE admin_failures SET at = ?').bind(new Date(Date.now() - 61 * 60 * 1000).toISOString()).run();
+    expect((await send(fakes, from('198.51.100.1', 'local-demo-password'))).status).toBe(200);
+  });
+
+  test('a burst of wrong passwords from many addresses alerts Thomas once', async () => {
+    const fakes = new FakeServices();
+    const realWarn = console.warn;
+    console.warn = () => {};
+    try {
+      for (let i = 0; i < ADMIN_FAILURE_ALERT + 5; i++) {
+        expect((await send(fakes, get('/admin', { 'CF-Connecting-IP': `198.51.100.${i + 10}`, ...basic('wrong-guess-12345') }))).status).toBe(401);
+      }
+    } finally {
+      console.warn = realWarn;
+    }
+    expect(fakes.alerts.map(a => a.title)).toEqual(['Wrong passwords on your leads list']);
+    expect(fakes.alerts[0].body).toContain(`${ADMIN_FAILURE_ALERT} wrong passwords in the last hour`);
+  });
+
+  test('sends a test alert from the list, by phone or else by email, and records it', async () => {
+    const press = (fakes, origin) => send(fakes, new Request(`${ORIGIN}/admin/test-alert`, { method: 'POST', headers: { ...basic('local-demo-password'), Origin: origin } }));
+    const fakes = new FakeServices();
+    expect(await (await send(fakes, get('/admin', basic('local-demo-password')))).text()).toContain('<form method="post" action="/admin/test-alert">');
+    expect((await press(fakes, 'https://evil.example')).status).toBe(403);
+    expect(fakes.alerts).toEqual([]);
+    const res = await press(fakes, ORIGIN);
+    expect(res.status).toBe(303);
+    expect(fakes.alerts.map(a => a.title)).toEqual(['Test alert']);
+    expect(await rows(fakes, 'SELECT action FROM admin_log')).toEqual([{ action: 'sent a test alert (by phone)' }]);
+
+    const down = new FakeServices({ ntfyDown: true });
+    await press(down, ORIGIN);
+    expect(down.emails.map(e => [e.to, e.subject])).toEqual([[['t@thomasewright.com'], 'Alert: Test alert']]);
+    expect(await rows(down, 'SELECT action FROM admin_log')).toEqual([{ action: 'sent a test alert (by email, the phone alert failed)' }]);
+  });
+});
+
+test.describe('rate limits', () => {
+  test('a missing rate limit binding refuses requests instead of allowing them all, and is logged', async () => {
+    const fakes = new FakeServices();
+    delete fakes.env.API_LIMIT;
+    const logged = [];
+    const realError = console.error;
+    console.error = line => logged.push(line);
+    let res;
+    try {
+      res = await send(fakes, get('/api/health'));
+    } finally {
+      console.error = realError;
+    }
+    expect(res.status).toBe(429);
+    expect(JSON.parse(logged[0])).toMatchObject({ level: 'error', where: 'overLimit', error: 'rate limit binding missing' });
+    // The local server without a database has no bindings and no limit.
+    expect((await send(new FakeServices({ bare: true }), get('/api/health'))).status).toBe(200);
+  });
+
+  test('the counting stand-in refuses past the limit in wrangler.jsonc', async () => {
+    const fakes = new FakeServices({ limits: true });
+    const answers = [];
+    for (let i = 0; i < 32; i++) answers.push((await send(fakes, get('/api/health'))).status);
+    expect(answers.slice(0, 30).every(s => s === 200)).toBe(true);
+    expect(answers.slice(30)).toEqual([429, 429]);
+  });
+});
+
+test.describe('phone alerts', () => {
+  test('go by email when ntfy doesn\'t take them, and use the ntfy access token when there is one', async () => {
+    const down = new FakeServices({ ntfyDown: true });
+    const how = await withFakes(down, () => notify(down.env, { title: 'Call booked', body: 'Tuesday at 10am.', click: `${ORIGIN}/admin` }));
+    expect(how).toBe('email');
+    expect(down.emails).toHaveLength(1);
+    expect(down.emails[0]).toMatchObject({ to: ['t@thomasewright.com'], subject: 'Alert: Call booked' });
+    expect(down.emails[0].text).toContain('Tuesday at 10am.');
+    expect(down.emails[0].text).toContain('the phone alert didn\'t go through');
+
+    const up = fakesWith({ NTFY_TOKEN: 'tk_example' });
+    expect(await withFakes(up, () => notify(up.env, { title: 'Call booked', body: 'Tuesday at 10am.' }))).toBe('phone');
+    expect(up.alerts[0].auth).toBe('Bearer tk_example');
+    expect(up.emails).toEqual([]);
+  });
+
+  test('the daily check says when ntfy refuses and that alerts go by email instead', async () => {
+    const fakes = new FakeServices({ ntfyDown: true });
+    await withFakes(fakes, () => runHealthChecks(fakes.env, Date.UTC(2026, 9, 6, 0, 17)));
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('Phone alerts (ntfy), ntfy answered 429 (ntfy limits Cloudflare&#39;s shared addresses; an NTFY_TOKEN fixes it); alerts go to your email instead');
+    // The failing-service alert itself came by email.
+    expect(fakes.emails.map(e => e.subject)).toEqual(['Alert: A service /start needs is failing']);
   });
 });
 

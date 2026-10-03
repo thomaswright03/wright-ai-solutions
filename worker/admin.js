@@ -3,13 +3,21 @@
 // ADMIN_PASSWORD secret (the browser's own sign-in box) and is off entirely
 // until that password and the database exist.
 import { features, settings } from './config.js';
-import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
+import { addressTag, audit, count, dayIn, ensureSchema, formatIn, hasDatabase } from './db.js';
 import { evalReport } from './eval.js';
 import { SERVICES, healthReport } from './health.js';
-import { bytesToText, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
+import { bytesToText, clientIp, escapeHtml as esc, htmlResponse, overLimit } from './http.js';
 import { page } from './pages.js';
+import { notify } from './services.js';
 
 const LIST_LIMIT = 200;
+const HOUR = 60 * 60 * 1000;
+// Wrong passwords from one address in an hour before the list stops checking
+// them for that address. Counted in the database, so it holds even if the
+// rate limit binding (ADMIN_LIMIT) doesn't.
+export const ADMIN_FAILURES_PER_HOUR = 10;
+// Wrong passwords from anywhere in an hour that make a phone alert.
+export const ADMIN_FAILURE_ALERT = 20;
 
 /** @param {string | undefined} text */
 async function sha256(text) {
@@ -33,6 +41,27 @@ async function signedIn(request, env) {
   let difference = 0;
   for (let i = 0; i < given.length; i++) difference |= given[i] ^ expected[i];
   return difference === 0;
+}
+
+// Logs a wrong password (never the password itself) and counts it, and alerts
+// Thomas the moment wrong passwords from anywhere reach ADMIN_FAILURE_ALERT in
+// an hour, so a guessing attempt is noticed while it happens.
+/** @param {EnvWithDB} env @param {Request} request @param {URL} url @param {string} tag */
+async function failedSignIn(env, request, url, tag) {
+  const now = Date.now();
+  console.warn(JSON.stringify({ level: 'warn', event: 'admin_sign_in_failed', path: url.pathname, ref: (request.headers.get('CF-Ray') || '').split('-')[0] || null }));
+  const [, recent] = await env.DB.batch([
+    env.DB.prepare('INSERT INTO admin_failures (tag, at) VALUES (?, ?)').bind(tag, new Date(now).toISOString()),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM admin_failures WHERE at > ?').bind(new Date(now - HOUR).toISOString()),
+  ]);
+  const n = Number(/** @type {{ n?: unknown }[]} */ (recent.results || [])[0]?.n);
+  if (n === ADMIN_FAILURE_ALERT) {
+    await notify(env, {
+      title: 'Wrong passwords on your leads list',
+      body: `${n} wrong passwords in the last hour. If that wasn't you, someone is guessing; each address is shut out after ${ADMIN_FAILURES_PER_HOUR}. Your password is safe as long as it's long and not used anywhere else.`,
+      click: `${url.origin}/admin`,
+    });
+  }
 }
 
 // The Worker's pages send no referrer at all, which makes browsers label a
@@ -180,7 +209,8 @@ function healthPanel(report, timeZone) {
 <h2 id="health-title">Outside services</h2>
 ${report ? `<p>Checked ${esc(when(report.checkedAt))}.</p>` : ''}
 ${body}
-<p class="admin-muted">Checked once a day, and again every hour while one is failing; a phone alert goes out when one fails. Public summary: <a href="/api/health">/api/health</a></p>
+<p class="admin-muted">Checked once a day, and again every hour while one is failing; a phone alert goes out when one fails (by email if the phone alert doesn't go through). Public summary: <a href="/api/health">/api/health</a></p>
+<form method="post" action="/admin/test-alert"><button type="submit" class="btn btn-ghost">Send a test alert</button></form>
 </section>`;
 }
 
@@ -295,26 +325,37 @@ async function settleBooking(env, timeZone, id, booked) {
 /** @param {Request} request @param {Env} env @param {URL} url */
 export async function adminRoute(request, env, url) {
   if (!features(env).admin || !hasDatabase(env)) return notFound();
-  if (await overLimit(env.ADMIN_LIMIT, request)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
+  if (await overLimit(env.ADMIN_LIMIT, request, env)) return adminPage('Too many requests. Wait a minute.', 429, { 'Retry-After': '60' });
+  await ensureSchema(env.DB);
+  const tag = await addressTag(env, clientIp(request));
+  const failures = await env.DB.prepare('SELECT COUNT(*) AS n FROM admin_failures WHERE tag = ? AND at > ?')
+    .bind(tag, new Date(Date.now() - HOUR).toISOString()).first('n');
+  if (Number(failures) >= ADMIN_FAILURES_PER_HOUR) return adminPage('Too many wrong passwords. Try again in an hour.', 429, { 'Retry-After': '3600' });
   if (!(await signedIn(request, env))) {
+    // A browser asks without a password first; only a wrong one counts.
+    if (request.headers.has('Authorization')) await failedSignIn(env, request, url, tag);
     return adminPage(page({ title: 'Sign in', body: '<h1>Sign in to see your leads</h1><p>Use the ADMIN_PASSWORD you set in Cloudflare. Any username works.</p>' }), 401, {
       'WWW-Authenticate': 'Basic realm="Leads", charset="UTF-8"',
     });
   }
-  await ensureSchema(env.DB);
   const timeZone = settings(env).ownerTz;
 
-  if (url.pathname === '/admin/delete' || url.pathname === '/admin/booking') {
+  if (url.pathname === '/admin/delete' || url.pathname === '/admin/booking' || url.pathname === '/admin/test-alert') {
     if (request.method !== 'POST') return adminPage('Method not allowed', 405, { Allow: 'POST' });
     // The browser re-sends the password on any request to this site, so only a
     // form on this site's own page may change anything. Browsers mark where a
     // request came from in headers no page can set: Origin, and Sec-Fetch-Site.
     const fromThisSite = request.headers.get('Origin') === url.origin || request.headers.get('Sec-Fetch-Site') === 'same-origin';
     if (!fromThisSite) return adminPage('Forbidden', 403);
-    const form = await request.formData().catch(() => null);
-    const id = form ? form.get('id') : null;
     /** @param {string} location */
     const back = location => new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
+    if (url.pathname === '/admin/test-alert') {
+      const how = await notify(env, { title: 'Test alert', body: 'You asked for this from your leads list. Alerts are reaching you.', click: `${url.origin}/admin#health-title` });
+      await audit(env.DB, how ? `sent a test alert (by ${how === 'phone' ? 'phone' : 'email, the phone alert failed'})` : 'sent a test alert, which failed (no phone alert and no email)');
+      return back('/admin#changes-title');
+    }
+    const form = await request.formData().catch(() => null);
+    const id = form ? form.get('id') : null;
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,40}$/.test(id)) return back('/admin');
     if (url.pathname === '/admin/delete') {
       const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();

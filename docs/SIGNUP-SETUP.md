@@ -77,6 +77,8 @@ You'll already get the lead email and Cal.com's booking email on your phone. Thi
 1. Install the **ntfy** app (App Store or Google Play).
 2. Tap **+** and subscribe to a topic with a long, random name nobody could guess, like `wright-leads-` followed by 20 random letters. Anyone who knows the name can read or send these alerts, so treat it like a password.
 3. Add that exact topic name as a secret named `NTFY_TOPIC`.
+4. Optional but recommended: ntfy.sh may limit requests from Cloudflare's shared addresses, so alerts sent from the Worker can be refused. Make a free account at ntfy.sh, create an access token (**Account** → **Access tokens**), and add it as a secret named `NTFY_TOKEN`; requests then count against your own account. Without it, an alert ntfy refuses is sent to your `LEADS_TO` email instead.
+5. On `/admin`, press **Send a test alert**. The changes log says whether it went by phone or by email.
 
 ## 6. Optional: the next-day reminder email
 
@@ -93,6 +95,7 @@ US law (CAN-SPAM) requires a valid physical postal address in commercial email, 
 | `RESEND_API_KEY` | Resend | Saving and emails (part 3) |
 | `CAL_API_KEY` | Cal.com | A higher Cal.com rate limit, and confirming a booking whose reply got lost (part 4, optional) |
 | `NTFY_TOPIC` | You make it up | Phone alerts (part 5, optional) |
+| `NTFY_TOKEN` | ntfy.sh account | Phone alerts that ntfy doesn't refuse from Cloudflare (part 5, optional) |
 
 ## Where the settings go
 

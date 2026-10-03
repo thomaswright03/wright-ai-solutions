@@ -1,0 +1,19 @@
+# Weekly pull requests for out-of-date or vulnerable dev tooling and GitHub
+# Actions. Each one runs the same required checks as any other change.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tooling:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
