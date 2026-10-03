@@ -6,7 +6,8 @@
   "scripts": {
     "serve": "node --disable-warning=ExperimentalWarning tests/serve.mjs",
     "test": "playwright test",
-    "validate": "html-validate index.html 404.html privacy.html start.html",
+    "validate": "html-validate *.html [a-z][a-z]/*.html",
+    "i18n": "node scripts/i18n.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p . && tsc -p tsconfig.browser.json",
     "deadcode": "knip --no-progress"

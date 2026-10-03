@@ -2,7 +2,17 @@
 // from a visitor or the AI is escaped before it goes into HTML. The visitor's
 // own words go only to Thomas, never back out to the address they typed, so
 // the form can't be used to send someone else a message.
+//
+// The visitor's emails are in the language of the page they used (lang, a
+// code from languages.js); Thomas's copy is in English.
+import { languageFor, translate } from '../languages.js';
 import { escapeHtml as esc } from './http.js';
+import { STRINGS } from './strings.js';
+
+// The words of an email in one language: t(english, vars) looks the English up.
+/** @param {string} lang */
+const wordsFor = lang => /** @param {string} text @param {Record<string, string | number>} [vars] */ (text, vars) => translate(STRINGS[languageFor(lang).code], text, vars);
+const ENGLISH = wordsFor('en');
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const INK = '#1a1a24';
@@ -20,10 +30,11 @@ const list = (items, tag) =>
 const button = (href, label) =>
   `<p style="margin:24px 0;"><a href="${esc(href)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px;">${esc(label)}</a></p>`;
 
-/** @param {{ title: string, preheader: string, body: string, footer: string }} parts */
-function layout({ title, preheader, body, footer }) {
+/** @param {{ title: string, preheader: string, body: string, footer: string, lang?: string }} parts */
+function layout({ title, preheader, body, footer, lang = 'en' }) {
+  const { tag, dir } = languageFor(lang);
   return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title></head>
+<html lang="${tag}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f8;">
 <div style="display:none;max-height:0;overflow:hidden;">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f8;"><tr><td align="center" style="padding:24px 12px;">
@@ -41,77 +52,80 @@ ${footer}
 const SIGNATURE_HTML = para(`Thomas Wright<br>Wright AI Solutions LLC<br><a href="https://wright-ai-solutions.com" style="color:${ACCENT};">wright-ai-solutions.com</a> · (801) 580-8630`, 'margin-top:24px;');
 const SIGNATURE_TEXT = 'Thomas Wright\nWright AI Solutions LLC\nwright-ai-solutions.com · (801) 580-8630';
 
-/** @param {Outline} outline */
-function outlineHtml(outline) {
+/** @param {Outline} outline @param {(text: string, vars?: Record<string, string | number>) => string} [t] */
+function outlineHtml(outline, t = ENGLISH) {
   return [
     `<h1 style="margin:8px 0 4px;font-size:22px;line-height:1.3;color:${INK};">${esc(outline.title)}</h1>`,
-    h2('What I\'d build'), para(esc(outline.build)),
-    h2('How it would work'), list(outline.steps, 'ol'),
-    h2('What I\'d need from you'), list(outline.needs, 'ul'),
-    h2('A first milestone we could aim for'), para(esc(outline.milestone)),
-    h2('What I\'d ask you on a call'), list(outline.questions, 'ul'),
+    h2(t('What I\'d build')), para(esc(outline.build)),
+    h2(t('How it would work')), list(outline.steps, 'ol'),
+    h2(t('What I\'d need from you')), list(outline.needs, 'ul'),
+    h2(t('A first milestone we could aim for')), para(esc(outline.milestone)),
+    h2(t('What I\'d ask you on a call')), list(outline.questions, 'ul'),
   ].join('\n');
 }
 
-/** @param {Outline} outline */
-function outlineText(outline) {
+/** @param {Outline} outline @param {(text: string, vars?: Record<string, string | number>) => string} [t] */
+function outlineText(outline, t = ENGLISH) {
   return [
     outline.title.toUpperCase(),
     '',
-    'What I\'d build',
+    t('What I\'d build'),
     outline.build,
     '',
-    'How it would work',
+    t('How it would work'),
     ...outline.steps.map((s, i) => `${i + 1}. ${s}`),
     '',
-    'What I\'d need from you',
+    t('What I\'d need from you'),
     ...outline.needs.map(s => `- ${s}`),
     '',
-    'A first milestone we could aim for',
+    t('A first milestone we could aim for'),
     outline.milestone,
     '',
-    'What I\'d ask you on a call',
+    t('What I\'d ask you on a call'),
     ...outline.questions.map(s => `- ${s}`),
   ].join('\n');
 }
 
-/** @param {string} source */
-const draftNote = source => source === 'ai'
-  ? 'It\'s a first draft that AI wrote from what you typed. I read every outline, and we\'d sharpen it together on a call.'
-  : 'It\'s a first draft based on what you typed. We\'d sharpen it together on a call.';
+/** @param {string} source @param {(text: string) => string} t */
+const draftNote = (source, t) => (source === 'ai'
+  ? t('It\'s a first draft that AI wrote from what you typed. I read every outline, and we\'d sharpen it together on a call.')
+  : t('It\'s a first draft based on what you typed. We\'d sharpen it together on a call.'));
 
-// To the visitor: the outline they asked for.
+// To the visitor: the outline they asked for, in the language of the page they used.
 /**
- * @param {{ outline: Outline, source: string, bookLink: string | null, forgetLink: string, followUp: boolean, postalAddress?: string }} parts
+ * @param {{ outline: Outline, source: string, bookLink: string | null, forgetLink: string, followUp: boolean, postalAddress?: string, lang?: string }} parts
  * @returns {EmailContent}
  */
-export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, postalAddress = '' }) {
-  const subject = `Your project outline: ${outline.title}`;
+export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, postalAddress = '', lang = 'en' }) {
+  const t = wordsFor(lang);
+  const subject = t('Your project outline: {title}', { title: outline.title });
   const cta = bookLink
-    ? { html: button(bookLink, 'Pick a time to talk') + para('Or just reply to this email.'), text: `Pick a time to talk: ${bookLink}\nOr just reply to this email.` }
-    : { html: para('Reply to this email and we\'ll find a time to talk.'), text: 'Reply to this email and we\'ll find a time to talk.' };
-  const why = 'You\'re getting this because this address was entered at wright-ai-solutions.com/start to receive this outline. If that wasn\'t you, you can ignore it.';
-  const reminder = followUp ? ' You asked for one reminder tomorrow if you haven\'t picked a time; deleting your details cancels it.' : '';
+    ? { html: button(bookLink, t('Pick a time to talk')) + para(esc(t('Or just reply to this email.'))), text: `${t('Pick a time to talk')}: ${bookLink}\n${t('Or just reply to this email.')}` }
+    : { html: para(esc(t('Reply to this email and we\'ll find a time to talk.'))), text: t('Reply to this email and we\'ll find a time to talk.') };
+  const why = t('You\'re getting this because this address was entered at wright-ai-solutions.com/start to receive this outline. If that wasn\'t you, you can ignore it.');
+  const reminder = followUp ? ` ${t('You asked for one reminder tomorrow if you haven\'t picked a time; deleting your details cancels it.')}` : '';
+  const intro = `${t('Here\'s the project outline you asked for.')} ${draftNote(source, t)}`;
   return {
     subject,
     html: layout({
+      lang,
       title: subject,
-      preheader: `${outline.title}: what I'd build, how it would work and a first milestone.`,
+      preheader: t('{title}: what I\'d build, how it would work and a first milestone.', { title: outline.title }),
       body: [
-        para('Hi,'),
-        para(`Here's the project outline you asked for. ${esc(draftNote(source))}`),
-        outlineHtml(outline),
+        para(esc(t('Hi,'))),
+        para(esc(intro)),
+        outlineHtml(outline, t),
         cta.html,
         SIGNATURE_HTML,
       ].join('\n'),
-      footer: `${esc(why + reminder)} <a href="${esc(forgetLink)}" style="color:${MUTED};">Delete my details</a>${postalAddress ? `<br>Wright AI Solutions LLC · ${esc(postalAddress)}` : ''}`,
+      footer: `${esc(why + reminder)} <a href="${esc(forgetLink)}" style="color:${MUTED};">${esc(t('Delete my details'))}</a>${postalAddress ? `<br>Wright AI Solutions LLC · ${esc(postalAddress)}` : ''}`,
     }),
     text: [
-      'Hi,',
+      t('Hi,'),
       '',
-      `Here's the project outline you asked for. ${draftNote(source)}`,
+      intro,
       '',
-      outlineText(outline),
+      outlineText(outline, t),
       '',
       cta.text,
       '',
@@ -119,7 +133,7 @@ export function outlineEmail({ outline, source, bookLink, forgetLink, followUp, 
       '',
       '--',
       why + reminder,
-      `Delete my details: ${forgetLink}`,
+      `${t('Delete my details')}: ${forgetLink}`,
       ...(postalAddress ? [`Wright AI Solutions LLC · ${postalAddress}`] : []),
     ].join('\n'),
   };
@@ -145,6 +159,7 @@ export function leadEmail({ lead, outline, adminLink, correctedFrom = null }) {
     ['Came from', `${AD_WORDS(lead.ad)}${lead.src !== 'direct' ? ` (${lead.src})` : ''}`],
     ['Outline', lead.source === 'ai' ? 'written by AI' : 'template (the AI was unavailable)'],
     ['Reminder tomorrow', lead.follow_up ? 'yes, they asked for one' : 'no'],
+    ...(lead.lang && lead.lang !== 'en' ? [['Language', `${languageFor(lead.lang).english} (their outline and emails are in it)`]] : []),
   ];
   return {
     subject,
@@ -180,43 +195,47 @@ export function leadEmail({ lead, outline, adminLink, correctedFrom = null }) {
 // To the visitor, once, the day after they saved, only if they ticked the box
 // and haven't booked. It carries the postal address US law (CAN-SPAM) asks for.
 /**
- * @param {{ outline: Outline, bookLink: string | null, forgetLink: string, postalAddress: string }} parts
+ * @param {{ outline: Outline, bookLink: string | null, forgetLink: string, postalAddress: string, lang?: string }} parts
  * @returns {EmailContent}
  */
-export function followUpEmail({ outline, bookLink, forgetLink, postalAddress }) {
-  const subject = `Following up on your outline: ${outline.title}`;
+export function followUpEmail({ outline, bookLink, forgetLink, postalAddress, lang = 'en' }) {
+  const t = wordsFor(lang);
+  const subject = t('Following up on your outline: {title}', { title: outline.title });
   const cta = bookLink
-    ? { html: button(bookLink, 'Pick a time to talk') + para('Or reply to this email with any questions.'), text: `Pick a time to talk: ${bookLink}\nOr reply to this email with any questions.` }
-    : { html: para('Reply to this email and we\'ll find a time.'), text: 'Reply to this email and we\'ll find a time.' };
-  const why = 'You asked for this one reminder when you saved your outline at wright-ai-solutions.com/start. This is the only one.';
+    ? { html: button(bookLink, t('Pick a time to talk')) + para(esc(t('Or reply to this email with any questions.'))), text: `${t('Pick a time to talk')}: ${bookLink}\n${t('Or reply to this email with any questions.')}` }
+    : { html: para(esc(t('Reply to this email and we\'ll find a time.'))), text: t('Reply to this email and we\'ll find a time.') };
+  const why = t('You asked for this one reminder when you saved your outline at wright-ai-solutions.com/start. This is the only one.');
+  const followingUp = t('Following up on your outline for “{title}”: if you\'d like to talk it through, a 30-minute call is the quickest way to see if it\'s a fit.', { title: outline.title });
+  const unsubscribe = t('Unsubscribe and delete my details');
   return {
     subject,
     html: layout({
+      lang,
       title: subject,
-      preheader: 'A quick call is the fastest way to see if it\'s a fit.',
+      preheader: t('A quick call is the fastest way to see if it\'s a fit.'),
       body: [
-        para('Hi,'),
-        para(`Following up on your outline for “${esc(outline.title)}”: if you'd like to talk it through, a 30-minute call is the quickest way to see if it's a fit.`),
+        para(esc(t('Hi,'))),
+        para(esc(followingUp)),
         cta.html,
-        para('If you\'ve already picked a time, thank you, and you can ignore this one.'),
+        para(esc(t('If you\'ve already picked a time, thank you, and you can ignore this one.'))),
         SIGNATURE_HTML,
       ].join('\n'),
-      footer: `${esc(why)} <a href="${esc(forgetLink)}" style="color:${MUTED};">Unsubscribe and delete my details</a><br>Wright AI Solutions LLC · ${esc(postalAddress)}`,
+      footer: `${esc(why)} <a href="${esc(forgetLink)}" style="color:${MUTED};">${esc(unsubscribe)}</a><br>Wright AI Solutions LLC · ${esc(postalAddress)}`,
     }),
     text: [
-      'Hi,',
+      t('Hi,'),
       '',
-      `Following up on your outline for "${outline.title}": if you'd like to talk it through, a 30-minute call is the quickest way to see if it's a fit.`,
+      followingUp,
       '',
       cta.text,
       '',
-      'If you\'ve already picked a time, thank you, and you can ignore this one.',
+      t('If you\'ve already picked a time, thank you, and you can ignore this one.'),
       '',
       SIGNATURE_TEXT,
       '',
       '--',
       why,
-      `Unsubscribe and delete my details: ${forgetLink}`,
+      `${unsubscribe}: ${forgetLink}`,
       `Wright AI Solutions LLC · ${postalAddress}`,
     ].join('\n'),
   };

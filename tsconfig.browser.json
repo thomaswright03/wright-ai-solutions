@@ -11,5 +11,5 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["start.js", "script.js", "outlines.js", "theme-init.js", "browser.d.ts"]
+  "include": ["start.js", "script.js", "outlines.js", "languages.js", "theme-init.js", "browser.d.ts"]
 }

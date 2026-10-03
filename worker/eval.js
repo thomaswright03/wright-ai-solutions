@@ -29,8 +29,10 @@ export const EVAL_ROOM = 40;
 const hintFor = c => (c.ad ? /** @type {AdPage} */ (adFor(c.ad)).kind : null);
 
 // The request for one case, exactly as /api/outline would send it.
+// A case with `lang` is one typed on that language's page, so the outline has
+// to come back in that language.
 /** @param {EvalCase} c */
-export const requestFor = c => outlineRequest(cleanProblem(c.problem), hintFor(c));
+export const requestFor = c => outlineRequest(cleanProblem(c.problem), hintFor(c), c.lang || 'en');
 
 // Whether the model's reply is right for the case: an outline that passes the
 // site's checks for a usable case, and a "usable": false for an unusable one.
@@ -38,8 +40,8 @@ export const requestFor = c => outlineRequest(cleanProblem(c.problem), hintFor(c
 // not required; a usable outline of another kind still helps the visitor.
 /** @param {EvalCase} c @param {unknown} raw @returns {CaseOutcome} */
 export function judge(c, raw) {
-  const outline = finishOutline(raw, cleanProblem(c.problem), hintFor(c));
-  const outcome = outline ? 'ai' : rejectionReason(raw);
+  const outline = finishOutline(raw, cleanProblem(c.problem), hintFor(c), c.lang || 'en');
+  const outcome = outline ? 'ai' : rejectionReason(raw, c.lang || 'en');
   const pass = c.expect === 'usable' ? Boolean(outline) : outcome === 'unusable';
   const kindMatch = c.kind && outline ? outline.kind === c.kind : null;
   return { outcome, pass, kindMatch, title: outline ? outline.title : null };

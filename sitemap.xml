@@ -1,12 +1,465 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://wright-ai-solutions.com/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
   </url>
   <url>
-    <loc>https://wright-ai-solutions.com/start</loc>
+    <loc>https://wright-ai-solutions.com/es/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/fr/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/pt/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/zh/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/tl/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/vi/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ar/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ko/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ru/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ht/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/"/>
   </url>
   <url>
     <loc>https://wright-ai-solutions.com/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/es/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/fr/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/pt/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/zh/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/tl/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/vi/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ar/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ko/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ru/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ht/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/privacy"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/privacy"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/privacy"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/privacy"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/privacy"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/es/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/fr/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/pt/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/zh/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/tl/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/vi/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ar/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ko/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ru/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
+  </url>
+  <url>
+    <loc>https://wright-ai-solutions.com/ht/start</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wright-ai-solutions.com/start"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://wright-ai-solutions.com/es/start"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wright-ai-solutions.com/fr/start"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://wright-ai-solutions.com/pt/start"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://wright-ai-solutions.com/zh/start"/>
+    <xhtml:link rel="alternate" hreflang="tl" href="https://wright-ai-solutions.com/tl/start"/>
+    <xhtml:link rel="alternate" hreflang="vi" href="https://wright-ai-solutions.com/vi/start"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://wright-ai-solutions.com/ar/start"/>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://wright-ai-solutions.com/ko/start"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://wright-ai-solutions.com/ru/start"/>
+    <xhtml:link rel="alternate" hreflang="ht" href="https://wright-ai-solutions.com/ht/start"/>
   </url>
 </urlset>

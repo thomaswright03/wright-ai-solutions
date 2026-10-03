@@ -8,6 +8,8 @@ import { audit, count, dayIn, ensureSchema, formatIn, hasDatabase, hourIn, inbox
 import { followUpEmail, leadEmail, outlineEmail } from './emails.js';
 import { clean, escapeHtml as esc, htmlResponse, json, overLimit, readJson, timeZoneOrNull, tooMany } from './http.js';
 import { page } from './pages.js';
+import { CODES, translate } from '../languages.js';
+import { STRINGS } from './strings.js';
 import { bookCall, findBooking, notify, openTimes, sendEmail } from './services.js';
 
 const HOUR = 60 * 60 * 1000;
@@ -90,9 +92,16 @@ async function takeInboxSend(env, email) {
 
 // The delete link for a lead. It's the same link every time (it's signed as of
 // when the lead was saved), so a retried email is identical to the first try.
-/** @param {EnvWithDB} env @param {string} origin @param {{ id: string, created_at: string }} lead */
-const forgetLinkFor = async (env, origin, lead) =>
-  `${origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', { id: lead.id }, Math.floor(Date.parse(lead.created_at) / 1000)))}`;
+// It carries the language of the visitor's emails, so the page it opens is in it too.
+/** @param {EnvWithDB} env @param {string} origin @param {{ id: string, created_at: string, lang?: string | null }} lead */
+const forgetLinkFor = async (env, origin, lead) => {
+  const payload = lead.lang && lead.lang !== 'en' ? { id: lead.id, l: lead.lang } : { id: lead.id };
+  return `${origin}/forget?t=${encodeURIComponent(await sign(env, 'lead', payload, Math.floor(Date.parse(lead.created_at) / 1000)))}`;
+};
+
+// A language code a visitor's page sent, or English.
+/** @param {unknown} value @returns {string} */
+export const langOrEnglish = value => (typeof value === 'string' && CODES.includes(value) ? value : 'en');
 
 /** @param {Request} request @param {Env} env */
 export function configRoute(request, env) {
@@ -144,11 +153,11 @@ export async function saveRoute(request, env, ctx, url) {
     lead = {
       id: newId(), outline_id: data.n, created_at: new Date().toISOString(), email, tz: timeZoneOrNull(body.timeZone),
       problem: String(data.problem), kind: outline.kind, ad: from.ad, src: from.src, source: data.source === 'ai' ? 'ai' : 'template',
-      outline: JSON.stringify(outline), follow_up: followUp, sends: 1, emailed_at: null,
+      outline: JSON.stringify(outline), follow_up: followUp, sends: 1, emailed_at: null, lang: langOrEnglish(data.lang),
     };
     const added = await env.DB.prepare(
-      'INSERT INTO leads (id, outline_id, created_at, email, tz, problem, kind, ad, src, source, outline, follow_up, sends) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (outline_id) DO NOTHING',
-    ).bind(lead.id, lead.outline_id, lead.created_at, lead.email, lead.tz, lead.problem, lead.kind, lead.ad, lead.src, lead.source, lead.outline, lead.follow_up, lead.sends).run();
+      'INSERT INTO leads (id, outline_id, created_at, email, tz, problem, kind, ad, src, source, outline, follow_up, sends, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (outline_id) DO NOTHING',
+    ).bind(lead.id, lead.outline_id, lead.created_at, lead.email, lead.tz, lead.problem, lead.kind, lead.ad, lead.src, lead.source, lead.outline, lead.follow_up, lead.sends, lead.lang).run();
     if (added.meta && added.meta.changes) {
       isNew = true;
     } else {
@@ -181,7 +190,7 @@ export async function saveRoute(request, env, ctx, url) {
   let emailed = true;
   if (send) {
     const forgetLink = await forgetLinkFor(env, url.origin, lead);
-    const message = outlineEmail({ outline, source: lead.source, bookLink: on.cal ? on.cal.link : null, forgetLink, followUp: Boolean(lead.follow_up), postalAddress: cfg.postalAddress });
+    const message = outlineEmail({ outline, source: lead.source, bookLink: on.cal ? on.cal.link : null, forgetLink, followUp: Boolean(lead.follow_up), postalAddress: cfg.postalAddress, lang: langOrEnglish(lead.lang) });
     emailed = await sendEmail(env, { from: cfg.from, to: [lead.email], reply_to: cfg.replyTo, ...message }, `outline-${lead.id}-${lead.sends}`);
     if (emailed) await env.DB.prepare('UPDATE leads SET emailed_at = ? WHERE id = ? AND email = ?').bind(new Date().toISOString(), lead.id, lead.email).run();
   }
@@ -257,8 +266,8 @@ export async function bookRoute(request, env, ctx, url) {
   const timeZone = timeZoneOrNull(body.timeZone) || 'UTC';
 
   await ensureSchema(env.DB);
-  /** @type {Pick<LeadRow, 'id' | 'email' | 'ad' | 'src' | 'kind' | 'outline' | 'booked_at'> | null} */
-  const lead = await env.DB.prepare('SELECT id, email, ad, src, kind, outline, booked_at FROM leads WHERE id = ?').bind(data.id).first();
+  /** @type {Pick<LeadRow, 'id' | 'email' | 'ad' | 'src' | 'kind' | 'outline' | 'booked_at' | 'lang'> | null} */
+  const lead = await env.DB.prepare('SELECT id, email, ad, src, kind, outline, booked_at, lang FROM leads WHERE id = ?').bind(data.id).first();
   if (!lead) return json({ error: 'gone' }, 410);
   // Claim the lead first, so two tabs can't book two calls for it. A lead
   // still 'pending' is one whose booking Cal.com never clearly answered;
@@ -276,6 +285,7 @@ export async function bookRoute(request, env, ctx, url) {
       name,
       email: lead.email,
       timeZone,
+      lang: langOrEnglish(lead.lang),
       notes: `Outline from wright-ai-solutions.com/start: ${JSON.parse(lead.outline).title}`,
       metadata: { source: 'start-page', ad: lead.ad },
     });
@@ -313,9 +323,10 @@ export async function bookRoute(request, env, ctx, url) {
   return json({ ok: true, start: bookedAt });
 }
 
-/** @param {string} title @param {string} text @param {string} [extra] */
-function forgetPage(title, text, extra = '') {
-  return page({ title, body: `<p class="eyebrow">Your details</p>\n<h1>${esc(title)}</h1>\n<p>${text}</p>${extra}` });
+// The pages for the delete link, in the visitor's language. text is HTML.
+/** @param {string} lang @param {string} title @param {string} text @param {string} [extra] */
+function forgetPage(lang, title, text, extra = '') {
+  return page({ lang, title, body: `<p class="eyebrow">${esc(translate(STRINGS[lang], 'Your details'))}</p>\n<h1>${esc(title)}</h1>\n<p>${text}</p>${extra}` });
 }
 
 // /forget?t=<token>: the "delete my details" link in every email. GET only
@@ -323,37 +334,42 @@ function forgetPage(title, text, extra = '') {
 // including a mail app's one-click unsubscribe.
 /** @param {Request} request @param {Env} env @param {URL} url */
 export async function forgetRoute(request, env, url) {
+  // English until the link's token says otherwise.
+  let lang = 'en';
+  /** @param {string} words */
+  const t = words => translate(STRINGS[lang], words);
   if (!['GET', 'POST'].includes(request.method)) return htmlResponse('Method not allowed', 405, { Allow: 'GET, POST' });
   if (await overLimit(env.SAVE_LIMIT, request)) {
-    return htmlResponse(forgetPage('Too many tries', 'Wait a minute, then try the link again.'), 429, { 'Retry-After': '60' });
+    return htmlResponse(forgetPage(lang, t('Too many tries'), t('Wait a minute, then try the link again.')), 429, { 'Retry-After': '60' });
   }
-  const contact = 'Email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> and your details will be deleted by hand.';
-  if (!hasDatabase(env)) return htmlResponse(forgetPage('This link doesn\'t work', contact), 404);
+  const contact = t('Email <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> and your details will be deleted by hand.');
+  if (!hasDatabase(env)) return htmlResponse(forgetPage(lang, t('This link doesn\'t work'), contact), 404);
 
   let token = url.searchParams.get('t');
   if (request.method === 'POST') {
-    if (Number(request.headers.get('Content-Length') || 0) > 4000) return htmlResponse(forgetPage('This link doesn\'t work', contact), 413);
+    if (Number(request.headers.get('Content-Length') || 0) > 4000) return htmlResponse(forgetPage(lang, t('This link doesn\'t work'), contact), 413);
     const form = await request.formData().catch(() => null);
     const posted = form ? form.get('t') : null;
     if (typeof posted === 'string' && posted) token = posted;
   }
   const data = await verify(env, 'lead', token);
-  if (!data) return htmlResponse(forgetPage('This link doesn\'t work', `It may have been cut short. ${contact}`), 400);
+  if (!data) return htmlResponse(forgetPage(lang, t('This link doesn\'t work'), `${t('It may have been cut short.')} ${contact}`), 400);
+  lang = langOrEnglish(data.l);
 
   if (request.method === 'POST') {
     const deleted = await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(data.id).run();
     if (deleted.meta && deleted.meta.changes) await audit(env.DB, 'deleted by the visitor', String(data.id));
-    return htmlResponse(forgetPage('Your details are deleted', 'Nothing more will be sent to you from this site. If you booked a call, it stays on the calendar until you cancel it with the link in your invite.'));
+    return htmlResponse(forgetPage(lang, t('Your details are deleted'), t('Nothing more will be sent to you from this site. If you booked a call, it stays on the calendar until you cancel it with the link in your invite.')));
   }
   const lead = await env.DB.prepare('SELECT id FROM leads WHERE id = ?').bind(data.id).first();
-  if (!lead) return htmlResponse(forgetPage('Already deleted', 'There\'s nothing left to delete.'));
+  if (!lead) return htmlResponse(forgetPage(lang, t('Already deleted'), t('There\'s nothing left to delete.')));
   const form = `
 <form method="post" action="/forget" class="forget-form">
   <input type="hidden" name="t" value="${esc(token)}">
-  <button type="submit" class="btn btn-primary">Delete my details</button>
+  <button type="submit" class="btn btn-primary">${esc(t('Delete my details'))}</button>
 </form>
-<p>Thomas also got one copy by email when you saved your outline. Ask at <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> to have that deleted too.</p>`;
-  return htmlResponse(forgetPage('Delete your details?', 'This removes your email address, what you wrote and your outline from Thomas\'s list, and cancels the reminder email if you asked for one. If you booked a call, cancel it with the link in your calendar invite.', form));
+<p>${t('Thomas also got one copy by email when you saved your outline. Ask at <a href="mailto:t@thomasewright.com">t@thomasewright.com</a> to have that deleted too.')}</p>`;
+  return htmlResponse(forgetPage(lang, t('Delete your details?'), t('This removes your email address, what you wrote and your outline from Thomas\'s list, and cancels the reminder email if you asked for one. If you booked a call, cancel it with the link in your calendar invite.'), form));
 }
 
 // Hourly (see wrangler.jsonc): delete old leads and counts, then send any
@@ -383,9 +399,9 @@ export async function runSchedule(env, now = Date.now()) {
   // With the mid-morning window below, anything saved before about 10pm goes
   // out the next morning, matching the "tomorrow" on the page. All of them are
   // checked, so people it isn't morning for yet can't hold up those it is.
-  /** @type {D1Result<Pick<LeadRow, 'id' | 'email' | 'tz' | 'outline' | 'created_at'>>} */
+  /** @type {D1Result<Pick<LeadRow, 'id' | 'email' | 'tz' | 'outline' | 'created_at' | 'lang'>>} */
   const { results } = await env.DB.prepare(
-    'SELECT id, email, tz, outline, created_at FROM leads WHERE follow_up = 1 AND booked_at IS NULL AND follow_up_sent_at IS NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at',
+    'SELECT id, email, tz, outline, created_at, lang FROM leads WHERE follow_up = 1 AND booked_at IS NULL AND follow_up_sent_at IS NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at',
   ).bind(iso(now - 12 * HOUR), iso(now - 72 * HOUR)).all();
 
   let sent = 0;
@@ -399,7 +415,7 @@ export async function runSchedule(env, now = Date.now()) {
     if (!claim.meta || !claim.meta.changes) continue;
     sent += 1;
     const forgetLink = await forgetLinkFor(env, cfg.siteUrl, lead);
-    const message = followUpEmail({ outline: JSON.parse(lead.outline), bookLink: cal ? cal.link : null, forgetLink, postalAddress: cfg.postalAddress });
+    const message = followUpEmail({ outline: JSON.parse(lead.outline), bookLink: cal ? cal.link : null, forgetLink, postalAddress: cfg.postalAddress, lang: langOrEnglish(lead.lang) });
     const delivered = await sendEmail(env, {
       from: cfg.from,
       to: [lead.email],

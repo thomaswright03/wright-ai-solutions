@@ -25,6 +25,7 @@
 // In GitHub Actions the same Markdown goes to the run's summary page
 // (.github/workflows/eval-outlines.yml).
 import { appendFileSync, writeFileSync } from 'node:fs';
+import { CODES } from '../languages.js';
 import { KINDS, adFor } from '../outlines.js';
 import { CASES, EVAL_BAR, evalVersion, judge, requestFor, runCase } from '../worker/eval.js';
 import { MIN_PROBLEM, MODEL, cleanProblem, looksLikeInjection } from '../worker/outline.js';
@@ -53,6 +54,7 @@ export function checkCases(cases = CASES) {
     if (c.expect === 'usable' && looksLikeInjection(c.problem)) problems.push(`${c.id}: a real problem the injection guard would stop`);
     if (c.kind && !KINDS.includes(c.kind)) problems.push(`${c.id}: unknown kind "${c.kind}"`);
     if (c.ad && !adFor(c.ad)) problems.push(`${c.id}: unknown ad "${c.ad}"`);
+    if (c.lang && !CODES.includes(c.lang)) problems.push(`${c.id}: unknown language "${c.lang}"`);
   }
   if (problems.length) throw new Error(`worker/eval-cases.js:\n  ${problems.join('\n  ')}`);
   return cases;

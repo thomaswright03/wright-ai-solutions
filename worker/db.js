@@ -27,7 +27,8 @@ const SCHEMA = [
     name TEXT,
     booked_at TEXT,
     booking_uid TEXT,
-    booking_start TEXT
+    booking_start TEXT,
+    lang TEXT
   )`,
   'CREATE INDEX IF NOT EXISTS leads_created_at ON leads (created_at)',
   // Daily totals per ad and ad platform: page views, outlines, saves, bookings.
@@ -83,8 +84,11 @@ const SCHEMA = [
 // EXISTS leaves an existing table as it is, so these are added on first use.
 //   leads.booking_start: the time the visitor picked, kept while Cal.com's
 //   answer is unclear ('pending'), so /admin can show it and mark it booked.
+//   leads.lang: the language of the page the outline was saved on (a code
+//   from languages.js), so the visitor's emails and delete page use it.
 const ADDED_COLUMNS = [
   ['leads', 'booking_start', 'TEXT'],
+  ['leads', 'lang', 'TEXT'],
 ];
 
 /** @param {D1Database} DB */

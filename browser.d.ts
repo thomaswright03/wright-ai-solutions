@@ -10,6 +10,11 @@ declare module '*/outlines.js?v=15' {
   export const OUTLINES: typeof import('./outlines.js').OUTLINES;
   export const adFor: typeof import('./outlines.js').adFor;
   export const pickKind: typeof import('./outlines.js').pickKind;
+  export const localize: typeof import('./outlines.js').localize;
+}
+declare module '*/languages.js?v=15' {
+  export const languageFor: typeof import('./languages.js').languageFor;
+  export const translate: typeof import('./languages.js').translate;
 }
 
 // Cloudflare Turnstile's script, the bot check on /start.

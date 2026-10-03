@@ -92,6 +92,8 @@ interface SavedLead extends CameFrom {
   outline: string;
   follow_up: number;
   sends: number;
+  // The language of the page they used, and of their emails (languages.js).
+  lang: string;
 }
 
 // A whole row of the leads table (db.js SCHEMA).

@@ -18,6 +18,7 @@ playwright-report
 .gitleaksignore
 SECURITY.md
 worker
+i18n
 eslint.config.js
 tsconfig.json
 knip.json

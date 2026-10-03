@@ -6,15 +6,26 @@ import { test, expect } from '@playwright/test';
 import worker, { MODEL, SYSTEM_PROMPT, validateOutline, templateOutline } from '../worker/index.js';
 import { ensureSchema } from '../worker/db.js';
 import { CASES, EVAL_BAR, EVAL_BATCH, EVAL_HISTORY, EVAL_ROOM, evalVersion, judge, requestFor } from '../worker/eval.js';
-import { cleanProblem, looksLikeInjection, rejectionReason, settleKind } from '../worker/outline.js';
+import { cleanProblem, looksLikeInjection, rejectionReason, settleKind, writtenIn } from '../worker/outline.js';
 import { bookCall, openTimes, sendEmail } from '../worker/services.js';
 import { runHealthChecks } from '../worker/health.js';
+import { STRINGS } from '../worker/strings.js';
+import { translate } from '../languages.js';
 import { AD_PAGES } from '../outlines.js';
 import { checkCases } from '../scripts/eval-outlines.mjs';
 import { addRows, parseCsv, siteRows } from '../scripts/record-eval.mjs';
 import { FakeD1, FakeServices, fakeContext, withFakes } from './fakes.mjs';
 
 import { GOOD, GOOD_OUTLINE, IP, ORIGIN, basic, fakeAI, fakesWith, get, post, problem, rows, saveLead, send } from './helpers.mjs';
+
+// The same outline in the languages the eval cases use, as the model answers
+// on those languages' pages.
+const GOOD_IN = {
+  es: { ...GOOD, title: 'Un agente que responde a cada llamada perdida', build: 'Construiría un agente que envía un mensaje a cada persona que llama cuando no puedes contestar y le ofrece una hora para venir.', steps: ['Una llamada queda sin respuesta.', 'El agente le escribe a quien llamó.', 'Le ofrece horarios libres.', 'Tu equipo sigue cuando la persona responde.'], needs: ['Acceso a tu sistema de teléfono', 'Tus reglas para las citas', 'Cómo saludas a tus clientes'], milestone: 'Responder las llamadas perdidas de una sola línea mientras ves cada mensaje.', questions: ['¿Cuántas llamadas pierdes?', '¿Quién agenda las citas hoy?', '¿Qué no debería decir nunca?'] },
+  zh: { ...GOOD, title: '未接来电自动回复助手', build: '我会为您搭建一个助手，给每一位未接通的来电者发短信，并为他们提供可预约的时间。', steps: ['有来电没有接到。', '助手给来电者发短信。', '它提供空闲时间。', '对方回复后由您的团队接手。'], needs: ['电话系统的访问权限', '您的预约规则', '您平时如何问候客户'], milestone: '先在一条线路上自动回复未接来电，您可以查看每一条消息。', questions: ['您每天错过多少来电？', '现在由谁负责预约？', '它绝对不能说什么？'] },
+  ar: { ...GOOD, title: 'مساعد يرد على المكالمات الفائتة', build: 'سأبني مساعدًا يرسل رسالة إلى كل متصل لم تتمكنوا من الرد عليه ويعرض عليه موعدًا مناسبًا.', steps: ['مكالمة لم يرد عليها أحد.', 'يرسل المساعد رسالة إلى المتصل.', 'يعرض المواعيد المتاحة.', 'يتولى فريقكم المحادثة عندما يرد.'], needs: ['الوصول إلى نظام الهاتف', 'قواعد الحجز لديكم', 'طريقة تحيتكم للعملاء'], milestone: 'الرد على المكالمات الفائتة من خط واحد بينما تراقبون كل رسالة.', questions: ['كم مكالمة تفوتكم؟', 'من يحجز المواعيد اليوم؟', 'ما الذي يجب ألا يقوله أبدًا؟'] },
+  ru: { ...GOOD, title: 'Помощник, который отвечает на пропущенные звонки', build: 'Я создаю помощника, который пишет каждому, чей звонок вы пропустили, и предлагает удобное время.', steps: ['Звонок остаётся без ответа.', 'Помощник пишет звонившему.', 'Он предлагает свободное время.', 'Ваша команда подключается, когда клиент отвечает.'], needs: ['Доступ к вашей телефонии', 'Ваши правила записи', 'Как вы приветствуете клиентов'], milestone: 'Ответы на пропущенные звонки с одной линии, пока вы видите каждое сообщение.', questions: ['Сколько звонков вы пропускаете?', 'Кто сейчас записывает клиентов?', 'Чего помощник не должен говорить?'] },
+};
 
 test.describe('outline', () => {
   test('returns the AI outline when the model replies with a valid one', async () => {
@@ -1068,7 +1079,8 @@ test.describe('AI outline eval on the site', () => {
         if (failOn.includes(ai.inputs.length)) throw new Error('quota');
         const c = CASES.find(k => input.messages[1].content.includes(cleanProblem(k.problem)));
         const answerable = (c.expect === 'usable') !== wrong.includes(c.id);
-        return { response: answerable ? { ...GOOD, kind: c.kind || 'general' } : { ...GOOD, usable: false } };
+        const good = GOOD_IN[c.lang] || GOOD;
+        return { response: answerable ? { ...good, kind: c.kind || 'general' } : { ...good, usable: false } };
       },
     };
     return ai;
@@ -1133,22 +1145,23 @@ test.describe('AI outline eval on the site', () => {
   });
 
   test('cases the model gets wrong are listed, and Thomas is alerted when it falls below the bar', async () => {
-    const fakes = fakesWith({ AI: evalAI({ wrong: ['spam-seo', 'abuse', 'data-invoices', 'website-new'] }) });
+    const fakes = fakesWith({ AI: evalAI({ wrong: ['spam-seo', 'abuse', 'data-invoices', 'website-new', 'not-business'] }) });
     await runToEnd(fakes, NOW);
     const { latest } = await report(fakes);
-    expect(latest).toMatchObject({ passed: CASES.length - 4, total: CASES.length });
+    expect(latest).toMatchObject({ passed: CASES.length - 5, total: CASES.length });
     expect(latest.rate).toBeLessThan(EVAL_BAR);
     expect(latest.results.filter(r => !r.pass)).toEqual([
       { id: 'data-invoices', expect: 'usable', pass: false, outcome: 'unusable', kindMatch: null },
       { id: 'website-new', expect: 'usable', pass: false, outcome: 'unusable', kindMatch: null },
       { id: 'spam-seo', expect: 'unusable', pass: false, outcome: 'ai', kindMatch: null },
       { id: 'abuse', expect: 'unusable', pass: false, outcome: 'ai', kindMatch: null },
+      { id: 'not-business', expect: 'unusable', pass: false, outcome: 'ai', kindMatch: null },
     ]);
     expect(fakes.alerts.map(a => a.title)).toEqual(['AI outline eval below the bar']);
-    expect(fakes.alerts[0].body).toContain(`${CASES.length - 4} of ${CASES.length} sample problems came back right`);
+    expect(fakes.alerts[0].body).toContain(`${CASES.length - 5} of ${CASES.length} sample problems came back right`);
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
     expect(html).toContain('<strong>Below the bar.</strong>');
-    expect(html).toContain('Missed: data-invoices (expected usable, got unusable), website-new (expected usable, got unusable), spam-seo (expected unusable, got ai), abuse (expected unusable, got ai).');
+    expect(html).toContain('Missed: data-invoices (expected usable, got unusable), website-new (expected usable, got unusable), spam-seo (expected unusable, got ai), abuse (expected unusable, got ai), not-business (expected unusable, got ai).');
   });
 
   test('keeps the last few runs, and alerts Thomas when the score drops, even above the bar', async () => {
@@ -1172,7 +1185,7 @@ test.describe('AI outline eval on the site', () => {
     expect(history[0]).not.toHaveProperty('results');
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
     expect(html).toContain('<caption>Recent runs, newest first</caption>');
-    expect(html).toContain(`<td>${CASES.length - 1} of ${CASES.length} (97%)</td>`);
+    expect(html).toContain(`<td>${CASES.length - 1} of ${CASES.length} (${Math.round(((CASES.length - 1) / CASES.length) * 100)}%)</td>`);
 
     // Only the last EVAL_HISTORY runs are listed.
     for (let week = 3; week < 3 + EVAL_HISTORY; week++) await runToEnd(fakes, NOW + week * 8 * DAY);
@@ -1186,7 +1199,7 @@ test.describe('AI outline eval on the site', () => {
     expect((await report(fakes)).running.done).toBe(3);
     // The failed call still used some of the allowance, so it's counted.
     expect(await rows(fakes, 'SELECT n FROM ai_daily')).toEqual([{ n: 4 }]);
-    for (let hour = 1; hour <= 3; hour++) await hourly(fakes, NOW + hour * HOUR);
+    for (let hour = 1; hour <= Math.ceil((CASES.length - 3) / EVAL_BATCH); hour++) await hourly(fakes, NOW + hour * HOUR);
     expect((await report(fakes)).latest).toMatchObject({ passed: CASES.length, total: CASES.length });
     expect(ai.inputs[3]).toEqual(ai.inputs[4]);
   });
@@ -1380,5 +1393,66 @@ test.describe('unexpected errors', () => {
       console.error = realError;
     }
     expect((await res.json()).ref).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+test.describe('translated pages', () => {
+  const es = text => translate(STRINGS.es, text);
+
+  test('the template comes back in the page\'s language, and the AI is asked to write in it', async () => {
+    const fakes = fakesWith({}, { bare: true });
+    const { outline, source } = await (await send(fakes, post('/api/outline', { problem, ad: 'leads', lang: 'es' }))).json();
+    expect(source).toBe('template');
+    expect(outline).toEqual(templateOutline('leads', 'es'));
+    expect(outline.title).toBe(es('An AI agent that answers your leads'));
+    expect(outline.title).not.toBe('An AI agent that answers your leads');
+
+    const ai = fakesWith({ AI: fakeAI(GOOD_IN.zh) }, { bare: true });
+    const reply = await (await send(ai, post('/api/outline', { problem: '我们中午经常错过电话，客户就去别家预约了。', lang: 'zh' }))).json();
+    expect(reply).toMatchObject({ source: 'ai', outline: { title: GOOD_IN.zh.title } });
+    expect(ai.env.AI.calls[0].input.messages[1].content).toContain('Write their outline in Simplified Chinese (Mandarin)');
+  });
+
+  test('an AI outline in the wrong language gets the template in the right one', async () => {
+    const fakes = fakesWith({ AI: fakeAI(GOOD) }, { bare: true });
+    const reply = await (await send(fakes, post('/api/outline', { problem, ad: 'leads', lang: 'ru' }))).json();
+    expect(reply).toMatchObject({ source: 'template', outline: templateOutline('leads', 'ru') });
+    expect(rejectionReason(GOOD, 'ru')).toBe('rejected');
+    expect(rejectionReason(GOOD_IN.ru, 'ru')).toBeNull();
+  });
+
+  test('knows each language when it sees it, and Chinese full stops aren\'t taken for web addresses', async () => {
+    for (const lang of ['es', 'zh', 'ar', 'ru']) {
+      const { usable, ...outline } = GOOD_IN[lang];
+      expect(writtenIn(outline, lang), lang).toBe(true);
+      expect(writtenIn(GOOD_OUTLINE, lang), `English on the ${lang} page`).toBe(false);
+      expect(validateOutline(GOOD_IN[lang], lang), lang).not.toBeNull();
+    }
+    expect(writtenIn(GOOD_OUTLINE, 'en')).toBe(true);
+    expect(validateOutline({ ...GOOD_IN.zh, build: '我会搭建一个助手。详情见example。com' }, 'zh')).toBeNull();
+    // Unknown languages are English.
+    const fakes = fakesWith({}, { bare: true });
+    const { outline } = await (await send(fakes, post('/api/outline', { problem, ad: 'leads', lang: 'xx' }))).json();
+    expect(outline.title).toBe('An AI agent that answers your leads');
+  });
+
+  test('the visitor\'s emails and delete page are in their language; Thomas\'s copy stays English', async () => {
+    const fakes = fakesWith();
+    const outline = await (await send(fakes, post('/api/outline', { problem, ad: 'leads', lang: 'es' }))).json();
+    await send(fakes, post('/api/save', { token: outline.token, email: 'ana@example.com', followUp: false, timeZone: 'America/Chicago' }));
+    const [toVisitor, toThomas] = fakes.emails;
+    expect(toVisitor.subject).toBe(es('Your project outline: {title}').replace('{title}', outline.outline.title));
+    expect(toVisitor.html).toContain('<html lang="es" dir="ltr">');
+    expect(toVisitor.text).toContain(es('How it would work'));
+    expect(toVisitor.text).not.toContain('How it would work');
+    expect(toThomas.subject).toBe(`New lead: ${outline.outline.title}`);
+    expect(toThomas.text).toContain('Language: Spanish');
+    expect(await rows(fakes, 'SELECT lang FROM leads')).toEqual([{ lang: 'es' }]);
+
+    const link = new URL(toVisitor.text.match(new RegExp(`${es('Delete my details')}: (\\S+)`))[1]);
+    const page = await (await send(fakes, get(`${link.pathname}${link.search}`))).text();
+    expect(page).toContain('<html lang="es" dir="ltr">');
+    expect(page).toContain(es('Delete your details?'));
+    expect(page).toContain('href="/es/privacy"');
   });
 });

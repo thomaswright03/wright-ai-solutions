@@ -267,3 +267,22 @@ export function pickKind(text, adKind = null) {
 export function adFor(key) {
   return typeof key === 'string' && Object.hasOwn(AD_PAGES, key) ? AD_PAGES[key] : null;
 }
+
+// The same words in another language: every string in an ad page or outline
+// looked up in that language's strings (scripts/i18n.mjs), keeping the English
+// where there's no translation. Keys like `kind` are ids, never translated.
+const NOT_WORDS = new Set(['kind']);
+/**
+ * @template T
+ * @param {T} value @param {Record<string, string> | null | undefined} strings @param {string | null} [key]
+ * @returns {T}
+ */
+export function localize(value, strings, key = null) {
+  if (key !== null && NOT_WORDS.has(key)) return value;
+  if (typeof value === 'string') return /** @type {T} */ (strings && Object.hasOwn(strings, value) ? strings[value] : value);
+  if (Array.isArray(value)) return /** @type {T} */ (value.map(v => localize(v, strings)));
+  if (value && typeof value === 'object') {
+    return /** @type {T} */ (Object.fromEntries(Object.entries(value).map(([k, v]) => [k, localize(v, strings, k)])));
+  }
+  return value;
+}

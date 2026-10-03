@@ -26,7 +26,7 @@ On the Workers Free plan nothing can be billed: past Workers AI's free 10,000 ne
 | Speech to text | the visitor's browser | Free, and the site never receives audio |
 | Everything else (validation, kind, guard, templates) | no model | Plain code: free, instant and exact |
 
-**Is a cheaper model good enough?** `scripts/eval-outlines.mjs --model=<id>` (or the GitHub eval's "model" box) runs the same 38 cases, with the site's prompt and checks, against another model, and records the result with that model's name. A model replaces the 70B one only if it scores 90% or more both ways, as the site runs it and by the model alone. Record each comparison in the table below.
+**Is a cheaper model good enough?** `scripts/eval-outlines.mjs --model=<id>` (or the GitHub eval's "model" box) runs the same 42 cases, with the site's prompt and checks, against another model, and records the result with that model's name. A model replaces the 70B one only if it scores 90% or more both ways, as the site runs it and by the model alone. Record each comparison in the table below.
 
 The 8B model, about 5 times the free outlines a day, fell well short: it turned away real requests as unusable (a vague one, a typo, a salon's phone problem, two near-misses) and broke the site's rules on others (rejected). The 70B model stays.
 
