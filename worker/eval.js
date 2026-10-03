@@ -202,6 +202,6 @@ export async function evalReport(env) {
 /** @param {Request} request @param {Env} env */
 export async function evalRoute(request, env) {
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
-  if (await overLimit(env.API_LIMIT, request)) return tooMany();
+  if (await overLimit(env.API_LIMIT, request, env)) return tooMany();
   return json(await evalReport(env));
 }

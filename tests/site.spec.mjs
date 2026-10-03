@@ -1195,25 +1195,31 @@ test.describe('live check', () => {
   const failures = results => results.filter(r => !r.ok).map(r => `${r.name}: ${r.note}`);
 
   test('passes on a working site, and only reads', async ({ baseURL, request }) => {
-    const mode = 'smokeok';
+    const mode = 'smokeok+limits';
     const results = await smokeTest(baseURL, { headers: { 'x-test-env': mode } });
     expect(failures(results)).toEqual([]);
+    expect(results.find(r => r.name === 'rate limit').note).toMatch(/^request \d+ was refused \(429\)$/);
     expect(results.find(r => r.name === 'calendar (Cal.com)').note).toMatch(/^\d+ open times/);
-    const state = await (await request.get(`/__test/state?mode=${mode}`)).json();
+    const state = await (await request.get(`/__test/state?mode=${encodeURIComponent(mode)}`)).json();
     expect(state).toEqual({ emails: [], alerts: [], bookings: [], botChecks: [] });
   });
 
   test('passes with nothing connected, and fails when the calendar is down', async ({ baseURL }) => {
-    expect(failures(await smokeTest(baseURL, { headers: { 'x-test-env': 'bare' } }))).toEqual([]);
-    expect(failures(await smokeTest(baseURL, { headers: { 'x-test-env': 'smokedown+caldown' } }))).toEqual(['calendar (Cal.com): answered 502, expected 200']);
+    expect(failures(await smokeTest(baseURL, { burst: false, headers: { 'x-test-env': 'bare' } }))).toEqual([]);
+    expect(failures(await smokeTest(baseURL, { burst: false, headers: { 'x-test-env': 'smokedown+caldown' } }))).toEqual(['calendar (Cal.com): answered 502, expected 200']);
     // The local server has no /version.txt, so no commit can match.
-    expect(failures(await smokeTest(baseURL, { sha: 'not-this-commit', headers: { 'x-test-env': 'smokesha' } }))).toEqual(['deployed commit: answered 404, expected 200']);
+    expect(failures(await smokeTest(baseURL, { burst: false, sha: 'not-this-commit', headers: { 'x-test-env': 'smokesha' } }))).toEqual(['deployed commit: answered 404, expected 200']);
+  });
+
+  test('fails when the per-address rate limit lets a burst through', async ({ baseURL }) => {
+    // No limits counted in this mode, as on a site whose limits aren't working.
+    expect(failures(await smokeTest(baseURL, { headers: { 'x-test-env': 'smokenolimit' } }))).toEqual(['rate limit: 60 requests in a row from one address were all answered; the per-minute limit isn\'t working']);
   });
 
   test('a used-up AI allowance is a warning, not a failure', async ({ baseURL, request }) => {
     const mode = 'smokelimited+aiusedup';
     await request.post(`/__test/cron?mode=${encodeURIComponent(mode)}`);
-    const results = await smokeTest(baseURL, { headers: { 'x-test-env': mode } });
+    const results = await smokeTest(baseURL, { burst: false, headers: { 'x-test-env': mode } });
     expect(failures(results)).toEqual([]);
     expect(results.filter(r => r.warn).map(r => r.name)).toEqual(['outside services']);
     expect(results.find(r => r.warn).note).toMatch(/^free daily allowance used up at .*: ai \(visitors get template outlines until it frees up\)$/);

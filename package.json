@@ -10,17 +10,20 @@
     "i18n": "node scripts/i18n.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p . && tsc -p tsconfig.browser.json",
-    "deadcode": "knip --no-progress"
+    "deadcode": "knip --no-progress",
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20260702.1",
+    "@cloudflare/workers-types": "5.20261003.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
     "eslint": "10.11.0",
     "globals": "17.13.0",
     "html-validate": "11.16.0",
-    "knip": "5.88.1",
-    "typescript": "5.9.3"
+    "knip": "6.39.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.147.0"
   }
 }

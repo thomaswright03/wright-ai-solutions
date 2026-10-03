@@ -338,9 +338,9 @@ export async function outlineRoute(request, env, ctx, url) {
   const lang = langOrEnglish(body.lang);
 
   // Per visitor (IP) per Cloudflare location, to stop one person or bot burning the daily quota.
-  if (await overLimit(env.OUTLINE_LIMIT, request)) return tooMany();
+  if (await overLimit(env.OUTLINE_LIMIT, request, env)) return tooMany();
   const on = features(env);
-  if (on.turnstile && !(await passedBotCheck(env, body.turnstile, clientIp(request)))) {
+  if (on.turnstile && !(await passedBotCheck(env, body.turnstile, clientIp(request), url.hostname))) {
     return json({ error: 'bot_check' }, 403);
   }
 

@@ -73,6 +73,12 @@ const SCHEMA = [
   // The daily check of each outside service (health.js): one row a day, with
   // { service: { ok, note } }. Kept 30 days.
   'CREATE TABLE IF NOT EXISTS service_checks (checked_at TEXT PRIMARY KEY, results TEXT NOT NULL)',
+  // Failed sign-ins to the leads list (a password given, and wrong): when, and
+  // from where as a keyed hash of the address (see addressTag), never the
+  // password. They limit guessing per address and alert Thomas to a burst
+  // (admin.js); rows are deleted after two days.
+  'CREATE TABLE IF NOT EXISTS admin_failures (tag TEXT NOT NULL, at TEXT NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS admin_failures_at ON admin_failures (at)',
   // Every change to the leads list, newest last: what was done, when, and to
   // which lead (its random ID, never its details). Shown on /admin and kept
   // about 13 months, like the counts.
@@ -234,8 +240,19 @@ export const newId = () => toBase64url(crypto.getRandomValues(new Uint8Array(16)
 // same tag, but a tag can't be read back as the address.
 /** @param {EnvWithDB} env @param {string} inbox */
 export async function inboxTag(env, inbox) {
+  return keyedTag(env, `inbox.${inbox}`);
+}
+
+// The same for an IP address, for counting failed sign-ins without keeping it.
+/** @param {EnvWithDB} env @param {string} address */
+export async function addressTag(env, address) {
+  return keyedTag(env, `address.${address}`);
+}
+
+/** @param {EnvWithDB} env @param {string} text */
+async function keyedTag(env, text) {
   const key = await signingKey(env.DB);
-  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, textToBytes(`inbox.${inbox}`)));
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, textToBytes(text)));
   return toBase64url(mac.subarray(0, 16));
 }
 

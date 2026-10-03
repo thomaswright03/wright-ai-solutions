@@ -71,10 +71,16 @@ export async function readJson(request, url, max) {
 export const clientIp = request => request.headers.get('CF-Connecting-IP') || 'unknown';
 
 // Cloudflare's rate limiting binding, per visitor (IP) per Cloudflare location.
-// No binding (the local test server) means no limit.
-/** @param {RateLimit | undefined} limiter @param {Request} request */
-export async function overLimit(limiter, request) {
-  if (!limiter) return false;
+// A binding missing where the database is connected is a deploy mistake, not
+// "no limit", so the request is refused and the mistake logged. Only the
+// local test server without a database runs with no limit.
+/** @param {RateLimit | undefined} limiter @param {Request} request @param {Env} env */
+export async function overLimit(limiter, request, env) {
+  if (!limiter) {
+    if (!env.DB) return false;
+    logError(new Error('rate limit binding missing'), { request, where: 'overLimit' });
+    return true;
+  }
   const { success } = await limiter.limit({ key: clientIp(request) });
   return !success;
 }

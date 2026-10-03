@@ -51,6 +51,8 @@ Cal.com never clearly answers, and the visitor can neither book again nor be fol
 - `worker.spec.mjs: a failing service is shown, alerted and published`
 - `worker.spec.mjs: a failed service is checked again each hour until it passes, without another alert`
 - `worker.spec.mjs: a sending-only Resend key passes, and services that are off are left out`
+- `worker.spec.mjs: go by email when ntfy doesn't take them, and use the ntfy access token when there is one`
+- `worker.spec.mjs: the daily check says when ntfy refuses and that alerts go by email instead`
 
 ### 7. Made-up promises, prices or figures, from the AI or on the site
 
@@ -93,6 +95,8 @@ A real problem that happens to read like an instruction gets the weaker template
 - `worker.spec.mjs: with the bot check on, only a visitor Cloudflare vouches for gets an outline`
 - `site.spec.mjs: a visitor who fails the bot check still sees an outline, with email and phone instead of saving`
 - `worker.spec.mjs: saving is rate limited per visitor`
+- `worker.spec.mjs: a missing rate limit binding refuses requests instead of allowing them all, and is logged`
+- `site.spec.mjs: fails when the per-address rate limit lets a burst through`
 
 ### 13. The site is used to send unwanted email to someone's inbox
 
@@ -105,6 +109,9 @@ A real problem that happens to read like an instruction gets the weaker template
 - `worker.spec.mjs: is hidden until the database and a long password are set`
 - `worker.spec.mjs: asks for the password, and shows leads and counts once given`
 - `worker.spec.mjs: slows down password guessing`
+- `worker.spec.mjs: wrong passwords shut out an address for an hour, even without the rate limit binding's help, and are logged without the password`
+- `worker.spec.mjs: a burst of wrong passwords from many addresses alerts Thomas once`
+- `worker.spec.mjs: a preview link uses none of the live secrets, leads or AI`
 - `worker.spec.mjs: deletes a lead only from its own page`
 - `site.spec.mjs: passes on a working site, and only reads` (the live check confirms `/admin` asks for its password)
 
