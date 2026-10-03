@@ -37,9 +37,8 @@ jobs:
   secret-scan:
     # Scans the WHOLE git history on every run, not just the pushed commits, so a
     # secret committed long ago keeps failing CI until it's dealt with.
-    # Expected to fail today: two commits (8f395ac, 651fb5f) hold a credential for
-    # another system that hasn't been rotated yet. See SECURITY.md for how to rotate
-    # it and then record the dead findings in .gitleaksignore.
+    # Findings for secrets that have been rotated are listed in .gitleaksignore
+    # (see SECURITY.md); anything else found anywhere in history fails this job.
     runs-on: ubuntu-latest
     env:
       GITLEAKS_VERSION: 8.28.0

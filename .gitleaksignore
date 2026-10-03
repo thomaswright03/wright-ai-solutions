@@ -1,0 +1,7 @@
+# Findings the secret-scan CI job skips. Only ROTATED (dead) secrets go here;
+# gitleaks still scans the whole history and fails on anything not listed.
+#
+# Lead-responder dashboard credential (separate system), committed in 8f395ac
+# and 651fb5f. Rotated by Thomas on 2026-10-03; the old value is dead.
+651fb5f0f845c4019a4634195c897e7b53e16dac:index.html:generic-api-key:132
+8f395acfc19175d2a87d0a39ac3c5840f20976f4:index.html:generic-api-key:186

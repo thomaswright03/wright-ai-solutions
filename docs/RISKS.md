@@ -149,6 +149,6 @@ A real problem that happens to read like an instruction gets the weaker template
 
 ## Not caught by a test
 
-- **The leaked credential in git history.** `ci.yml: secret-scan` stays red until Thomas rotates it (`SECURITY.md`).
+- **The leaked credential in git history.** Rotated by Thomas on 2026-10-03; its dead findings are in `.gitleaksignore`, and `ci.yml: secret-scan` fails on any other secret (`SECURITY.md`).
 - **Real devices and screen readers.** The browser tests use desktop Chromium at several widths; nobody has tested with VoiceOver, TalkBack or a real phone.
 - **Whether the outlines win work.** The counts on `/admin` show saves and bookings per ad, but not which calls became clients.

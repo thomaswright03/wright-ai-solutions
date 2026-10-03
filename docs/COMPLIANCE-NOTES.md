@@ -30,7 +30,6 @@ The "Source" and "Read" columns come from the Legal Check (pass 1, 2026-09-23), 
 ## Open items that need Thomas
 
 - Turn off Web Analytics (automatic setup) for wright-ai-solutions.com in the Cloudflare dashboard, so the beacon isn't injected at all. The live check on 2026-09-24 confirmed the live site serves the current `main` build.
-- Rotate the credential that is still in this repo's public git history.
 - Make the repository private or rewrite its history (see `docs/PRIVACY-ROUTINE.md`). Unlist the old Loom walkthrough.
 - Get written permission from Studio McKenna (artwork and name; `/start` also names the studio in its website outline) and from the lead-agent client (description of the work).
 - Confirm the LLC registration.
