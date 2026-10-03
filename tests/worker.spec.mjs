@@ -88,7 +88,19 @@ test.describe('outline', () => {
     for (let i = 0; i < 3; i++) sources.push((await (await send(fakes, post('/api/outline', { problem }))).json()).source);
     expect(sources).toEqual(['ai', 'ai', 'template']);
     expect(ai.calls).toHaveLength(2);
-    expect(await rows(fakes, 'SELECT day, n FROM ai_daily')).toEqual([{ day: new Date().toISOString().slice(0, 10), n: 3 }]);
+    expect(await rows(fakes, 'SELECT hour, n FROM ai_usage')).toEqual([{ hour: new Date().toISOString().slice(0, 13), n: 3 }]);
+  });
+
+  test('the cap counts the last 24 hours, the way the free allowance does, not the calendar day', async () => {
+    const ai = fakeAI(GOOD);
+    const fakes = fakesWith({ AI: ai, AI_DAILY_LIMIT: '3' });
+    await ensureSchema(fakes.env.DB);
+    const hourAgo = hours => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString().slice(0, 13);
+    // Two yesterday evening (still within 24 hours), and plenty a day and a half ago.
+    await fakes.env.DB.prepare('INSERT INTO ai_usage (hour, n) VALUES (?, 2), (?, 50)').bind(hourAgo(20), hourAgo(36)).run();
+    const sources = [];
+    for (let i = 0; i < 2; i++) sources.push((await (await send(fakes, post('/api/outline', { problem }))).json()).source);
+    expect(sources).toEqual(['ai', 'template']);
   });
 
   test('records how every outline was written, including why the template was used', async () => {
@@ -995,11 +1007,11 @@ test.describe('hourly job', () => {
   test('the counts behind the daily caps are cleared out after two days', async () => {
     const fakes = new FakeServices();
     await ensureSchema(fakes.env.DB);
-    await fakes.env.DB.prepare("INSERT INTO ai_daily (day, n) VALUES ('2026-10-01', 5), ('2026-10-06', 7), ('2026-10-07', 2)").run();
+    await fakes.env.DB.prepare("INSERT INTO ai_usage (hour, n) VALUES ('2026-10-05T15', 5), ('2026-10-06T03', 7), ('2026-10-07T16', 2)").run();
     await fakes.env.DB.prepare('INSERT INTO outline_sends (tag, sent_at) VALUES (?, ?), (?, ?)')
       .bind('old', new Date(NOW - 50 * HOUR).toISOString(), 'recent', new Date(NOW - 20 * HOUR).toISOString()).run();
     await runHourly(fakes);
-    expect(await rows(fakes, 'SELECT day FROM ai_daily ORDER BY day')).toEqual([{ day: '2026-10-06' }, { day: '2026-10-07' }]);
+    expect(await rows(fakes, 'SELECT hour FROM ai_usage ORDER BY hour')).toEqual([{ hour: '2026-10-06T03' }, { hour: '2026-10-07T16' }]);
     expect(await rows(fakes, 'SELECT tag FROM outline_sends')).toEqual([{ tag: 'recent' }]);
   });
 
@@ -1116,7 +1128,19 @@ test.describe('AI outline eval on the site', () => {
     expect((await report(fakes)).running).toEqual({ startedAt: new Date(NOW).toISOString(), done: EVAL_BATCH, total: CASES.length });
 
     const hours = await runToEnd(fakes, NOW + HOUR);
-    expect(hours).toBe(Math.ceil(CASES.length / EVAL_BATCH) - 1);
+    // EVAL_BATCH cases an hour, fewer once the eval's own calls in the last
+    // 24 hours near EVAL_ROOM.
+    let at = 0;
+    let used = 0;
+    let expected = 0;
+    while (at < CASES.length) {
+      const batch = CASES.slice(at, at + Math.min(EVAL_BATCH, EVAL_ROOM - used));
+      if (!batch.length) throw new Error('the eval can never finish inside EVAL_ROOM');
+      used += batch.filter(c => !looksLikeInjection(c.problem)).length;
+      at += batch.length;
+      expected += 1;
+    }
+    expect(hours + 1).toBe(expected);
     const done = await report(fakes);
     expect(done.running).toBeNull();
     expect(done.latest).toMatchObject({ current: true, version: await evalVersion(), model: MODEL, passed: CASES.length, total: CASES.length, rate: 1 });
@@ -1127,7 +1151,7 @@ test.describe('AI outline eval on the site', () => {
     expect(done.latest.results.find(r => r.id === 'injection-markers')).toEqual({ id: 'injection-markers', expect: 'unusable', pass: true, outcome: 'guarded', kindMatch: null });
     expect(ai.inputs).toHaveLength(asked);
     // Counted with visitors' outlines, so the daily AI cap covers it too.
-    expect(await rows(fakes, 'SELECT n FROM ai_daily')).toEqual([{ n: asked }]);
+    expect(await rows(fakes, 'SELECT SUM(n) AS n FROM ai_usage')).toEqual([{ n: asked }]);
     expect(fakes.alerts).toEqual([]);
 
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
@@ -1198,8 +1222,8 @@ test.describe('AI outline eval on the site', () => {
     await hourly(fakes, NOW);
     expect((await report(fakes)).running.done).toBe(3);
     // The failed call still used some of the allowance, so it's counted.
-    expect(await rows(fakes, 'SELECT n FROM ai_daily')).toEqual([{ n: 4 }]);
-    for (let hour = 1; hour <= Math.ceil((CASES.length - 3) / EVAL_BATCH); hour++) await hourly(fakes, NOW + hour * HOUR);
+    expect(await rows(fakes, 'SELECT n FROM ai_usage')).toEqual([{ n: 4 }]);
+    await runToEnd(fakes, NOW + HOUR);
     expect((await report(fakes)).latest).toMatchObject({ passed: CASES.length, total: CASES.length });
     expect(ai.inputs[3]).toEqual(ai.inputs[4]);
   });
@@ -1208,13 +1232,18 @@ test.describe('AI outline eval on the site', () => {
     const ai = evalAI();
     const fakes = fakesWith({ AI: ai });
     await ensureSchema(fakes.env.DB);
-    const today = new Date(NOW).toISOString().slice(0, 10);
-    await fakes.env.DB.prepare('INSERT INTO ai_daily (day, n) VALUES (?, ?)').bind(today, EVAL_ROOM - 5).run();
+    // Outlines written 20 hours ago, the previous UTC day, still count: the
+    // free allowance covers the last 24 hours.
+    const earlier = new Date(NOW - 20 * HOUR).toISOString().slice(0, 13);
+    await fakes.env.DB.prepare('INSERT INTO ai_usage (hour, n) VALUES (?, ?)').bind(earlier, EVAL_ROOM - 5).run();
     await hourly(fakes, NOW);
     expect(ai.inputs).toHaveLength(5);
     await hourly(fakes, NOW + HOUR);
     expect(ai.inputs).toHaveLength(5);
-    expect(await rows(fakes, 'SELECT n FROM ai_daily WHERE day = ?', today)).toEqual([{ n: EVAL_ROOM }]);
+    expect(await rows(fakes, 'SELECT SUM(n) AS n FROM ai_usage')).toEqual([{ n: EVAL_ROOM }]);
+    // Once those are more than 24 hours old, there's room again.
+    await hourly(fakes, NOW + 5 * HOUR);
+    expect(ai.inputs).toHaveLength(5 + EVAL_BATCH);
   });
 
   test('a changed model, prompt or set of cases starts a new run, and the old result says it is out of date', async () => {
@@ -1298,9 +1327,9 @@ test.describe('daily check of the outside services', () => {
   test('checks each service once a day, sends nothing, and publishes only which passed', async () => {
     const ai = fakeAI('OK');
     const fakes = fakesWith({ AI: ai }, { turnstile: true });
-    expect(await health(fakes)).toEqual({ checkedAt: null, services: {} });
+    expect(await health(fakes)).toEqual({ checkedAt: null, services: {}, limited: [] });
     await check(fakes, NOW);
-    expect(await health(fakes)).toEqual({ checkedAt: new Date(NOW).toISOString(), services: all });
+    expect(await health(fakes)).toEqual({ checkedAt: new Date(NOW).toISOString(), services: all, limited: [] });
     expect(ai.calls).toHaveLength(1);
     expect(fakes.emails).toEqual([]);
     expect(fakes.bookings).toEqual([]);
@@ -1326,6 +1355,43 @@ test.describe('daily check of the outside services', () => {
     expect(fakes.alerts[0].body).toBe('Email (Resend): wright-ai-solutions.com is pending. Calendar (Cal.com): Cal.com didn\'t answer. AI outlines (Workers AI): couldn\'t be reached. Details on your leads list.');
     const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
     expect(html).toContain('<strong>Failing</strong>: Calendar (Cal.com), Cal.com didn&#39;t answer');
+  });
+
+  test('a failed service is checked again each hour until it passes, without another alert', async () => {
+    const fakes = fakesWith({ AI: fakeAI('OK') }, { ntfyFlaky: 2 });
+    await check(fakes, NOW);
+    expect((await health(fakes)).services).toEqual({ ...all, botCheck: undefined, alerts: false });
+    expect(fakes.alerts.map(a => a.title)).toEqual(['A service /start needs is failing']);
+    const resend = () => fakes.requests.filter(r => r.startsWith('GET api.resend.com')).length;
+    const checkedEmail = resend();
+
+    // Still failing an hour later: only ntfy is asked again, and no new alert.
+    await check(fakes, NOW + HOUR);
+    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + HOUR).toISOString(), services: { email: true, alerts: false } });
+    // Passing the hour after: the failure clears the same day.
+    await check(fakes, NOW + 2 * HOUR);
+    expect(await health(fakes)).toMatchObject({ checkedAt: new Date(NOW + 2 * HOUR).toISOString(), services: { email: true, alerts: true } });
+    expect(resend()).toBe(checkedEmail);
+    expect(fakes.alerts).toHaveLength(1);
+
+    // With everything passing, nothing more runs until the next day.
+    const made = fakes.requests.length;
+    await check(fakes, NOW + 3 * HOUR);
+    expect(fakes.requests.length).toBe(made);
+    expect((await health(fakes)).checkedAt).toBe(new Date(NOW + 2 * HOUR).toISOString());
+  });
+
+  test('a used-up AI allowance is reported as that, not as an outage, and clears when the allowance frees up', async () => {
+    const fakes = fakesWith({ AI: fakeAI(new Error('4006: you have used up your daily free allocation of 10,000 neurons')) });
+    await check(fakes, NOW);
+    expect(await health(fakes)).toMatchObject({ services: { ai: false, email: true }, limited: ['ai'] });
+    expect(fakes.alerts).toEqual([]);
+    const html = await (await send(fakes, get('/admin', basic('local-demo-password')))).text();
+    expect(html).toContain('<strong>Allowance used up</strong>: AI outlines (Workers AI), the free daily allowance is used up');
+
+    fakes.env.AI = fakeAI('OK');
+    await check(fakes, NOW + HOUR);
+    expect(await health(fakes)).toMatchObject({ services: { ai: true }, limited: [] });
   });
 
   test('a sending-only Resend key passes, and services that are off are left out', async () => {

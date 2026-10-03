@@ -10,7 +10,7 @@
 import { languageFor } from '../languages.js';
 import { KINDS, OUTLINES, adFor, kindScores, localize, pickKind } from '../outlines.js';
 import { features, settings } from './config.js';
-import { count, countOutcome, ensureSchema, hasDatabase, newId, sign } from './db.js';
+import { count, countAiCalls, countOutcome, ensureSchema, hasDatabase, newId, sign } from './db.js';
 import { cameFrom, langOrEnglish } from './leads.js';
 import { clean, clientIp, json, overLimit, readJson, tooMany, withTimeout } from './http.js';
 import { passedBotCheck } from './services.js';
@@ -186,16 +186,15 @@ export function writtenIn(outline, lang = 'en') {
   return (all.match(ENGLISH_WORDS) || []).length < words * 0.08;
 }
 
-// Counts one more AI outline for today and says whether it's within the daily
-// cap (settings().aiDailyLimit). The day is UTC, when the free allowance
-// resets. On the Paid plan the cap limits what a flood of requests could cost.
-// Without the database there's nothing to count in, so no cap.
+// Counts one more AI outline and says whether it's within the cap
+// (settings().aiDailyLimit) for the last 24 hours, the window Workers AI's free
+// allowance counts. On the Paid plan the cap limits what a flood of requests
+// could cost. Without the database there's nothing to count in, so no cap.
 /** @param {Env} env */
 async function underDailyCap(env) {
   if (!env.DB) return true;
   await ensureSchema(env.DB);
-  const used = await env.DB.prepare('INSERT INTO ai_daily (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1 RETURNING n')
-    .bind(new Date().toISOString().slice(0, 10)).first('n');
+  const used = await countAiCalls(env.DB, 1);
   return Number(used) <= settings(env).aiDailyLimit;
 }
 

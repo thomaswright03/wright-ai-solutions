@@ -19,6 +19,7 @@
   "I build the AI systems your business <span class=\"grad-text\">actually runs on.</span>": "我打造的，是您的企业<span class=\"grad-text\">真正赖以运转的 AI 系统。</span>",
   "See the work": "查看作品",
   "Start a project →": "开始一个项目 →",
+  "$11,760": "$11,760",
   "in client revenue from leads my AI agent texted": "来自我的 AI 智能体发短信跟进的潜在客户，为客户带来的收入",
   "companies worked with": "家合作过的公司",
   "industries, listed below": "个行业，见下方列表",
@@ -97,7 +98,7 @@
   "Privacy Notice — Wright AI Solutions LLC": "隐私声明 — Wright AI Solutions LLC",
   "What wright-ai-solutions.com collects, what our host logs, how inquiry emails and calls are handled and kept, and how to ask for anything to be removed.": "wright-ai-solutions.com 收集哪些信息、我们的主机服务商记录哪些内容、咨询邮件和通话如何处理与保存，以及如何要求删除任何信息。",
   "Privacy notice": "隐私声明",
-  "Last updated 2 October 2026": "最后更新于 2026 年 10 月 2 日",
+  "Last updated 3 October 2026": "最后更新于 2026 年 10 月 3 日",
   "This notice covers wright-ai-solutions.com, run by Wright AI Solutions LLC (Thomas Wright), and what happens when you email or call us from it. Questions or requests go to <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>.": "本声明适用于由 Wright AI Solutions LLC（Thomas Wright）运营的 wright-ai-solutions.com，以及您通过本网站给我们发邮件或打电话时会发生什么。如有疑问或请求，请发送至 <a href=\"mailto:t@thomasewright.com\">t@thomasewright.com</a>。",
   "What this site collects": "本网站收集哪些信息",
   "The Start a project page": "“开始一个项目”页面",
@@ -437,6 +438,6 @@
   "Parking · Beta": "停车 · 测试版",
   "A daily parking marketplace in beta. Property owners list open spots, and drivers find and book them nearby on a live map.": "一个按天计费的停车位交易平台，目前为测试版。业主发布空闲车位，司机在实时地图上查找并预订附近的车位。",
   "Sign up for ParkLess<span class=\"visually-hidden\"> (opens in a new tab)</span>": "注册 ParkLess<span class=\"visually-hidden\">（在新标签页中打开）</span>",
-  "Apart from the Start a project page, described in the next section, nothing directly. The rest of the site has no forms, accounts, analytics or advertising trackers, and the site's own code sets no cookies anywhere. The only things it saves in your browser are your light or dark theme choice, if you pick one, and, on the Start a project page, what you type and your outline, until you close the tab. The site sends a security policy that only lets scripts load from this site itself (plus Cloudflare's bot check, on the Start a project page), so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.": "除下一节所述的“开始一个项目”页面外，本网站不直接收集任何信息。网站的其余部分没有表单、账户、分析工具或广告追踪器，网站自身的代码在任何地方都不设置 Cookie。它在您的浏览器中保存的内容只有：您选择的浅色或深色主题（如果您选择了的话），以及在“开始一个项目”页面上，您输入的内容和项目大纲（保存至您关闭该标签页为止）。本网站发送一项安全策略，只允许从本网站自身加载脚本（另加“开始一个项目”页面上的 Cloudflare 机器人验证），因此第三方追踪器无法在此运行。本网站的脚本用于打开移动端菜单、在浅色与深色主题之间切换、显示当前年份、在您滚动时为各版块添加动画效果，以及在您点击我们的邮箱或电话号码时将其复制到剪贴板；这些都不会离开您的浏览器。",
+  "Apart from the Start a project page, described in the next section, nothing directly. The rest of the site has no forms, accounts, analytics or advertising trackers, and the site's own code sets no cookies anywhere. The only things it saves in your browser are your light or dark theme choice, if you pick one, the language you pick from the language menu, so the English pages can offer it next time, and, on the Start a project page, what you type and your outline, until you close the tab. The site sends a security policy that only lets scripts load from this site itself (plus Cloudflare's bot check, on the Start a project page), so third-party trackers can't run here. The site's scripts open the mobile menu, switch between light and dark themes, show the current year, animate sections as you scroll, and copy our email or phone number to your clipboard when you click them; none of that leaves your browser.": "除下一节所述的“开始一个项目”页面外，本网站不直接收集任何信息。网站的其余部分没有表单、账户、分析工具或广告追踪器，网站自身的代码在任何地方都不设置 Cookie。它在您的浏览器中保存的内容只有：您选择的浅色或深色主题（如果您选择了的话），您在语言菜单中选择的语言（以便英文页面下次为您提供该语言），以及在“开始一个项目”页面上，您输入的内容和项目大纲（保存至您关闭该标签页为止）。本网站发送一项安全策略，只允许从本网站自身加载脚本（另加“开始一个项目”页面上的 Cloudflare 机器人验证），因此第三方追踪器无法在此运行。本网站的脚本用于打开移动端菜单、在浅色与深色主题之间切换、显示当前年份、在您滚动时为各版块添加动画效果，以及在您点击我们的邮箱或电话号码时将其复制到剪贴板；这些都不会离开您的浏览器。",
   "Sign up for AI Waste Bot<span class=\"visually-hidden\"> (opens in a new tab)</span>": "注册 AI Waste Bot<span class=\"visually-hidden\">（在新标签页中打开）</span>"
 }

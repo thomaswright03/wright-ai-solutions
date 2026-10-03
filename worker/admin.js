@@ -174,13 +174,13 @@ function healthPanel(report, timeZone) {
   const body = !report
     ? '<p>Not checked yet. It runs once a day, in the hourly job.</p>'
     : rows.length
-      ? `<ul class="admin-health">${rows.map(([name, r]) => `<li>${r.ok ? 'OK' : '<strong>Failing</strong>'}: ${esc(SERVICES[name] || name)}, ${esc(r.note)}</li>`).join('')}</ul>`
+      ? `<ul class="admin-health">${rows.map(([name, r]) => `<li>${r.ok ? 'OK' : r.limited ? '<strong>Allowance used up</strong>' : '<strong>Failing</strong>'}: ${esc(SERVICES[name] || name)}, ${esc(r.note)}</li>`).join('')}</ul>`
       : '<p>No outside services are switched on yet.</p>';
   return `<section class="admin-eval" aria-labelledby="health-title">
 <h2 id="health-title">Outside services</h2>
 ${report ? `<p>Checked ${esc(when(report.checkedAt))}.</p>` : ''}
 ${body}
-<p class="admin-muted">Checked once a day; a phone alert goes out when one fails. Public summary: <a href="/api/health">/api/health</a></p>
+<p class="admin-muted">Checked once a day, and again every hour while one is failing; a phone alert goes out when one fails. Public summary: <a href="/api/health">/api/health</a></p>
 </section>`;
 }
 

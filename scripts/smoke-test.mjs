@@ -14,6 +14,10 @@ const arg = name => (args.find(a => a.startsWith(`--${name}=`)) || '').slice(nam
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// Something worth a look that doesn't fail the check, such as the AI's free
+// daily allowance being used up: visitors still get an outline, from a template.
+class Warning extends Error {}
+
 // Every check, in order. Each returns a short note for the log, or throws.
 export function checks(base, { sha = null, headers = {} } = {}) {
   const get = (path, init = {}) => fetch(new URL(path, base), { redirect: 'manual', ...init, headers: { ...headers, ...init.headers }, signal: AbortSignal.timeout(20000) });
@@ -78,14 +82,16 @@ export function checks(base, { sha = null, headers = {} } = {}) {
       return running ? `first run ${running.done}/${running.total} done` : `not run yet${report.on ? '' : ' (AI not connected)'}`;
     }],
     ['outside services', async () => {
-      // The Worker checks each service with its own keys once a day (worker/health.js).
+      // The Worker checks each service with its own keys once a day, and each
+      // hour again while one is failing (worker/health.js).
       const res = await get('/api/health');
       expectStatus(res, 200);
-      const { checkedAt, services } = await jsonOf(res);
+      const { checkedAt, services, limited = [] } = await jsonOf(res);
       if (!checkedAt) return 'not checked yet (the first check runs within the hour)';
       if (Date.parse(checkedAt) < Date.now() - 26 * 60 * 60 * 1000) throw new Error(`the daily check hasn't run since ${checkedAt}`);
-      const failing = Object.entries(services).filter(([, ok]) => !ok).map(([name]) => name);
+      const failing = Object.entries(services).filter(([name, ok]) => !ok && !limited.includes(name)).map(([name]) => name);
       if (failing.length) throw new Error(`failing in the check at ${checkedAt}: ${failing.join(', ')}`);
+      if (limited.length) throw new Warning(`free daily allowance used up at ${checkedAt}: ${limited.join(', ')} (visitors get template outlines until it frees up)`);
       return `${Object.keys(services).join(', ') || 'none switched on'} passed at ${checkedAt}`;
     }],
     ['outline API', async () => {
@@ -116,7 +122,7 @@ export async function smokeTest(base, options) {
     try {
       results.push({ name, ok: true, note: await check() });
     } catch (err) {
-      results.push({ name, ok: false, note: String(err && err.message ? err.message : err) });
+      results.push({ name, ok: err instanceof Warning, warn: err instanceof Warning, note: String(err && err.message ? err.message : err) });
     }
   }
   return results;
@@ -125,9 +131,10 @@ export async function smokeTest(base, options) {
 async function main() {
   const base = arg('base') || 'https://wright-ai-solutions.com';
   const results = await smokeTest(base, { sha: arg('sha') });
-  for (const { name, ok, note } of results) {
-    console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}: ${note}`);
+  for (const { name, ok, warn, note } of results) {
+    console.log(`${warn ? 'warn' : ok ? 'ok  ' : 'FAIL'}  ${name}: ${note}`);
     if (!ok && process.env.GITHUB_ACTIONS) console.log(`::error title=Live check: ${name}::${note}`);
+    if (warn && process.env.GITHUB_ACTIONS) console.log(`::warning title=Live check: ${name}::${note}`);
   }
   const failed = results.filter(r => !r.ok).length;
   console.log(`\n${base}: ${results.length - failed} of ${results.length} checks passed.`);

@@ -114,6 +114,41 @@ test.describe('language menu', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await context.close();
   });
+
+  test('remembers the language picked, and English pages offer it rather than redirecting', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/');
+    await expect(page.locator('.lang-offer')).toHaveCount(0);
+    await page.locator('.lang-menu summary').click();
+    await page.locator('.lang-list').getByRole('link', { name: '한국어' }).click();
+    await expect(page).toHaveURL(/\/ko\/$/);
+
+    // Back on an English page, in a new tab: still English, with the offer in Korean.
+    const again = await page.context().newPage();
+    await again.setViewportSize({ width: 375, height: 800 });
+    await again.goto('/start');
+    await expect(again.locator('html')).toHaveAttribute('lang', 'en');
+    const offer = again.locator('.lang-offer a');
+    await expect(offer).toHaveText('이 페이지를 한국어로 보기');
+    await expect(offer).toHaveAttribute('href', '/ko/start');
+    await expect(offer).toHaveAttribute('lang', 'ko');
+    expect(await again.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+    expect((await offer.boundingBox()).height).toBeGreaterThanOrEqual(44);
+
+    // "Keep English" is remembered too.
+    await again.getByRole('button', { name: 'Keep English' }).click();
+    await expect(again.locator('.lang-offer')).toHaveCount(0);
+    await again.reload();
+    await expect(again.locator('.lang-offer')).toHaveCount(0);
+    await again.close();
+  });
+});
+
+test('the hero figure is written the way each language writes numbers', async ({ page }) => {
+  for (const [code, figure] of [['fr', '11\u00a0760\u00a0$'], ['ru', '$11\u00a0760'], ['pt', '$11.760'], ['es', '$11,760']]) {
+    await page.goto(`/${code}/`);
+    await expect(page.locator('.hero-stats strong').first()).toHaveText(figure);
+  }
 });
 
 test('Arabic reads right to left: the logo is on the right and the menu opens leftward', async ({ page }) => {

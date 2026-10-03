@@ -5,7 +5,7 @@ import { escapeHtml as esc } from './http.js';
 import { STRINGS } from './strings.js';
 
 // Matches the ?v= the static pages use, so the stylesheet isn't served stale.
-const ASSET_VERSION = 15;
+const ASSET_VERSION = 16;
 
 // The /forget pages are in the language of the visitor's emails (lang); /admin is English.
 /** @param {{ title: string, body: string, wide?: boolean, extraCss?: string, lang?: string }} parts */

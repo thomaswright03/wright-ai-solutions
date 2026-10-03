@@ -385,7 +385,7 @@ export async function runSchedule(env, now = Date.now()) {
     env.DB.prepare('DELETE FROM leads WHERE created_at < ?').bind(iso(now - RETENTION_DAYS * DAY)),
     env.DB.prepare('DELETE FROM counts WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
     env.DB.prepare('DELETE FROM outline_outcomes WHERE day < ?').bind(dayIn(cfg.ownerTz, new Date(now - 400 * DAY))),
-    env.DB.prepare('DELETE FROM ai_daily WHERE day < ?').bind(iso(now - 2 * DAY).slice(0, 10)),
+    env.DB.prepare('DELETE FROM ai_usage WHERE hour < ?').bind(iso(now - 2 * DAY).slice(0, 13)),
     env.DB.prepare('DELETE FROM outline_sends WHERE sent_at < ?').bind(iso(now - 2 * DAY)),
     env.DB.prepare('DELETE FROM admin_log WHERE at < ?').bind(iso(now - 400 * DAY)),
   ]);

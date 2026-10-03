@@ -6,13 +6,13 @@
 // "Caching"), which TypeScript can't resolve by itself. Bump the number here
 // with the rest; CI checks it matches.
 // List here whatever start.js imports from it.
-declare module '*/outlines.js?v=15' {
+declare module '*/outlines.js?v=16' {
   export const OUTLINES: typeof import('./outlines.js').OUTLINES;
   export const adFor: typeof import('./outlines.js').adFor;
   export const pickKind: typeof import('./outlines.js').pickKind;
   export const localize: typeof import('./outlines.js').localize;
 }
-declare module '*/languages.js?v=15' {
+declare module '*/languages.js?v=16' {
   export const languageFor: typeof import('./languages.js').languageFor;
   export const translate: typeof import('./languages.js').translate;
 }
