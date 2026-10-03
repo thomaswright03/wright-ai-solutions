@@ -1169,7 +1169,7 @@ test('Our Services lists each product by name, presented by Wright AI Solutions,
   const section = page.locator('#our-services');
   await expect(section.locator('.eyebrow')).toHaveText('Our Services');
   const expected = {
-    'AI Waste Bot': '/start?for=leads',
+    'AI Waste Bot': 'https://hauler-signup.vercel.app/',
     'Data→Lead→Sell': 'https://dataleadsell.com',
     'ParkLess': 'https://park-less.vercel.app/signup',
   };
